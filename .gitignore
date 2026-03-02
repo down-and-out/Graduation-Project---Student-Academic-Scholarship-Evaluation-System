@@ -47,3 +47,6 @@ logs/
 
 # Claude
 .claude/
+
+# Docs
+docs/

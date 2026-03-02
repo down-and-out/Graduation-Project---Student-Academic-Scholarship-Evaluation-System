@@ -131,10 +131,10 @@ public class RedisConfig {
         objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
 
         // 启用类型信息（用于多态序列化）
-        // 使用 NON_CONCRETE 仅对非具体类型（抽象类和接口）添加类型信息，更安全
+        // 使用 NON_FINAL 仅对非 final 类型添加类型信息，更安全
         objectMapper.activateDefaultTyping(
                 LaissezFaireSubTypeValidator.instance,
-                ObjectMapper.DefaultTyping.NON_CONCRETE,
+                ObjectMapper.DefaultTyping.NON_FINAL,
                 JsonTypeInfo.As.PROPERTY
         );
 

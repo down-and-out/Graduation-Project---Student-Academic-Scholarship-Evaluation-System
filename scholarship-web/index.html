@@ -23,12 +23,6 @@
     <!-- 防止 MIME 类型嗅探 -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
 
-    <!-- 防止点击劫持攻击 -->
-    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN" />
-
-    <!-- 启用 XSS 过滤器（旧版浏览器） -->
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
-
     <!-- 控制 referrer 信息泄露 -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
@@ -41,8 +35,7 @@
                style-src 'self' 'unsafe-inline';
                img-src 'self' data: https:;
                font-src 'self' data:;
-               connect-src 'self' /api;
-               frame-ancestors 'self';
+               connect-src 'self' ws: wss:;
                base-uri 'self';
                form-action 'self'"
     />

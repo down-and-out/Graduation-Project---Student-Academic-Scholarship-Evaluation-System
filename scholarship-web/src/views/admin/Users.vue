@@ -26,21 +26,23 @@
     <!-- 搜索表单 -->
     <el-form :inline="true" class="search-form">
       <el-form-item label="关键字">
-        <el-input v-model="queryParams.keyword" placeholder="用户名或姓名" clearable />
+        <el-input v-model="queryParams.keyword" placeholder="用户名或姓名" clearable @clear="handleQuery" @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item label="角色">
-        <el-select v-model="queryParams.role" placeholder="请选择" clearable>
-          <el-option label="全部" value="" />
-          <el-option v-for="opt in ROLE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+        <el-select v-model="queryParams.userType" placeholder="全部" clearable @change="handleQuery">
+          <el-option label="研究生" :value="USER_TYPE.STUDENT" />
+          <el-option label="导师" :value="USER_TYPE.TUTOR" />
+          <el-option label="管理员" :value="USER_TYPE.ADMIN" />
         </el-select>
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="queryParams.status" placeholder="请选择" clearable>
-          <el-option v-for="opt in STATUS_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+        <el-select v-model="queryParams.status" placeholder="全部" clearable @change="handleQuery">
+          <el-option label="启用" :value="USER_STATUS.ENABLED" />
+          <el-option label="禁用" :value="USER_STATUS.DISABLED" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="loadData">查询</el-button>
+        <el-button type="primary" @click="handleQuery">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
@@ -67,11 +69,11 @@
       <el-table-column type="selection" width="55" />
       <el-table-column type="index" label="序号" width="60" />
       <el-table-column prop="username" label="用户名" width="130" />
-      <el-table-column prop="name" label="姓名" width="100" />
-      <el-table-column prop="role" label="角色" width="100">
+      <el-table-column prop="realName" label="姓名" width="100" />
+      <el-table-column prop="userType" label="角色" width="100">
         <template #default="{ row }">
-          <el-tag :type="roleMapper.getType(row.role)">
-            {{ roleMapper.getText(row.role) }}
+          <el-tag :type="getUserTypeTagType(row.userType)">
+            {{ getUserTypeText(row.userType) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -80,12 +82,16 @@
       <el-table-column prop="email" label="邮箱" min-width="180" />
       <el-table-column prop="status" label="状态" width="80">
         <template #default="{ row }">
-          <el-tag :type="userStatusMapper.getType(row.status)">
-            {{ userStatusMapper.getText(row.status) }}
+          <el-tag :type="getUserStatusTagType(row.status)">
+            {{ getUserStatusText(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="createTime" label="创建时间" width="160" />
+      <el-table-column prop="createTime" label="创建时间" width="160">
+        <template #default="{ row }">
+          {{ formatDateTime(row.createTime) }}
+        </template>
+      </el-table-column>
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handleView(row)" aria-label="查看详情">
@@ -135,15 +141,15 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="姓名" prop="name">
-              <el-input v-model="formData.name" placeholder="请输入姓名" />
+            <el-form-item label="姓名" prop="realName">
+              <el-input v-model="formData.realName" placeholder="请输入姓名" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="角色" prop="role">
-              <el-select v-model="formData.role" style="width: 100%">
+            <el-form-item label="角色" prop="userType">
+              <el-select v-model="formData.userType" style="width: 100%">
                 <el-option v-for="opt in ROLE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
               </el-select>
             </el-form-item>
@@ -190,18 +196,18 @@
       <el-descriptions :column="2" border v-if="viewData">
         <el-descriptions-item label="用户 ID">{{ viewData.id }}</el-descriptions-item>
         <el-descriptions-item label="用户名">{{ viewData.username }}</el-descriptions-item>
-        <el-descriptions-item label="姓名">{{ viewData.name }}</el-descriptions-item>
+        <el-descriptions-item label="姓名">{{ viewData.realName || viewData.name }}</el-descriptions-item>
         <el-descriptions-item label="角色">
-          <el-tag :type="roleMapper.getType(viewData.role)">
-            {{ roleMapper.getText(viewData.role) }}
+          <el-tag :type="getUserTypeTagType(viewData.userType)">
+            {{ getUserTypeText(viewData.userType) }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="院系">{{ viewData.department }}</el-descriptions-item>
         <el-descriptions-item label="联系电话">{{ viewData.phone }}</el-descriptions-item>
         <el-descriptions-item label="邮箱">{{ viewData.email }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="userStatusMapper.getType(viewData.status)">
-            {{ userStatusMapper.getText(viewData.status) }}
+          <el-tag :type="getUserStatusTagType(viewData.status)">
+            {{ getUserStatusText(viewData.status) }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ viewData.createTime }}</el-descriptions-item>
@@ -217,11 +223,75 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, View, Edit, Delete, RefreshLeft } from '@element-plus/icons-vue'
-import { roleMapper, userStatusMapper } from '@/composables/useStatusMapper'
 import { isValidPhone, isValidEmail, isValidUsername, deepClone, debounce } from '@/utils/helpers'
 
-// API 方法（需要时取消注释）
-// import { getUserPage, addUser, updateUser, deleteUser, resetPassword, batchDeleteUsers } from '@/api/user'
+// 用户类型映射（后端 userType: 1-研究生 2-导师 3-管理员）
+const userTypeMapper = {
+  1: { text: '研究生', type: 'success' },
+  2: { text: '导师', type: 'warning' },
+  3: { text: '管理员', type: 'danger' }
+}
+
+// 用户状态映射
+const userStatusMap = {
+  0: { text: '禁用', type: 'info' },
+  1: { text: '启用', type: 'success' }
+}
+
+// 角色选项（用于表单下拉框）
+const ROLE_OPTIONS = [
+  { label: '研究生', value: 1 },
+  { label: '导师', value: 2 },
+  { label: '管理员', value: 3 }
+]
+
+// 用户类型常量（与后端保持一致）
+const USER_TYPE = {
+  STUDENT: 1,
+  TUTOR: 2,
+  ADMIN: 3
+}
+
+// 用户状态常量
+const USER_STATUS = {
+  DISABLED: 0,
+  ENABLED: 1
+}
+
+function getUserTypeText(userType) {
+  if (userType === undefined || userType === null || userType === '') return ''
+  return userTypeMapper[userType]?.text || userTypeMapper[String(userType)]?.text || '未知'
+}
+
+function getUserTypeTagType(userType) {
+  if (userType === undefined || userType === null || userType === '') return ''
+  return userTypeMapper[userType]?.type || userTypeMapper[String(userType)]?.type || ''
+}
+
+function getUserStatusText(status) {
+  if (status === undefined || status === null || status === '') return ''
+  return userStatusMap[status]?.text || userStatusMap[String(status)]?.text || '未知'
+}
+
+function getUserStatusTagType(status) {
+  if (status === undefined || status === null || status === '') return ''
+  return userStatusMap[status]?.type || userStatusMap[String(status)]?.type || ''
+}
+
+import { getUserPage, addUser, updateUser, deleteUser, resetPassword, batchDeleteUsers } from '@/api/user'
+
+// 日期时间格式化
+function formatDateTime(dateTime) {
+  if (!dateTime) return ''
+  const date = new Date(dateTime)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
 
 // 状态
 const loading = ref(false)
@@ -243,21 +313,21 @@ const viewData = ref(null)
 // 批量删除 loading 状态
 const batchDeleting = ref(false)
 
-// 查询参数
+// 查询参数（使用 undefined 作为初始值，避免类型不匹配导致 el-select 显示问题）
 const queryParams = reactive({
   current: 1,
   size: 10,
   keyword: '',
-  role: '',
-  status: ''
+  userType: undefined,
+  status: undefined
 })
 
 // 表单数据
 const defaultFormData = {
   id: null,
   username: '',
-  name: '',
-  role: 'student',
+  realName: '',
+  userType: 1,  // 使用 userType 字段（1-研究生 2-导师 3-管理员）
   department: '',
   phone: '',
   email: '',
@@ -265,21 +335,6 @@ const defaultFormData = {
 }
 
 const formData = reactive({ ...defaultFormData })
-
-// 常量配置
-// 角色选项（统一管理，避免重复）
-const ROLE_OPTIONS = [
-  { label: '管理员', value: 'admin' },
-  { label: '导师', value: 'tutor' },
-  { label: '研究生', value: 'student' }
-]
-
-// 状态选项
-const STATUS_OPTIONS = [
-  { label: '全部', value: '' },
-  { label: '启用', value: 1 },
-  { label: '禁用', value: 0 }
-]
 
 // 计算属性
 const dialogTitle = computed(() => isEdit.value ? '编辑用户' : '添加用户')
@@ -299,8 +354,8 @@ const formRules = computed(() => ({
       trigger: 'blur'
     }
   ],
-  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  role: [{ required: true, message: '请选择角色', trigger: 'change' }],
+  realName: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  userType: [{ required: true, message: '请选择角色', trigger: 'change' }],
   department: [{ required: true, message: '请输入院系', trigger: 'blur' }],
   phone: [
     { required: true, message: '请输入联系电话', trigger: 'blur' },
@@ -334,19 +389,30 @@ const formRules = computed(() => ({
 // 方法
 
 /**
+ * 获取查询参数（处理空值）
+ */
+function getQueryParams() {
+  return {
+    current: queryParams.current,
+    size: queryParams.size,
+    keyword: queryParams.keyword,
+    // 注意：status 为 0 时是有效值（禁用状态），不能使用 || 运算符
+    userType: queryParams.userType !== undefined && queryParams.userType !== '' && queryParams.userType !== null ? queryParams.userType : undefined,
+    status: queryParams.status !== undefined && queryParams.status !== '' && queryParams.status !== null ? queryParams.status : undefined
+  }
+}
+
+/**
  * 加载数据
  */
 async function loadData() {
   loading.value = true
   try {
-    // 调用实际 API 接口
-    // const res = await getUserPage(queryParams)
-    // tableData.value = res.data?.records || []
-    // total.value = res.data?.total || 0
-    // 模拟数据（仅用于演示，实际使用时删除）
-    await new Promise(resolve => setTimeout(resolve, 300))
-    tableData.value = []
-    total.value = 0
+    const res = await getUserPage(getQueryParams())
+    // axios 响应格式：res.data 是后端返回的 Result 对象，res.data.data 才是真正的数据
+    const pageData = res.data?.data || res.data || {}
+    tableData.value = pageData.records || []
+    total.value = pageData.total || 0
   } catch (error) {
     console.error('查询失败:', error)
     ElMessage.error('查询失败，请稍后重试')
@@ -355,25 +421,38 @@ async function loadData() {
   }
 }
 
-// 防抖版本的加载数据函数
-const debouncedLoadData = debounce(loadData, 300)
+/**
+ * 查询（用于搜索条件变化时）
+ */
+function handleQuery() {
+  queryParams.current = 1
+  loadData()
+}
 
 /**
  * 重置查询
  */
 function handleReset() {
   queryParams.keyword = ''
-  queryParams.role = ''
-  queryParams.status = ''
+  queryParams.userType = undefined
+  queryParams.status = undefined
   queryParams.current = 1
   loadData()
 }
 
+/**
+ * 防抖版本的查询
+ */
+const debouncedQuery = debounce(handleQuery, 300)
+
+/**
+ * 关键字变化监听（防抖）
+ */
 watch(
   () => queryParams.keyword,
   () => {
     queryParams.current = 1
-    debouncedLoadData()
+    debouncedQuery()
   }
 )
 
@@ -423,7 +502,10 @@ function handleAdd() {
  */
 function handleEdit(row) {
   isEdit.value = true
-  Object.assign(formData, deepClone(row))
+  // 使用 realName 字段
+  const editData = deepClone(row)
+  editData.realName = row.realName || row.name || ''
+  Object.assign(formData, editData)
   dialogVisible.value = true
 }
 
@@ -431,14 +513,15 @@ function handleEdit(row) {
  * 重置密码
  */
 function handleResetPassword(row) {
-  ElMessageBox.confirm(`确定要重置用户"${row.name}"的密码吗？\n\n重置后密码将恢复为默认密码：123456`, '警告', {
+  const displayName = row.realName || row.name || '该用户'
+  ElMessageBox.confirm(`确定要重置用户"${displayName}"的密码吗？\n\n重置后密码将恢复为默认密码：123456`, '警告', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   }).then(async () => {
     try {
-      // 调用重置密码 API
-      // await resetPassword(row.id)
+      // 调用重置密码 API（需要后端支持）
+      await resetPassword(row.id, '123456')
       ElMessage.success('密码已重置为默认密码：123456')
       loadData()
     } catch (error) {
@@ -454,14 +537,15 @@ function handleResetPassword(row) {
  * 删除用户
  */
 function handleDelete(row) {
-  ElMessageBox.confirm(`确定要删除用户"${row.name}"吗？此操作不可恢复！`, '警告', {
+  const displayName = row.realName || row.name || '该用户'
+  ElMessageBox.confirm(`确定要删除用户"${displayName}"吗？此操作不可恢复！`, '警告', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   }).then(async () => {
     try {
       // 调用删除 API
-      // await deleteUser(row.id)
+      await deleteUser(row.id)
       ElMessage.success('删除成功')
       loadData()
     } catch (error) {
@@ -482,7 +566,7 @@ async function handleBatchDelete() {
     return
   }
 
-  const names = selectedRows.value.map(item => item.name).join('、')
+  const names = selectedRows.value.map(item => item.realName || item.name || '').join('、')
   ElMessageBox.confirm(`确定要删除选中的 ${selectedRows.value.length} 个用户吗？\n\n${names}\n\n此操作不可恢复！`, '警告', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
@@ -492,7 +576,7 @@ async function handleBatchDelete() {
     try {
       const ids = selectedRows.value.map(item => item.id)
       // 调用批量删除 API
-      // await batchDeleteUsers(ids)
+      await batchDeleteUsers(ids)
       ElMessage.success('批量删除成功')
       selectedRows.value = []
       selectionRef.value?.clearSelection()
@@ -518,11 +602,23 @@ async function handleSubmit() {
   submitting.value = true
   try {
     // 调用添加/编辑 API
-    // if (isEdit.value) {
-    //   await updateUser(formData)
-    // } else {
-    //   await addUser(formData)
-    // }
+    // 构造提交数据（使用后端字段名）
+    const submitData = {
+      id: formData.id,
+      username: formData.username,
+      realName: formData.realName,
+      userType: formData.userType,
+      department: formData.department,
+      phone: formData.phone,
+      email: formData.email,
+      status: formData.status
+    }
+
+    if (isEdit.value) {
+      await updateUser(submitData)
+    } else {
+      await addUser(submitData)
+    }
     ElMessage.success(isEdit.value ? '修改成功' : '添加成功')
     dialogVisible.value = false
     loadData()

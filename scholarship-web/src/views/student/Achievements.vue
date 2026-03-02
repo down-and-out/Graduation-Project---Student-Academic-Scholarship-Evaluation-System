@@ -189,7 +189,7 @@ const formRef = ref<FormInstance | null>(null)
 const queryParams = reactive<PaperPageParams>({
   current: 1,
   size: 10,
-  status: ''
+  status: undefined
 })
 
 /**
@@ -236,7 +236,7 @@ async function handleQuery(): Promise<void> {
  * 重置查询条件
  */
 function handleReset(): void {
-  queryParams.status = ''
+  queryParams.status = undefined
   queryParams.current = 1
   handleQuery()
 }

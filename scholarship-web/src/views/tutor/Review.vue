@@ -148,7 +148,7 @@ const queryParams = reactive({
   size: 10,
   keyword: '',
   type: '',
-  status: ''
+  status: undefined
 })
 
 // ========== 审核表单 ==========
@@ -189,7 +189,7 @@ async function handleQuery() {
 function handleReset() {
   queryParams.keyword = ''
   queryParams.type = ''
-  queryParams.status = ''
+  queryParams.status = undefined
   queryParams.current = 1
   handleQuery()
 }

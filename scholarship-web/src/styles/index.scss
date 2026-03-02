@@ -5,6 +5,94 @@
 
 @use './variables.scss' as *;
 
+/* ========== Element Plus 组件修复 ========== */
+// 修复 el-select 选中后不显示文本的问题 (Element Plus 2.5.x)
+// 这是 Element Plus 2.5.x 版本的一个已知问题
+
+// 方案 1: 修复 is-hidden 类被错误应用的问题
+.el-select__wrapper {
+  .el-select__input-wrapper {
+    // 强制显示输入框（即使有 is-hidden 类）
+    &.is-hidden {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      position: static !important;
+      width: auto !important;
+      height: auto !important;
+      overflow: visible !important;
+      clip: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+
+      input,
+      .el-select__input {
+        color: var(--el-text-color-primary, #303133) !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        width: auto !important;
+        min-width: 1px !important;
+        cursor: text !important;
+      }
+    }
+  }
+
+  // 隐藏透明的 placeholder
+  .el-select__placeholder {
+    &.is-transparent {
+      display: none !important;
+      visibility: hidden !important;
+    }
+  }
+
+  // 确保选中项容器正确显示
+  .el-select__selection {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+  }
+
+  // 确保选中的文本正确显示
+  .el-select__selected-item {
+    display: flex !important;
+    align-items: center !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    color: var(--el-text-color-primary, #303133) !important;
+
+    span {
+      display: inline-block !important;
+      visibility: visible !important;
+      color: inherit !important;
+    }
+  }
+}
+
+// 全局 el-select 样式
+.el-select {
+  width: 100%;
+
+  .el-select__wrapper {
+    // 确保组合输入框正确显示
+    .el-select__combobox-input {
+      color: var(--el-text-color-primary, #303133) !important;
+    }
+  }
+}
+
+// 下拉选项选中状态
+.el-select-dropdown__item.is-selected {
+  color: var(--el-color-primary, #409eff);
+}
+
+// 修复 el-select 标签模式下的显示问题
+.el-select__tags {
+  .el-tag {
+    display: inline-flex !important;
+    visibility: visible !important;
+  }
+}
+
 /* ========== 滚动条样式 ========== */
 ::-webkit-scrollbar {
   width: 8px;

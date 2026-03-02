@@ -199,13 +199,13 @@ const formRef = ref(null)
 // 计算属性
 const dialogTitle = computed(() => isEdit.value ? '编辑学生信息' : '添加学生')
 
-// 查询参数
+// 查询参数（status 使用 undefined 避免类型不匹配）
 const queryParams = reactive({
   current: 1,
   size: 10,
   keyword: '',
   department: '',
-  status: ''
+  status: undefined
 })
 
 // 表单数据
@@ -288,7 +288,7 @@ async function handleQuery() {
 function handleReset() {
   queryParams.keyword = ''
   queryParams.department = ''
-  queryParams.status = ''
+  queryParams.status = undefined
   queryParams.current = 1
   handleQuery()
 }

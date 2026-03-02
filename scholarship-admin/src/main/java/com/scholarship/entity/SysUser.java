@@ -54,6 +54,12 @@ public class SysUser implements Serializable {
     private String realName;
 
     /**
+     * 院系/部门
+     */
+    @Schema(description = "院系/部门")
+    private String department;
+
+    /**
      * 用户类型
      * 1-研究生 2-导师 3-管理员
      */

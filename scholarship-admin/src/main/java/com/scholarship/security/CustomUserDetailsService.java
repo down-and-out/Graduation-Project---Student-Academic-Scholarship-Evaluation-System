@@ -107,8 +107,8 @@ public class CustomUserDetailsService implements UserDetailsService {
         // 查询用户关联的角色
         List<SysRole> roles = sysRoleMapper.selectRolesByUserId(userId);
         for (SysRole role : roles) {
-            // 添加角色权限（ROLE_前缀）
-            authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getRoleCode()));
+            // 添加角色权限（role_code 已经是完整的角色名，如 ROLE_ADMIN）
+            authorities.add(new SimpleGrantedAuthority(role.getRoleCode()));
         }
 
         // 查询用户关联的权限

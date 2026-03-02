@@ -172,7 +172,7 @@ const dialogTitle = computed(() => isEdit.value ? '编辑规则' : '添加规则
 const queryParams = reactive({
   current: 1,
   size: 10,
-  ruleType: ''
+  ruleType: undefined
 })
 
 // 默认表单数据
@@ -212,7 +212,7 @@ async function handleQuery() {
 }
 
 function handleReset() {
-  queryParams.ruleType = ''
+  queryParams.ruleType = undefined
   queryParams.current = 1
   handleQuery()
 }

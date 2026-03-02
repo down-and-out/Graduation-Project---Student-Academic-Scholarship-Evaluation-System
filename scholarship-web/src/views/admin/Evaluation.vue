@@ -272,14 +272,14 @@ interface QueryParams {
   current: number
   size: number
   semester: string
-  status: number | ''
+  status: number | undefined
 }
 
 const queryParams = reactive<QueryParams>({
   current: 1,
   size: 10,
   semester: '',
-  status: ''
+  status: undefined
 })
 
 /**
@@ -325,7 +325,7 @@ async function handleQuery(): Promise<void> {
  */
 function handleReset(): void {
   queryParams.semester = ''
-  queryParams.status = ''
+  queryParams.status = undefined
   queryParams.current = 1
   // 保持 pageSize 不变，只重置页码和筛选条件
   handleQuery()

@@ -47,7 +47,7 @@ export function getEvaluationPage(
   params: EvaluationPageParams
 ): Promise<API.Response<API.PageResponse<EvaluationBatch>>> {
   return request({
-    url: '/evaluation/page',
+    url: '/evaluation-batch/page',
     method: 'get',
     params
   })
@@ -60,7 +60,7 @@ export function getEvaluationPage(
  */
 export function getEvaluationDetail(id: number): Promise<API.Response<EvaluationBatch>> {
   return request({
-    url: `/evaluation/${id}`,
+    url: `/evaluation-batch/${id}`,
     method: 'get'
   })
 }
@@ -72,7 +72,7 @@ export function getEvaluationDetail(id: number): Promise<API.Response<Evaluation
  */
 export function createEvaluation(data: CreateEvaluationData): Promise<API.Response<null>> {
   return request({
-    url: '/evaluation',
+    url: '/evaluation-batch',
     method: 'post',
     data
   })
@@ -85,7 +85,7 @@ export function createEvaluation(data: CreateEvaluationData): Promise<API.Respon
  */
 export function publishEvaluation(id: number): Promise<API.Response<null>> {
   return request({
-    url: `/evaluation/publish/${id}`,
+    url: `/evaluation-batch/publish/${id}`,
     method: 'put'
   })
 }
@@ -97,7 +97,7 @@ export function publishEvaluation(id: number): Promise<API.Response<null>> {
  */
 export function closeEvaluation(id: number): Promise<API.Response<null>> {
   return request({
-    url: `/evaluation/close/${id}`,
+    url: `/evaluation-batch/close/${id}`,
     method: 'put'
   })
 }
@@ -109,7 +109,7 @@ export function closeEvaluation(id: number): Promise<API.Response<null>> {
  */
 export function deleteEvaluation(id: number): Promise<API.Response<null>> {
   return request({
-    url: `/evaluation/${id}`,
+    url: `/evaluation-batch/${id}`,
     method: 'delete'
   })
 }
