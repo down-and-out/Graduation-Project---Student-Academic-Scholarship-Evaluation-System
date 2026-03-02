@@ -1,0 +1,43 @@
+package com.scholarship.service;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.scholarship.entity.ResearchPatent;
+import com.scholarship.security.LoginUser;
+
+/**
+ * 科研专利服务接口
+ *
+ * @author Scholarship Development Team
+ * @version 1.0.0
+ */
+public interface ResearchPatentService extends IService<ResearchPatent> {
+
+    /**
+     * 保存专利（带用户权限验证）
+     *
+     * @param patent 专利信息
+     * @param userId 当前用户 ID
+     * @return 是否保存成功
+     */
+    boolean savePatent(ResearchPatent patent, Long userId);
+
+    /**
+     * 更新专利（带用户权限验证）
+     *
+     * @param patent 专利信息
+     * @param userId 当前用户 ID
+     * @return 是否更新成功
+     */
+    boolean updatePatent(ResearchPatent patent, Long userId);
+
+    /**
+     * 分页查询专利（带权限过滤）
+     *
+     * @param page    分页对象
+     * @param loginUser 当前登录用户
+     * @return 分页结果
+     */
+    IPage<ResearchPatent> pagePatents(Page<ResearchPatent> page, LoginUser loginUser);
+}

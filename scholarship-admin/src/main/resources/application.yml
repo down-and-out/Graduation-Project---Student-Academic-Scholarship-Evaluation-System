@@ -1,0 +1,144 @@
+# ========================================
+# 研究生学业奖学金评定系统 - 主配置文件
+# ========================================
+
+# Spring Boot 核心配置
+spring:
+  application:
+    name: scholarship-admin  # 应用名称
+
+  # 环境配置：dev(开发), test(测试), prod(生产)
+  profiles:
+    active: dev
+
+  # Jackson JSON 序列化配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss      # 日期格式
+    time-zone: GMT+8                      # 时区设置
+    serialization:
+      write-dates-as-timestamps: false   # 不使用时间戳格式
+    default-property-inclusion: non_null # null 值不序列化
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      enabled: true              # 启用文件上传
+      max-file-size: 10MB        # 单个文件最大 10MB
+      max-request-size: 50MB     # 请求最大 50MB
+
+# 服务器配置
+server:
+  port: 8080                    # 服务端口
+  servlet:
+    context-path: /api          # 上下文路径
+  compression:
+    enabled: true               # 启用响应压缩
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  # Mapper XML 文件位置
+  mapper-locations: classpath*:mapper/**/*Mapper.xml
+  # 实体类包路径
+  type-aliases-package: com.scholarship.entity
+  configuration:
+    # 驼峰命名转换
+    map-underscore-to-camel-case: true
+    # 日志实现
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      # 主键类型：AUTO(数据库自增), ASSIGN_ID(雪花算法)
+      id-type: AUTO
+      # 逻辑删除字段
+      logic-delete-field: deleted
+      logic-delete-value: 1       # 已删除值
+      logic-not-delete-value: 0   # 未删除值
+
+# Knife4j API 文档配置
+knife4j:
+  enable: true                    # 是否启用
+  setting:
+    language: zh_cn              # 语言设置
+    enable-swagger-models: true  # 启用 Swagger 模型
+    enable-document-cache: true  # 启用文档缓存
+  production: false              # 生产环境关闭
+
+# JWT 配置
+jwt:
+  # JWT 密钥（生产环境请使用更复杂的密钥并配置在环境变量中）
+  # 如果环境变量未设置，使用默认值（仅用于开发环境）
+  secret: ${JWT_SECRET:defaultDevSecretKeyForDevelopmentEnvironmentOnly1234567890}
+  # Token 过期时间：2 小时（单位：毫秒）
+  # 生产环境建议使用更短的过期时间（如 30 分钟）并配合刷新 Token 机制
+  expiration: 7200000
+  # Token 请求头名称
+  header: Authorization
+  # Token 前缀
+  prefix: Bearer
+
+# RSA 配置
+rsa:
+  # RSA 私钥（PEM 格式），通过环境变量 RSA_PRIVATE_KEY 配置
+  private-key: |
+    -----BEGIN PRIVATE KEY-----
+    MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDaul3pluhoolnB
+    kn+Tk9AOqNghMh0IKgPim7WX9PaEq45rdZV/S1bZckHLllJdasbmjKCDbXjICJNL
+    gB4FVvZk2XEpGjZuqYC2zO500CeXBfpq0SUQH9FnuHlj6D0NdNda5yQk2AFOhLHj
+    jgfh07tDCQbywgM/EMSrDDRF8ypCWM+EzLQgHYNI25KCtwMOaqpIrllcHtoOATEG
+    Zn4r+kxDm6DqUKEPim255RKtLqACbV4v/aXouOhFuCaKYXtRrrhIHR+ltzm9ym8R
+    3x+XwZAxFNnayPUfxSWTiG3KT7Cp397cnVYxffrnP/1B3TgZ/FE/y3rjaM/Bre8d
+    qFUafg2RAgMBAAECggEACe16XiQIVnKplw/ULiZmXVP49o2OV2GFnZ9EDCqeyc5g
+    Zd/UMkJNv3ITkTvSCNI6ehpl6rE16zZgbevZvccafEdWS7xLcWH/wpkYnA3nZ7Zq
+    Weppcte1RHtROMfaUllvfbCO3NE+qSN8UEzEOzhfmbi3xQSQHlusR+s2fPpL4u9Z
+    haF94wzQTps32dV7hQfPMARI1HWD4cTQIM2KWrsyNqdf4l6SERknS9VjE3JVV5kI
+    xjWHNjH4WyK8WZr3G2Cle/yvpUCd+rcNu2m7v8WdBii1HoHLyTJ6j14d9AbaMMfW
+    6ZPB2oHrly8xFlkyQuyr+Rgs5aggsZ54STXstJ0lMQKBgQDswUZj1G29BqV1pMaa
+    8475ZqTiHfzRWIThYFjm/jVyYvx4cmBrlbIe3+qHxdUByEw0iH/P0+rRQqO9f55i
+    BO1tIYKa5IddqmOJ88Cq4FzGFQoqGCClVcnrxnr5vST8KHf14mB+Pwspii/JxtMi
+    Q96X8mog+a9K8V9+0/yskU1eJQKBgQDsgfYh6cqCTWfnPu/Kf5vDNkBEHAo3lpkv
+    aJCC/+tcJ12eXG2dhNvwt84Oa7ZtpHPafZ9HNS7hIMwyajq3IA73wPvwHRiEVTO8
+    VfNKXWSvwn3UrgKH9CECvApCNYvvuwNhtC1d8KS5r/6AJljh/9ynD15Sk+bKqoun
+    clNHpxEH/QKBgQDUwcMNx0JukeBy3gaUDLe5LCKUCLq/LjsLhdeejWdeSdH0M2Su
+    ibGtyS8rn/6RQXwp4VhqXVgxgR9AFcUw9Jigb3K82w1CgPI+cEv9wu3cG+Asf84m
+    hfeU56JvdygbagqTbkGkcecIB2R2gTQPIMqR5Yi15Ws/f7V/deUk9tZ9+QKBgCwV
+    rYN0yMKxGwUHvjrIvogMvL31XBIwiC1GGGnSulRbIiA6qlQKR9T+7fHSMhcN6Gp5
+    sA7d4vcj3ewn0PoBh8i2uD9xrPg9yX75pnfeIL6CSmIybVZaMy0HUAI3aPYurdqw
+    cyRnjszt+Up522eFAeRCARrzZrmwQIfdz5gzlAEhAoGBAJlksPvckkSyoPeSSt2i
+    ajJbP/5kONDGTGLHFx3wr+e6FCf5r4AAoVdQ49lyOmEXHgbeeFfzziB3zhJQ759I
+    gnXN0lsi91RcsR1BXEO2D3lAc4UgQHA3s9N2tNVxCR7lNkp4XfJ7KyyHtiI4Xb0I
+    zyCCgZ8QLbiY34RuntcJjsXp
+    -----END PRIVATE KEY-----
+
+# 自定义业务配置
+scholarship:
+  # 系统配置
+  system:
+    # 默认密码（生产环境必须通过环境变量配置）
+    default-password: ${DEFAULT_PASSWORD:Default@123}
+    # 系统名称
+    name: 研究生学业奖学金评定系统
+    # 版本
+    version: 1.0.0
+
+  # 评分配置
+  score:
+    # 总分
+    total-score: 100
+    # 默认及格分
+    pass-score: 60
+
+  # 申请编号配置
+  application:
+    # 申请编号前缀
+    number-prefix: ${APPLICATION_NUMBER_PREFIX:SCH}
+    # 申请编号格式：{prefix}-{year}-{sequence}
+
+# 日志配置
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+  level:
+    root: INFO
+    com.scholarship: DEBUG
+    com.scholarship.mapper: DEBUG

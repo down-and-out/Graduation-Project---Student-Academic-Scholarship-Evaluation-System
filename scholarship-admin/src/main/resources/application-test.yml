@@ -1,0 +1,82 @@
+# ========================================
+# 研究生学业奖学金评定系统 - 测试环境配置
+# ========================================
+
+# Spring 配置
+spring:
+  # 数据源配置
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://${DB_HOST:localhost:3306}/scholarship_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+      username: ${DB_USERNAME:test}
+      password: ${DB_PASSWORD:test123}
+      # 连接池配置
+      initial-size: 10
+      min-idle: 5
+      max-active: 30
+      max-wait: 30000
+      # 连接有效性检测
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      validation-query: SELECT 1
+      # 慢 SQL 记录
+      filter:
+        stat:
+          enabled: true
+          log-slow-sql: true
+          slow-sql-millis: 3000
+
+  # Redis 缓存配置
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:1}
+      timeout: 5000
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+          max-wait: 3000
+
+# JWT 配置（测试环境）
+jwt:
+  secret: ${JWT_SECRET:test-secret-key-for-testing-environment-123456789}
+  expiration: 86400000  # 24 小时
+
+# 安全配置
+security:
+  login:
+    max-attempts: ${LOGIN_MAX_ATTEMPTS:10}
+    lock-duration: ${LOGIN_LOCK_DURATION:15}
+    attempt-expire: ${LOGIN_ATTEMPT_EXPIRE:12}
+
+# 自定义配置
+scholarship:
+  system:
+    default-password: ${DEFAULT_PASSWORD:Test@123}
+    name: 研究生学业奖学金评定系统（测试环境）
+    version: 1.0.0
+
+# 日志配置（测试环境）
+logging:
+  level:
+    root: INFO
+    com.scholarship: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+  file:
+    name: logs/scholarship-test.log
+    max-size: 50MB
+    max-history: 30
+
+# Flyway 配置（测试环境启用清理）
+flyway:
+  enabled: true
+  baseline-on-migrate: true
+  clean-disabled: false  # 测试环境允许清理

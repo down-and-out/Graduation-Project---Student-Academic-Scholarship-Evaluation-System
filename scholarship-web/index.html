@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <!--
+    研究生学业奖学金评定系统 - HTML 入口文件
+    这个 HTML 文件是前端应用的入口点，Vite 开发服务器会加载它
+
+    安全改进：添加安全相关的 meta 标签
+  -->
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- 视口设置 - 移动端响应式支持 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- 页面标题 -->
+    <title>研究生学业奖学金评定系统</title>
+
+    <!-- 页面图标 -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- ========== 安全相关的 Meta 标签 ========== -->
+
+    <!-- 防止 MIME 类型嗅探 -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+
+    <!-- 防止点击劫持攻击 -->
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN" />
+
+    <!-- 启用 XSS 过滤器（旧版浏览器） -->
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+
+    <!-- 控制 referrer 信息泄露 -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- 内容安全策略 (CSP) - 开发环境宽松配置，生产环境应由后端配置更严格的策略 -->
+    <!-- 注意：生产环境建议通过 HTTP 响应头配置 CSP，而不是 meta 标签 -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self' 'unsafe-inline';
+               style-src 'self' 'unsafe-inline';
+               img-src 'self' data: https:;
+               font-src 'self' data:;
+               connect-src 'self' /api;
+               frame-ancestors 'self';
+               base-uri 'self';
+               form-action 'self'"
+    />
+
+    <!-- 禁止将页面加载到 iframe 中（更现代的方式） -->
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+  </head>
+
+  <body>
+    <!-- Vue 应用挂载点 -->
+    <div id="app"></div>
+
+    <!-- Vite 会自动注入必要的脚本 -->
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

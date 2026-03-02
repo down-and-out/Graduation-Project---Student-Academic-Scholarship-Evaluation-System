@@ -1,0 +1,164 @@
+package com.scholarship.controller;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.scholarship.common.result.Result;
+import com.scholarship.entity.SysUser;
+import com.scholarship.service.SysUserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+/**
+ * 系统用户控制器
+ *
+ * @author Scholarship Development Team
+ * @version 1.0.0
+ */
+@Slf4j
+@RestController
+@RequestMapping("/sys/user")
+@RequiredArgsConstructor
+@Tag(name = "01-系统用户管理", description = "系统用户的增删改查接口（仅管理员）")
+public class SysUserController {
+
+    private final SysUserService sysUserService;
+
+    /**
+     * 分页查询用户
+     */
+    @GetMapping("/page")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "分页查询用户", description = "支持按用户名、姓名、用户类型、状态筛选")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "403", description = "无权限")
+    })
+    public Result<IPage<SysUser>> page(
+            @Parameter(description = "当前页", example = "1") @RequestParam(defaultValue = "1") Long current,
+            @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Long size,
+            @Parameter(description = "搜索关键字") @RequestParam(required = false) String keyword,
+            @Parameter(description = "用户类型：1-研究生 2-导师 3-管理员") @RequestParam(required = false) Integer userType,
+            @Parameter(description = "状态：0-禁用 1-正常") @RequestParam(required = false) Integer status) {
+        IPage<SysUser> page = sysUserService.pageUsers(current, size, keyword, userType, status);
+        return Result.success(page);
+    }
+
+    /**
+     * 根据 ID 查询用户
+     */
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "根据 ID 查询用户")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "404", description = "用户不存在"),
+        @ApiResponse(responseCode = "403", description = "无权限")
+    })
+    public Result<SysUser> getById(@PathVariable Long id) {
+        SysUser user = sysUserService.getById(id);
+        if (user == null) {
+            return Result.error("用户不存在");
+        }
+        return Result.success(user);
+    }
+
+    /**
+     * 新增用户
+     */
+    @PostMapping
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "新增用户", description = "创建新的系统用户")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "新增成功"),
+        @ApiResponse(responseCode = "400", description = "用户名已存在"),
+        @ApiResponse(responseCode = "403", description = "无权限")
+    })
+    public Result<Void> add(@RequestBody SysUser user) {
+        try {
+            boolean success = sysUserService.createUser(user);
+            return success ? Result.success("新增成功") : Result.error("新增失败");
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    /**
+     * 更新用户
+     */
+    @PutMapping
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "更新用户", description = "修改用户信息")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "更新成功"),
+        @ApiResponse(responseCode = "400", description = "用户名已存在"),
+        @ApiResponse(responseCode = "403", description = "无权限")
+    })
+    public Result<Void> update(@RequestBody SysUser user) {
+        try {
+            boolean success = sysUserService.updateUser(user);
+            return success ? Result.success("更新成功") : Result.error("更新失败");
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    /**
+     * 删除用户
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "删除用户", description = "删除指定的系统用户")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "删除成功"),
+        @ApiResponse(responseCode = "403", description = "无权限")
+    })
+    public Result<Void> delete(@PathVariable Long id) {
+        boolean success = sysUserService.deleteUser(id);
+        return success ? Result.success("删除成功") : Result.error("删除失败");
+    }
+
+    /**
+     * 批量删除用户
+     */
+    @DeleteMapping("/batch")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "批量删除用户", description = "批量删除系统用户")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "删除成功"),
+        @ApiResponse(responseCode = "403", description = "无权限")
+    })
+    public Result<Void> deleteBatch(@RequestBody List<Long> ids) {
+        boolean success = sysUserService.deleteUsers(ids);
+        return success ? Result.success("删除成功") : Result.error("删除失败");
+    }
+
+    /**
+     * 重置密码
+     */
+    @PutMapping("/reset-password/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "重置密码", description = "重置用户密码")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "重置成功"),
+        @ApiResponse(responseCode = "404", description = "用户不存在"),
+        @ApiResponse(responseCode = "403", description = "无权限")
+    })
+    public Result<Void> resetPassword(
+            @PathVariable Long id,
+            @Parameter(description = "新密码") @RequestParam String password) {
+        try {
+            boolean success = sysUserService.resetPassword(id, password);
+            return success ? Result.success("重置成功") : Result.error("重置失败");
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+}

@@ -1,0 +1,9 @@
+# 忽略不需要格式化的文件
+node_modules/
+dist/
+build/
+coverage/
+*.min.js
+*.map
+src/auto-imports.d.ts
+src/components.d.ts
