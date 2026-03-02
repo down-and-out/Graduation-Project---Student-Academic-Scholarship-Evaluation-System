@@ -57,7 +57,8 @@
       "Bash(java:*)",
       "Bash(del:*)",
       "Bash(Select-String score:*)",
-      "Bash(cd D:\\\\learning\\\\bishe_project\\\\scholarship-admin:*)"
+      "Bash(cd D:\\\\learning\\\\bishe_project\\\\scholarship-admin:*)",
+      "Bash(git add:*)"
     ]
   }
 }

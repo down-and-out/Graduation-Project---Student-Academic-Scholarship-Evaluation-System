@@ -3,6 +3,10 @@
 .env.local
 .env.*.local
 
+# 忽略后端配置文件 (application.yml 等)
+src/main/resources/application.yml
+src/main/resources/application-*.yml
+
 # 忽略 IDE 配置
 .idea/
 *.iml
