@@ -1,5 +1,6 @@
 package com.scholarship.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.entity.ResearchProject;
 import com.scholarship.mapper.ResearchProjectMapper;
@@ -7,6 +8,10 @@ import com.scholarship.service.ResearchProjectService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 科研项目服务实现类
@@ -55,5 +60,19 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
         project.setAuditComment(existing.getAuditComment());
         project.setScore(existing.getScore());
         return updateById(project);
+    }
+
+    @Override
+    public Map<Long, List<ResearchProject>> mapByStudentIds(List<Long> studentIds) {
+        if (studentIds == null || studentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<ResearchProject> projects = list(new LambdaQueryWrapper<ResearchProject>()
+            .in(ResearchProject::getStudentId, studentIds)
+            .eq(ResearchProject::getAuditStatus, 1)); // 审核通过
+
+        return projects.stream()
+            .collect(Collectors.groupingBy(ResearchProject::getStudentId));
     }
 }

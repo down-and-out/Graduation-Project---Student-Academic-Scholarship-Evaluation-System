@@ -33,4 +33,11 @@ public interface TokenBlacklistService {
      * @param token JWT Token
      */
     void removeFromBlacklist(String token);
+
+    /**
+     * 获取黑名单当前大小
+     *
+     * @return 黑名单中的 Token 数量
+     */
+    long getBlacklistSize();
 }

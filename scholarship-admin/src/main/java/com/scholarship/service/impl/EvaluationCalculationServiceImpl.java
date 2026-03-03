@@ -14,11 +14,13 @@ import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 评定计算服务实现类
  * <p>
  * 负责计算学生的各项评分，包括课程成绩、科研成果、竞赛获奖、综合素质等
+ * 已优化：使用批量查询避免 N+1 问题
  * </p>
  *
  * @author Scholarship Development Team
@@ -74,10 +76,7 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         BigDecimal totalScore = calculateTotalScore(courseScore, researchScore, competitionScore, qualityScore);
 
         // 获取学生信息
-        StudentInfo studentInfo = studentInfoService.getOne(
-            new LambdaQueryWrapper<StudentInfo>()
-                .eq(StudentInfo::getId, studentId)
-        );
+        StudentInfo studentInfo = studentInfoService.getByUserId(studentId);
 
         // 构建评定结果
         EvaluationResult result = new EvaluationResult();
@@ -105,21 +104,178 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
     public Map<Long, EvaluationResult> calculateBatchApplications(Long batchId) {
         log.info("开始计算批次所有申请评分，batchId={}", batchId);
 
-        // 查询该批次下所有申请
+        // 1. 查询该批次下所有申请（1次查询）
         List<ScholarshipApplication> applications = scholarshipApplicationService.list(
             new LambdaQueryWrapper<ScholarshipApplication>()
                 .eq(ScholarshipApplication::getBatchId, batchId)
                 .eq(ScholarshipApplication::getStatus, 3) // 评审完成状态
         );
 
+        if (applications.isEmpty()) {
+            log.info("该批次无申请记录，batchId={}", batchId);
+            return Map.of();
+        }
+
+        // 2. 提取学生ID列表
+        List<Long> studentIds = applications.stream()
+            .map(ScholarshipApplication::getStudentId)
+            .distinct()
+            .collect(Collectors.toList());
+
+        log.info("批量计算：申请数量={}，学生数量={}", applications.size(), studentIds.size());
+
+        // 3. 预加载所有评分规则（6次查询，但不依赖学生ID，全局缓存）
+        Map<Integer, List<ScoreRule>> rulesByType = preloadAllRules();
+
+        // 4. 批量查询所有学生数据（各1次查询）
+        log.debug("开始批量查询学生数据...");
+        Map<Long, StudentInfo> studentInfoMap = studentInfoService.mapByUserIds(studentIds);
+        Map<Long, List<ResearchPaper>> papersByStudent = researchPaperService.mapByStudentIds(studentIds);
+        Map<Long, List<ResearchPatent>> patentsByStudent = researchPatentService.mapByStudentIds(studentIds);
+        Map<Long, List<ResearchProject>> projectsByStudent = researchProjectService.mapByStudentIds(studentIds);
+        Map<Long, List<CompetitionAward>> awardsByStudent = competitionAwardService.mapByStudentIds(studentIds);
+        Map<Long, BigDecimal> courseScoresByStudent = courseScoreService.mapWeightedAverageByStudentIds(studentIds, batchId);
+        Map<Long, BigDecimal> moralScoresByStudent = moralPerformanceService.mapTotalScoreByStudentIds(studentIds, batchId);
+        log.debug("批量查询学生数据完成");
+
+        // 5. 内存计算（无数据库查询）
+        // 预先获取分数上限
+        List<ScoreRule> courseRules = rulesByType.getOrDefault(5, List.of());
+        List<ScoreRule> qualityRules = rulesByType.getOrDefault(6, List.of());
+        BigDecimal maxCourseScore = getMaxScoreFromRules(courseRules);
+        BigDecimal maxQualityScore = getMaxScoreFromRules(qualityRules);
+
         Map<Long, EvaluationResult> results = new HashMap<>();
         for (ScholarshipApplication application : applications) {
-            EvaluationResult result = calculateApplication(application);
+            Long studentId = application.getStudentId();
+
+            // 从预加载数据中计算各项分数
+            BigDecimal courseScore = courseScoresByStudent.getOrDefault(studentId, BigDecimal.ZERO);
+            BigDecimal researchScore = calculateResearchScoreFromMemory(
+                studentId, rulesByType, papersByStudent, patentsByStudent, projectsByStudent);
+            BigDecimal competitionScore = calculateCompetitionScoreFromMemory(
+                studentId, rulesByType, awardsByStudent);
+            BigDecimal qualityScore = moralScoresByStudent.getOrDefault(studentId, BigDecimal.ZERO);
+
+            // 应用分数上限检查
+            if (maxCourseScore != null && courseScore.compareTo(maxCourseScore) > 0) {
+                courseScore = maxCourseScore;
+            }
+            if (maxQualityScore != null && qualityScore.compareTo(maxQualityScore) > 0) {
+                qualityScore = maxQualityScore;
+            }
+
+            BigDecimal totalScore = calculateTotalScore(courseScore, researchScore, competitionScore, qualityScore);
+
+            // 获取学生信息
+            StudentInfo studentInfo = studentInfoMap.get(studentId);
+
+            // 构建评定结果
+            EvaluationResult result = new EvaluationResult();
+            result.setBatchId(batchId);
+            result.setApplicationId(application.getId());
+            result.setStudentId(studentId);
+            if (studentInfo != null) {
+                result.setStudentName(studentInfo.getName());
+                result.setStudentNo(studentInfo.getStudentNo());
+                result.setDepartment(studentInfo.getDepartment());
+                result.setMajor(studentInfo.getMajor());
+            }
+            result.setCourseScore(courseScore);
+            result.setResearchScore(researchScore);
+            result.setCompetitionScore(competitionScore);
+            result.setQualityScore(qualityScore);
+            result.setTotalScore(totalScore);
+
             results.put(application.getId(), result);
         }
 
         log.info("批次申请评分计算完成，batchId={}, 计算数量={}", batchId, results.size());
         return results;
+    }
+
+    /**
+     * 预加载所有评分规则
+     */
+    private Map<Integer, List<ScoreRule>> preloadAllRules() {
+        Map<Integer, List<ScoreRule>> rulesByType = new HashMap<>();
+        for (int ruleType = 1; ruleType <= 6; ruleType++) {
+            List<ScoreRule> rules = scoreRuleService.listAvailableByRuleType(ruleType);
+            rulesByType.put(ruleType, rules);
+        }
+        return rulesByType;
+    }
+
+    /**
+     * 从内存数据计算科研成果分数
+     */
+    private BigDecimal calculateResearchScoreFromMemory(
+            Long studentId,
+            Map<Integer, List<ScoreRule>> rulesByType,
+            Map<Long, List<ResearchPaper>> papersByStudent,
+            Map<Long, List<ResearchPatent>> patentsByStudent,
+            Map<Long, List<ResearchProject>> projectsByStudent) {
+
+        BigDecimal totalScore = BigDecimal.ZERO;
+
+        List<ScoreRule> paperRules = rulesByType.getOrDefault(1, List.of());
+        List<ScoreRule> patentRules = rulesByType.getOrDefault(2, List.of());
+        List<ScoreRule> projectRules = rulesByType.getOrDefault(3, List.of());
+
+        // 计算论文分数
+        List<ResearchPaper> papers = papersByStudent.getOrDefault(studentId, List.of());
+        for (ResearchPaper paper : papers) {
+            BigDecimal paperScore = calculatePaperScore(paper, paperRules);
+            totalScore = totalScore.add(paperScore);
+        }
+
+        // 计算专利分数
+        List<ResearchPatent> patents = patentsByStudent.getOrDefault(studentId, List.of());
+        for (ResearchPatent patent : patents) {
+            BigDecimal patentScore = calculatePatentScore(patent, patentRules);
+            totalScore = totalScore.add(patentScore);
+        }
+
+        // 计算项目分数
+        List<ResearchProject> projects = projectsByStudent.getOrDefault(studentId, List.of());
+        for (ResearchProject project : projects) {
+            BigDecimal projectScore = calculateProjectScore(project, projectRules);
+            totalScore = totalScore.add(projectScore);
+        }
+
+        // 检查科研分数上限（使用 min，更严格）
+        BigDecimal maxResearchScore = getMaxScoreFromRules(paperRules);
+        if (maxResearchScore != null && totalScore.compareTo(maxResearchScore) > 0) {
+            totalScore = maxResearchScore;
+        }
+
+        return totalScore;
+    }
+
+    /**
+     * 从内存数据计算竞赛获奖分数
+     */
+    private BigDecimal calculateCompetitionScoreFromMemory(
+            Long studentId,
+            Map<Integer, List<ScoreRule>> rulesByType,
+            Map<Long, List<CompetitionAward>> awardsByStudent) {
+
+        List<ScoreRule> rules = rulesByType.getOrDefault(4, List.of());
+        List<CompetitionAward> awards = awardsByStudent.getOrDefault(studentId, List.of());
+
+        BigDecimal totalScore = BigDecimal.ZERO;
+        for (CompetitionAward award : awards) {
+            BigDecimal awardScore = calculateCompetitionScoreInternal(award, rules);
+            totalScore = totalScore.add(awardScore);
+        }
+
+        // 检查竞赛分数上限（使用 min，更严格）
+        BigDecimal maxCompetitionScore = getMaxScoreFromRules(rules);
+        if (maxCompetitionScore != null && totalScore.compareTo(maxCompetitionScore) > 0) {
+            totalScore = maxCompetitionScore;
+        }
+
+        return totalScore;
     }
 
     @Override
@@ -200,8 +356,8 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
             totalScore = totalScore.add(projectScore);
         }
 
-        // 检查科研分数上限
-        BigDecimal maxResearchScore = getMaxScoreByRuleType(1, paperRules);
+        // 检查科研分数上限（使用 min，更严格）
+        BigDecimal maxResearchScore = getMaxScoreFromRules(paperRules);
         if (maxResearchScore != null && totalScore.compareTo(maxResearchScore) > 0) {
             totalScore = maxResearchScore;
         }
@@ -229,8 +385,8 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
             totalScore = totalScore.add(awardScore);
         }
 
-        // 检查竞赛分数上限
-        BigDecimal maxCompetitionScore = getMaxScoreByRuleType(4, rules);
+        // 检查竞赛分数上限（使用 min，更严格）
+        BigDecimal maxCompetitionScore = getMaxScoreFromRules(rules);
         if (maxCompetitionScore != null && totalScore.compareTo(maxCompetitionScore) > 0) {
             totalScore = maxCompetitionScore;
         }
@@ -479,13 +635,13 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
     }
 
     /**
-     * 获取某类型规则的最高分限制
+     * 从规则列表获取最小上限分数
      */
-    private BigDecimal getMaxScoreByRuleType(Integer ruleType, List<ScoreRule> rules) {
+    private BigDecimal getMaxScoreFromRules(List<ScoreRule> rules) {
         return rules.stream()
             .filter(rule -> rule.getMaxScore() != null)
             .map(ScoreRule::getMaxScore)
-            .max(BigDecimal::compareTo)
+            .min(BigDecimal::compareTo)
             .orElse(null);
     }
 }

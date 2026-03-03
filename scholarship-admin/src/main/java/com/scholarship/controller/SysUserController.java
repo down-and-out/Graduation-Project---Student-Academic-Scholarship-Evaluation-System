@@ -1,9 +1,11 @@
 package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.SysUser;
 import com.scholarship.service.SysUserService;
+import com.scholarship.vo.SysUserVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -15,6 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 系统用户控制器
@@ -41,14 +44,22 @@ public class SysUserController {
         @ApiResponse(responseCode = "200", description = "查询成功"),
         @ApiResponse(responseCode = "403", description = "无权限")
     })
-    public Result<IPage<SysUser>> page(
+    public Result<IPage<SysUserVO>> page(
             @Parameter(description = "当前页", example = "1") @RequestParam(defaultValue = "1") Long current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Long size,
             @Parameter(description = "搜索关键字") @RequestParam(required = false) String keyword,
             @Parameter(description = "用户类型：1-研究生 2-导师 3-管理员") @RequestParam(required = false) Integer userType,
             @Parameter(description = "状态：0-禁用 1-正常") @RequestParam(required = false) Integer status) {
-        IPage<SysUser> page = sysUserService.pageUsers(current, size, keyword, userType, status);
-        return Result.success(page);
+        IPage<SysUser> userPage = sysUserService.pageUsers(current, size, keyword, userType, status);
+
+        // 转换为 VO 分页对象
+        IPage<SysUserVO> voPage = new Page<>(userPage.getCurrent(), userPage.getSize(), userPage.getTotal());
+        List<SysUserVO> voList = userPage.getRecords().stream()
+                .map(SysUserVO::fromEntity)
+                .collect(Collectors.toList());
+        voPage.setRecords(voList);
+
+        return Result.success(voPage);
     }
 
     /**
@@ -62,12 +73,12 @@ public class SysUserController {
         @ApiResponse(responseCode = "404", description = "用户不存在"),
         @ApiResponse(responseCode = "403", description = "无权限")
     })
-    public Result<SysUser> getById(@PathVariable Long id) {
+    public Result<SysUserVO> getById(@PathVariable Long id) {
         SysUser user = sysUserService.getById(id);
         if (user == null) {
             return Result.error("用户不存在");
         }
-        return Result.success(user);
+        return Result.success(SysUserVO.fromEntity(user));
     }
 
     /**

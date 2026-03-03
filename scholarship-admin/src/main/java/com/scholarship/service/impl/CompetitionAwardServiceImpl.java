@@ -1,5 +1,6 @@
 package com.scholarship.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.entity.CompetitionAward;
 import com.scholarship.mapper.CompetitionAwardMapper;
@@ -7,6 +8,10 @@ import com.scholarship.service.CompetitionAwardService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 学科竞赛获奖服务实现类
@@ -55,5 +60,19 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
         award.setAuditComment(existing.getAuditComment());
         award.setScore(existing.getScore());
         return updateById(award);
+    }
+
+    @Override
+    public Map<Long, List<CompetitionAward>> mapByStudentIds(List<Long> studentIds) {
+        if (studentIds == null || studentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<CompetitionAward> awards = list(new LambdaQueryWrapper<CompetitionAward>()
+            .in(CompetitionAward::getStudentId, studentIds)
+            .eq(CompetitionAward::getAuditStatus, 1)); // 审核通过
+
+        return awards.stream()
+            .collect(Collectors.groupingBy(CompetitionAward::getStudentId));
     }
 }

@@ -6,6 +6,9 @@ import com.scholarship.entity.ResearchPaper;
 import com.scholarship.security.LoginUser;
 import com.scholarship.vo.ResearchPaperVO;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 科研论文服务接口
  *
@@ -57,4 +60,12 @@ public interface ResearchPaperService extends IService<ResearchPaper> {
      * @return 是否成功
      */
     boolean reviewPaper(Long paperId, Integer status, String reviewComment, Long reviewerId);
+
+    /**
+     * 批量查询学生的审核通过论文
+     *
+     * @param studentIds 学生 ID 列表
+     * @return 按学生 ID 分组的论文列表
+     */
+    Map<Long, List<ResearchPaper>> mapByStudentIds(List<Long> studentIds);
 }

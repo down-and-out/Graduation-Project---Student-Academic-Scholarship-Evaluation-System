@@ -220,4 +220,18 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
 
         return researchPaperMapper.updateById(paper) > 0;
     }
+
+    @Override
+    public Map<Long, List<ResearchPaper>> mapByStudentIds(List<Long> studentIds) {
+        if (studentIds == null || studentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<ResearchPaper> papers = list(new LambdaQueryWrapper<ResearchPaper>()
+            .in(ResearchPaper::getStudentId, studentIds)
+            .eq(ResearchPaper::getStatus, 2)); // 审核通过
+
+        return papers.stream()
+            .collect(Collectors.groupingBy(ResearchPaper::getStudentId));
+    }
 }

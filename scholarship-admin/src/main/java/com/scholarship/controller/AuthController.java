@@ -77,8 +77,9 @@ public class AuthController {
     public Result<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest http) {
-        log.info("用户登录：username={}, passwordLength={}", request.username(),
-                request.password() != null ? request.password().length() : 0);
+        // 仅限调试用
+//        log.info("用户登录：username={}, passwordLength={}", request.username(),
+//                request.password() != null ? request.password().length() : 0);
 
         // 1. 验证用户名格式（防止 SQL 注入）
         UsernameValidator.validate(request.username());
@@ -97,7 +98,9 @@ public class AuthController {
         try {
             // 4. 解密 RSA 加密的密码（如果已加密）
             String rawPassword = RsaUtils.decryptPassword(request.password());
-            log.info("RSA 解密完成，加密前长度：{}, 解密后长度：{}", request.password().length(), rawPassword.length());
+
+            // 仅限调试用
+//            log.info("RSA 解密完成，加密前长度：{}, 解密后长度：{}", request.password().length(), rawPassword.length());
 
             // 4.1 验证密码格式（新增：确保密码符合安全规则）
             PasswordValidator.validate(rawPassword);

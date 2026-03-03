@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.scholarship.entity.StudentInfo;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 研究生信息服务接口
  * <p>
@@ -35,4 +38,12 @@ public interface StudentInfoService extends IService<StudentInfo> {
      * @return 研究生信息
      */
     StudentInfo getByUserId(Long userId);
+
+    /**
+     * 批量查询学生信息
+     *
+     * @param userIds 用户 ID 列表
+     * @return 按用户 ID 分组的学生信息
+     */
+    Map<Long, StudentInfo> mapByUserIds(List<Long> userIds);
 }

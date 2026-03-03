@@ -5,6 +5,7 @@ import com.scholarship.entity.CourseScore;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 课程成绩服务接口
@@ -47,4 +48,13 @@ public interface CourseScoreService extends IService<CourseScore> {
      * @return 平均绩点
      */
     BigDecimal calculateAverageGPA(Long studentId);
+
+    /**
+     * 批量计算学生的加权平均分
+     *
+     * @param studentIds 学生 ID 列表
+     * @param batchId 批次 ID
+     * @return 按学生 ID 分组的加权平均分
+     */
+    Map<Long, BigDecimal> mapWeightedAverageByStudentIds(List<Long> studentIds, Long batchId);
 }

@@ -5,6 +5,7 @@ import com.scholarship.entity.MoralPerformance;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 德育表现服务接口
@@ -41,4 +42,13 @@ public interface MoralPerformanceService extends IService<MoralPerformance> {
      * @return 该类型的总分
      */
     BigDecimal calculateScoreByType(Long studentId, Long batchId, Integer performanceType);
+
+    /**
+     * 批量计算学生的德育总分
+     *
+     * @param studentIds 学生 ID 列表
+     * @param batchId 批次 ID
+     * @return 按学生 ID 分组的德育总分
+     */
+    Map<Long, BigDecimal> mapTotalScoreByStudentIds(List<Long> studentIds, Long batchId);
 }

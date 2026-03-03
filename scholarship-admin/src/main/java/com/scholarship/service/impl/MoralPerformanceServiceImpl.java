@@ -11,7 +11,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 德育表现服务实现类
@@ -101,5 +104,53 @@ public class MoralPerformanceServiceImpl extends ServiceImpl<MoralPerformanceMap
 
         log.debug("类型分数统计完成，studentId={}, type={}, score={}", studentId, performanceType, totalScore);
         return totalScore;
+    }
+
+    @Override
+    public Map<Long, BigDecimal> mapTotalScoreByStudentIds(List<Long> studentIds, Long batchId) {
+        if (studentIds == null || studentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        log.debug("批量计算德育总分，studentCount={}, batchId={}", studentIds.size(), batchId);
+
+        // 获取批次的学年
+        String academicYear = null;
+        if (batchId != null) {
+            EvaluationBatch batch = evaluationBatchService.getById(batchId);
+            if (batch != null) {
+                academicYear = batch.getAcademicYear();
+            }
+        }
+
+        // 批量查询所有学生的德育表现
+        LambdaQueryWrapper<MoralPerformance> wrapper = new LambdaQueryWrapper<MoralPerformance>()
+            .in(MoralPerformance::getStudentId, studentIds)
+            .eq(MoralPerformance::getAuditStatus, 1); // 审核通过
+        if (academicYear != null) {
+            wrapper.eq(MoralPerformance::getAcademicYear, academicYear);
+        }
+        List<MoralPerformance> allPerformances = list(wrapper);
+
+        // 按学生 ID 分组
+        Map<Long, List<MoralPerformance>> performancesByStudent = allPerformances.stream()
+            .collect(Collectors.groupingBy(MoralPerformance::getStudentId));
+
+        // 计算每个学生的德育总分
+        Map<Long, BigDecimal> result = new HashMap<>();
+        for (Long studentId : studentIds) {
+            List<MoralPerformance> performances = performancesByStudent.getOrDefault(studentId, List.of());
+
+            BigDecimal totalScore = BigDecimal.ZERO;
+            for (MoralPerformance performance : performances) {
+                if (performance.getScore() != null) {
+                    totalScore = totalScore.add(performance.getScore());
+                }
+            }
+            result.put(studentId, totalScore);
+        }
+
+        log.debug("批量计算德育总分完成，resultCount={}", result.size());
+        return result;
     }
 }

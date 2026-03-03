@@ -1,13 +1,12 @@
 package com.scholarship.controller;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.scholarship.common.result.Result;
 import com.scholarship.entity.EvaluationResult;
-import com.scholarship.entity.StudentInfo;
-import com.scholarship.security.LoginUser;
 import com.scholarship.service.EvaluationResultService;
 import com.scholarship.service.StudentInfoService;
+import com.scholarship.service.EvaluationCalculationService;
+import com.scholarship.service.EvaluationRankService;
+import com.scholarship.service.AwardAllocationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,13 +34,25 @@ class EvaluationResultControllerTest {
     @Mock
     private StudentInfoService studentInfoService;
 
+    @Mock
+    private EvaluationCalculationService evaluationCalculationService;
+
+    @Mock
+    private EvaluationRankService evaluationRankService;
+
+    @Mock
+    private AwardAllocationService awardAllocationService;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
 
         EvaluationResultController controller = new EvaluationResultController(
                 evaluationResultService,
-                studentInfoService
+                studentInfoService,
+                evaluationCalculationService,
+                evaluationRankService,
+                awardAllocationService
         );
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();

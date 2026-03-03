@@ -6,6 +6,9 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.scholarship.entity.ResearchPatent;
 import com.scholarship.security.LoginUser;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 科研专利服务接口
  *
@@ -40,4 +43,12 @@ public interface ResearchPatentService extends IService<ResearchPatent> {
      * @return 分页结果
      */
     IPage<ResearchPatent> pagePatents(Page<ResearchPatent> page, LoginUser loginUser);
+
+    /**
+     * 批量查询学生的审核通过专利
+     *
+     * @param studentIds 学生 ID 列表
+     * @return 按学生 ID 分组的专利列表
+     */
+    Map<Long, List<ResearchPatent>> mapByStudentIds(List<Long> studentIds);
 }

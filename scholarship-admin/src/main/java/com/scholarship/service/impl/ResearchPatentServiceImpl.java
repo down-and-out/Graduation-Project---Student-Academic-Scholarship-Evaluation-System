@@ -1,5 +1,6 @@
 package com.scholarship.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -10,6 +11,10 @@ import com.scholarship.service.ResearchPatentService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 科研专利服务实现类
@@ -73,5 +78,19 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
         }
         // 导师和管理员可以查看所有
         return page(page);
+    }
+
+    @Override
+    public Map<Long, List<ResearchPatent>> mapByStudentIds(List<Long> studentIds) {
+        if (studentIds == null || studentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<ResearchPatent> patents = list(new LambdaQueryWrapper<ResearchPatent>()
+            .in(ResearchPatent::getStudentId, studentIds)
+            .eq(ResearchPatent::getAuditStatus, 1)); // 审核通过
+
+        return patents.stream()
+            .collect(Collectors.groupingBy(ResearchPatent::getStudentId));
     }
 }

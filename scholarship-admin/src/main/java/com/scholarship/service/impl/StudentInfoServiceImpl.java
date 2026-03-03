@@ -12,6 +12,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 /**
  * 研究生信息服务实现类
  *
@@ -62,5 +67,18 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
                 new LambdaQueryWrapper<StudentInfo>()
                         .eq(StudentInfo::getUserId, userId)
         );
+    }
+
+    @Override
+    public Map<Long, StudentInfo> mapByUserIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<StudentInfo> students = list(new LambdaQueryWrapper<StudentInfo>()
+            .in(StudentInfo::getUserId, userIds));
+
+        return students.stream()
+            .collect(Collectors.toMap(StudentInfo::getUserId, Function.identity(), (a, b) -> a));
     }
 }
