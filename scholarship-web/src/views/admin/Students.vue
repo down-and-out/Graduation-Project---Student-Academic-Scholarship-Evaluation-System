@@ -12,17 +12,17 @@
     <!-- 搜索表单 -->
     <el-form :inline="true" class="search-form">
       <el-form-item label="关键字">
-        <el-input v-model="queryParams.keyword" placeholder="学号或姓名" clearable />
+        <el-input v-model="queryParams.keyword" placeholder="学号或姓名" clearable @clear="handleQuery" @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item label="院系">
-        <el-select v-model="queryParams.department" placeholder="请选择" clearable>
-          <el-option label="全部" value="" />
+        <el-select v-model="queryParams.department" placeholder="请选择" @change="handleQuery">
+          <el-option label="全部" value="all" />
           <el-option v-for="opt in departmentOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
       <el-form-item label="学籍状态">
-        <el-select v-model="queryParams.status" placeholder="请选择" clearable>
-          <el-option label="全部" value="" />
+        <el-select v-model="queryParams.status" placeholder="请选择" @change="handleQuery">
+          <el-option label="全部" value="all" />
           <el-option label="在读" :value="STUDENT_STATUS.ACTIVE" />
           <el-option label="休学" :value="STUDENT_STATUS.SUSPENDED" />
           <el-option label="毕业" :value="STUDENT_STATUS.GRADUATED" />
@@ -169,7 +169,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getStudentPage, addStudent, updateStudent, deleteStudent } from '@/api/student'
@@ -199,13 +199,13 @@ const formRef = ref(null)
 // 计算属性
 const dialogTitle = computed(() => isEdit.value ? '编辑学生信息' : '添加学生')
 
-// 查询参数（status 使用 undefined 避免类型不匹配）
+// 查询参数（使用 'all' 作为"全部"选项的值，避免 Element Plus 空字符串 bug）
 const queryParams = reactive({
   current: 1,
   size: 10,
   keyword: '',
-  department: '',
-  status: undefined
+  department: 'all',
+  status: 'all'
 })
 
 // 表单数据
@@ -272,9 +272,15 @@ function resetFormData() {
 async function handleQuery() {
   loading.value = true
   try {
-    const res = await getStudentPage(queryParams)
-    tableData.value = res.data?.records || []
-    total.value = res.data?.total || 0
+    // 将 'all' 转换为 undefined，不传给后端
+    const params = {
+      ...queryParams,
+      department: queryParams.department === 'all' ? undefined : queryParams.department,
+      status: queryParams.status === 'all' ? undefined : queryParams.status
+    }
+    const res = await getStudentPage(params)
+    tableData.value = res.data?.data?.records || []
+    total.value = res.data?.data?.total || 0
   } catch (error) {
     ElMessage.error(error.message || '查询失败')
   } finally {
@@ -282,13 +288,31 @@ async function handleQuery() {
   }
 }
 
+// 防抖查询
+let debounceTimer = null
+function debouncedQuery() {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    handleQuery()
+  }, 300)
+}
+
+// 监听关键字变化
+watch(
+  () => queryParams.keyword,
+  () => {
+    queryParams.current = 1
+    debouncedQuery()
+  }
+)
+
 /**
  * 重置查询
  */
 function handleReset() {
   queryParams.keyword = ''
-  queryParams.department = ''
-  queryParams.status = undefined
+  queryParams.department = 'all'
+  queryParams.status = 'all'
   queryParams.current = 1
   handleQuery()
 }

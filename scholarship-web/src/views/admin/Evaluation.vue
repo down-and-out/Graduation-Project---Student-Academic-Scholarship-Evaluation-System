@@ -53,16 +53,23 @@
     >
       <el-table-column type="selection" width="55" />
       <el-table-column type="index" label="序号" width="60" />
-      <el-table-column prop="semester" label="学期" width="180" />
+      <el-table-column label="学年学期" width="180">
+        <template #default="{ row }">
+          {{ formatAcademicYearSemester(row.academicYear, row.semester) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="name" label="评定名称" min-width="200" />
       <el-table-column prop="startDate" label="开始时间" width="160" />
       <el-table-column prop="endDate" label="结束时间" width="160" />
-      <el-table-column prop="applicantCount" label="申请人数" width="100" />
+      <el-table-column prop="winnerCount" label="获奖人数" width="100" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag v-if="row.status === 0" type="info">未开始</el-tag>
-          <el-tag v-else-if="row.status === 1" type="primary">进行中</el-tag>
-          <el-tag v-else-if="row.status === 2" type="success">已完成</el-tag>
+          <el-tag v-if="row.status === 1" type="info">未开始</el-tag>
+          <el-tag v-else-if="row.status === 2" type="primary">申请中</el-tag>
+          <el-tag v-else-if="row.status === 3" type="warning">评审中</el-tag>
+          <el-tag v-else-if="row.status === 4" type="success">公示中</el-tag>
+          <el-tag v-else-if="row.status === 5" type="success">已完成</el-tag>
+          <el-tag v-else type="info">未知</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" min-width="250" fixed="right">
@@ -72,7 +79,7 @@
             link
             type="primary"
             @click="handlePublish(row)"
-            :disabled="row.status !== 0"
+            :disabled="row.status !== 1"
           >
             发布
           </el-button>
@@ -80,7 +87,7 @@
             link
             type="warning"
             @click="handleClose(row)"
-            :disabled="row.status !== 1"
+            :disabled="row.status !== 2 && row.status !== 3"
           >
             结束
           </el-button>
@@ -109,10 +116,20 @@
         <el-form-item label="评定名称" prop="name">
           <el-input v-model="formData.name" placeholder="如：2024-2025 学年第一学期学业奖学金评定" />
         </el-form-item>
-        <el-form-item label="学期" prop="semester">
-          <el-select v-model="formData.semester" style="width: 100%">
+        <el-form-item label="学年" prop="academicYear">
+          <el-select v-model="formData.academicYear" placeholder="请选择学年" style="width: 100%">
             <el-option
-              v-for="option in semesterOptions"
+              v-for="year in academicYearOptions"
+              :key="year.value"
+              :label="year.label"
+              :value="year.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="学期" prop="semester">
+          <el-select v-model="formData.semester" placeholder="请选择学期" style="width: 100%">
+            <el-option
+              v-for="option in semesterFormOptions"
               :key="option.value"
               :label="option.label"
               :value="option.value"
@@ -176,19 +193,31 @@ const ACADEMIC_YEARS = [
 ]
 
 /**
- * 学期选项：1-第一学期，2-第二学期
+ * 学期类型选项：1-第一学期，2-第二学期，3-全年
  */
 const SEMESTER_TYPES = [
-  { label: '第一学期', value: '1' },
-  { label: '第二学期', value: '2' }
+  { label: '第一学期', value: 1 },
+  { label: '第二学期', value: 2 },
+  { label: '全年', value: 3 }
 ]
+
+/**
+ * 学年选项
+ */
+const academicYearOptions = ACADEMIC_YEARS
+
+/**
+ * 学期选项（用于表单选择）
+ */
+const semesterFormOptions = SEMESTER_TYPES
 
 /**
  * 表单数据接口
  */
 interface EvaluationForm {
   name: string
-  semester: string
+  academicYear: string     // 学年（如 "2025"）
+  semester: number         // 学期：1=第一学期, 2=第二学期, 3=全年
   startDate: string | Date
   endDate: string | Date
   remark: string
@@ -228,12 +257,39 @@ const semesterOptions = computed<SemesterOption[]>(() => {
 
 /**
  * 状态选项列表
+ * 后端状态：1=未开始, 2=申请中, 3=评审中, 4=公示中, 5=已完成
  */
 const statusOptions: StatusOption[] = [
-  { label: '未开始', value: 0 },
-  { label: '进行中', value: 1 },
-  { label: '已完成', value: 2 }
+  { label: '未开始', value: 1 },
+  { label: '申请中', value: 2 },
+  { label: '评审中', value: 3 },
+  { label: '公示中', value: 4 },
+  { label: '已完成', value: 5 }
 ]
+
+/**
+ * 格式化学期显示
+ * 后端 semester 是 Integer 类型：1=第一学期, 2=第二学期, 3=全年
+ */
+function formatSemester(semester: number | null | undefined): string {
+  if (semester === null || semester === undefined) return '-'
+  switch (semester) {
+    case 1: return '第一学期'
+    case 2: return '第二学期'
+    case 3: return '全年'
+    default: return String(semester)
+  }
+}
+
+/**
+ * 格式化学年学期组合显示
+ */
+function formatAcademicYearSemester(academicYear: string | null | undefined, semester: number | null | undefined): string {
+  if (!academicYear && (semester === null || semester === undefined)) return '-'
+  const yearStr = academicYear ? `${academicYear}-${parseInt(academicYear) + 1} 学年` : ''
+  const semStr = formatSemester(semester)
+  return yearStr && semStr !== '-' ? `${yearStr}${semStr}` : (yearStr || semStr)
+}
 
 /**
  * 加载状态
@@ -287,7 +343,8 @@ const queryParams = reactive<QueryParams>({
  */
 const formData = reactive<EvaluationForm>({
   name: '',
-  semester: '',
+  academicYear: '',
+  semester: 0,
   startDate: '',
   endDate: '',
   remark: ''
@@ -298,6 +355,7 @@ const formData = reactive<EvaluationForm>({
  */
 const formRules = reactive<FormRules<EvaluationForm>>({
   name: [{ required: true, message: '请输入评定名称', trigger: 'blur' }],
+  academicYear: [{ required: true, message: '请选择学年', trigger: 'change' }],
   semester: [{ required: true, message: '请选择学期', trigger: 'change' }],
   startDate: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
   endDate: [{ required: true, message: '请选择结束时间', trigger: 'change' }]
@@ -310,8 +368,8 @@ async function handleQuery(): Promise<void> {
   loading.value = true
   try {
     const res = await getEvaluationPage(queryParams)
-    tableData.value = res.data?.records || []
-    total.value = res.data?.total || 0
+    tableData.value = res.data?.data?.records || []
+    total.value = res.data?.data?.total || 0
   } catch (error) {
     console.error('查询失败:', error)
     ElMessage.error('查询失败')
@@ -357,18 +415,20 @@ async function handleView(row: ApiEvaluationBatch): Promise<void> {
     }
 
     const statusMap: Record<number, string> = {
-      0: '未开始',
-      1: '进行中',
-      2: '已完成'
+      1: '未开始',
+      2: '申请中',
+      3: '评审中',
+      4: '公示中',
+      5: '已完成'
     }
 
     const content = `
       <div style="padding: 10px; line-height: 1.8;">
         <p><strong>评定名称：</strong>${escapeHtml(detail.name)}</p>
-        <p><strong>学期：</strong>${escapeHtml(detail.semester)}</p>
+        <p><strong>学年学期：</strong>${formatAcademicYearSemester(detail.academicYear, detail.semester)}</p>
         <p><strong>申请开始：</strong>${detail.startDate}</p>
         <p><strong>申请结束：</strong>${detail.endDate}</p>
-        <p><strong>申请人数：</strong>${detail.applicantCount ?? 0}</p>
+        <p><strong>获奖人数：</strong>${detail.winnerCount ?? 0}</p>
         <p><strong>状态：</strong>${statusMap[detail.status ?? 0] || '未知'}</p>
         ${detail.remark ? `<p><strong>备注：</strong>${escapeHtml(detail.remark)}</p>` : ''}
       </div>
@@ -390,7 +450,8 @@ function handleStart(): void {
   // 重置表单数据
   Object.assign(formData, {
     name: '',
-    semester: '',
+    academicYear: '',
+    semester: 0,
     startDate: '',
     endDate: '',
     remark: ''
@@ -505,9 +566,11 @@ async function handleSubmit(): Promise<void> {
   try {
     await createEvaluation({
       name: formData.name,
+      academicYear: formData.academicYear,
       semester: formData.semester,
       startDate,
       endDate,
+      status: 1,  // 默认状态：未开始
       remark: formData.remark
     })
     ElMessage.success('评定创建成功')

@@ -16,8 +16,8 @@
     <!-- 搜索表单 -->
     <el-form :inline="true" class="search-form">
       <el-form-item label="规则类型">
-        <el-select v-model="queryParams.ruleType" placeholder="请选择" clearable>
-          <el-option label="全部" value="" />
+        <el-select v-model="queryParams.ruleType" placeholder="请选择" @change="handleQuery">
+          <el-option label="全部" value="all" />
           <el-option label="论文" :value="RULE_TYPE.PAPER" />
           <el-option label="专利" :value="RULE_TYPE.PATENT" />
           <el-option label="项目" :value="RULE_TYPE.PROJECT" />
@@ -81,6 +81,8 @@
       :total="total"
       layout="total, sizes, prev, pager, next, jumper"
       class="pagination"
+      @current-change="handleQuery"
+      @size-change="handleQuery"
     />
 
     <!-- 添加/编辑对话框 -->
@@ -172,7 +174,7 @@ const dialogTitle = computed(() => isEdit.value ? '编辑规则' : '添加规则
 const queryParams = reactive({
   current: 1,
   size: 10,
-  ruleType: undefined
+  ruleType: 'all'
 })
 
 // 默认表单数据
@@ -201,9 +203,14 @@ const formRules = {
 async function handleQuery() {
   loading.value = true
   try {
-    const res = await getRulePage(queryParams)
-    tableData.value = res.data.records || []
-    total.value = res.data.total || 0
+    // 将 'all' 转换为 undefined，不传给后端
+    const params = {
+      ...queryParams,
+      ruleType: queryParams.ruleType === 'all' ? undefined : queryParams.ruleType
+    }
+    const res = await getRulePage(params)
+    tableData.value = res.data?.data?.records || []
+    total.value = res.data?.data?.total || 0
   } catch (error) {
     ElMessage.error('查询失败：' + (error.message || '未知错误'))
   } finally {
@@ -212,7 +219,7 @@ async function handleQuery() {
 }
 
 function handleReset() {
-  queryParams.ruleType = undefined
+  queryParams.ruleType = 'all'
   queryParams.current = 1
   handleQuery()
 }

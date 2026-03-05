@@ -276,8 +276,8 @@ async function loadMyApplication(): Promise<void> {
   loading.value = true
   try {
     const res = await getApplicationPage({ current: 1, size: 1 })
-    if (res.data?.records?.length > 0) {
-      myApplication.value = res.data.records[0]
+    if (res.data?.data?.records?.length > 0) {
+      myApplication.value = res.data.data.records[0]
     }
   } catch (error) {
     console.error('加载申请信息失败:', error)
@@ -294,8 +294,8 @@ async function handleApply(): Promise<void> {
     // 查看申请详情
     try {
       const res = await getApplicationPage({ current: 1, size: 1 })
-      if (res.data?.records?.length > 0) {
-        const app = res.data.records[0]
+      if (res.data?.data?.records?.length > 0) {
+        const app = res.data.data.records[0]
         formData.batchId = app.batchId
         formData.selfEvaluation = app.selfEvaluation || ''
         formData.remark = app.remark || ''

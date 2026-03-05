@@ -3,7 +3,8 @@
 **数据库名称**: `scholarship`
 **数据库类型**: MySQL
 **字符集**: utf8mb4_unicode_ci
-**文档生成日期**: 2026-02-25
+**文档生成日期**: 2026-03-05
+**最后更新**: 根据实际数据库结构同步更新
 
 ---
 
@@ -15,27 +16,29 @@
    - [evaluation_batch - 评审批次表](#13-evaluation_batch---评审批次表)
    - [evaluation_result - 评审结果表](#14-evaluation_result---评审结果表)
    - [application_achievement - 申请成果表](#15-application_achievement---申请成果表)
-2. [成果/奖项表](#2-成果奖项表)
-   - [competition_award - 学科竞赛表](#21-competition_award---学科竞赛表)
-   - [research_paper - 研究论文表](#22-research_paper---研究论文表)
-   - [research_patent - 研究专利表](#23-research_patent---研究专利表)
-   - [research_project - 研究项目表](#24-research_project---研究项目表)
-3. [评审与规则表](#3-评审与规则表)
-   - [review_record - 评审记录表](#31-review_record---评审记录表)
-   - [result_appeal - 结果申诉表](#32-result_appeal---结果申诉表)
-   - [score_rule - 评分规则表](#33-score_rule---评分规则表)
-   - [rule_category - 规则分类表](#34-rule_category---规则分类表)
-4. [系统管理表](#4-系统管理表)
-   - [sys_user - 系统用户表](#41-sys_user---系统用户表)
-   - [sys_role - 系统角色表](#42-sys_role---系统角色表)
-   - [sys_permission - 系统权限表](#43-sys_permission---系统权限表)
-   - [sys_user_role - 用户角色关系表](#44-sys_user_role---用户角色关系表)
-   - [sys_role_permission - 角色权限关系表](#45-sys_role_permission---角色权限关系表)
-   - [sys_notification - 系统通知表](#46-sys_notification---系统通知表)
-   - [sys_operation_log - 操作日志表](#47-sys_operation_log---操作日志表)
-5. [备份表](#5-备份表)
-   - [sys_user_backup_20260222 - 用户备份表](#51-sys_user_backup_20260222---用户备份表)
+2. [学业与德育表](#2-学业与德育表)
+   - [course_score - 课程成绩表](#21-course_score---课程成绩表)
+   - [moral_performance - 德育表现表](#22-moral_performance---德育表现表)
+3. [成果/奖项表](#3-成果奖项表)
+   - [competition_award - 学科竞赛表](#31-competition_award---学科竞赛表)
+   - [research_paper - 研究论文表](#32-research_paper---研究论文表)
+   - [research_patent - 研究专利表](#33-research_patent---研究专利表)
+   - [research_project - 研究项目表](#34-research_project---研究项目表)
+4. [评审与规则表](#4-评审与规则表)
+   - [review_record - 评审记录表](#41-review_record---评审记录表)
+   - [result_appeal - 结果申诉表](#42-result_appeal---结果申诉表)
+   - [score_rule - 评分规则表](#43-score_rule---评分规则表)
+   - [rule_category - 规则分类表](#44-rule_category---规则分类表)
+5. [系统管理表](#5-系统管理表)
+   - [sys_user - 系统用户表](#51-sys_user---系统用户表)
+   - [sys_role - 系统角色表](#52-sys_role---系统角色表)
+   - [sys_permission - 系统权限表](#53-sys_permission---系统权限表)
+   - [sys_user_role - 用户角色关系表](#54-sys_user_role---用户角色关系表)
+   - [sys_role_permission - 角色权限关系表](#55-sys_role_permission---角色权限关系表)
+   - [sys_notification - 系统通知表](#56-sys_notification---系统通知表)
+   - [sys_operation_log - 操作日志表](#57-sys_operation_log---操作日志表)
 6. [表关系图](#6-表关系图)
+7. [已知问题](#7-已知问题)
 
 ---
 
@@ -224,9 +227,86 @@
 
 ---
 
-## 2. 成果/奖项表
+## 2. 学业与德育表
 
-### 2.1 competition_award - 学科竞赛表
+### 2.1 course_score - 课程成绩表
+
+**表说明**: 存储学生的课程成绩信息，包括学分、绩点、成绩等。
+
+| 字段名         | 数据类型      | 可空 | 键    | 默认值            | 额外             | 说明                                  |
+|:---------------|:--------------|:-----|:------|:------------------|:-----------------|:--------------------------------------|
+| id             | bigint        | NO   | PRI   | NULL              | auto_increment   | **ID 主键**，自增                        |
+| student_id     | bigint        | YES  | MUL   | NULL              |                  | 学生 ID，关联 student_info 表          |
+| student_no     | varchar(20)   | YES  |       | NULL              |                  | 学号                                  |
+| student_name   | varchar(50)   | YES  |       | NULL              |                  | 姓名                                  |
+| course_id      | bigint        | YES  | MUL   | NULL              |                  | 课程 ID                               |
+| course_name    | varchar(200)  | YES  |       | NULL              |                  | 课程名称                              |
+| course_code    | varchar(50)   | YES  |       | NULL              |                  | 课程代码                              |
+| course_type    | tinyint       | YES  |       | NULL              |                  | 课程类型：1-必修，2-选修，3-实践        |
+| credit         | decimal(4,1)  | YES  |       | NULL              |                  | 学分                                  |
+| score          | decimal(5,2)  | YES  |       | NULL              |                  | 成绩                                  |
+| gpa            | decimal(3,1)  | YES  |       | NULL              |                  | 绩点                                  |
+| academic_year  | varchar(20)   | YES  |       | NULL              |                  | 学年                                  |
+| semester       | tinyint       | YES  |       | NULL              |                  | 学期：1-第一学期，2-第二学期            |
+| exam_date      | date          | YES  |       | NULL              |                  | 考试日期                              |
+| remark         | varchar(500)  | YES  |       | NULL              |                  | 备注                                  |
+| deleted        | tinyint       | YES  | MUL   | 0                 |                  | 逻辑删除：0-未删除，1-已删除           |
+| create_time    | datetime      | YES  |       | CURRENT_TIMESTAMP |                  | 创建时间                              |
+| update_time    | datetime      | YES  |       | CURRENT_TIMESTAMP | ON UPDATE        | 更新时间                              |
+
+**索引**:
+- PRIMARY KEY (id)
+- KEY (student_id)
+- KEY (course_id)
+- KEY (deleted)
+
+---
+
+### 2.2 moral_performance - 德育表现表
+
+**表说明**: 存储学生的德育表现信息，包括志愿服务、社会实践、荣誉称号等。
+
+| 字段名            | 数据类型      | 可空 | 键    | 默认值            | 额外             | 说明                                  |
+|:------------------|:--------------|:-----|:------|:------------------|:-----------------|:--------------------------------------|
+| id                | bigint        | NO   | PRI   | NULL              | auto_increment   | **ID 主键**，自增                        |
+| student_id        | bigint        | YES  | MUL   | NULL              |                  | 学生 ID，关联 student_info 表          |
+| student_no        | varchar(20)   | YES  |       | NULL              |                  | 学号                                  |
+| student_name      | varchar(50)   | YES  |       | NULL              |                  | 姓名                                  |
+| performance_type  | int           | YES  |       | NULL              |                  | 表现类型：1-志愿服务，2-社会实践，3-荣誉称号，4-学生干部，5-其他 |
+| performance_name  | varchar(200)  | YES  |       | NULL              |                  | 表现名称                              |
+| description       | varchar(500)  | YES  |       | NULL              |                  | 表现描述                              |
+| level             | int           | YES  |       | NULL              |                  | 级别：1-国家级，2-省级，3-校级，4-院级   |
+| moral_score       | decimal(6,2)  | YES  |       | NULL              |                  | 道德品质分数                          |
+| honor_title       | varchar(200)  | YES  |       | NULL              |                  | 荣誉称号                              |
+| honor_level       | tinyint       | YES  |       | NULL              |                  | 荣誉级别                              |
+| honor_date        | date          | YES  |       | NULL              |                  | 获奖日期                              |
+| volunteer_hours   | int           | YES  |       | NULL              |                  | 志愿时长（小时）                      |
+| social_work       | varchar(500)  | YES  |       | NULL              |                  | 社会工作                              |
+| score             | decimal(6,2)  | YES  |       | NULL              |                  | 获得分数                              |
+| verifier          | varchar(50)   | YES  |       | NULL              |                  | 证明人                                |
+| verify_date       | date          | YES  |       | NULL              |                  | 证明日期                              |
+| academic_year     | varchar(20)   | YES  |       | NULL              |                  | 学年                                  |
+| semester          | int           | YES  |       | NULL              |                  | 学期：1-第一学期，2-第二学期，3-全年     |
+| audit_status      | tinyint       | YES  |       | 0                 |                  | 审核状态：0-待审核，1-审核通过，2-审核驳回 |
+| auditor_id        | bigint        | YES  |       | NULL              |                  | 审核人 ID                             |
+| audit_time        | datetime      | YES  |       | NULL              |                  | 审核时间                              |
+| audit_comment     | varchar(500)  | YES  |       | NULL              |                  | 审核意见                              |
+| proof_materials   | varchar(500)  | YES  |       | NULL              |                  | 证明材料路径                          |
+| remark            | varchar(500)  | YES  |       | NULL              |                  | 备注                                  |
+| deleted           | tinyint       | YES  | MUL   | 0                 |                  | 逻辑删除：0-未删除，1-已删除           |
+| create_time       | datetime      | YES  |       | CURRENT_TIMESTAMP |                  | 创建时间                              |
+| update_time       | datetime      | YES  |       | CURRENT_TIMESTAMP | ON UPDATE        | 更新时间                              |
+
+**索引**:
+- PRIMARY KEY (id)
+- KEY (student_id)
+- KEY (deleted)
+
+---
+
+## 3. 成果/奖项表
+
+### 3.1 competition_award - 学科竞赛表
 
 **表说明**: 存储学生参加的学科竞赛获奖信息。
 
@@ -258,7 +338,7 @@
 
 ---
 
-### 2.2 research_paper - 研究论文表
+### 3.2 research_paper - 研究论文表
 
 **表说明**: 存储学生发表的研究论文信息。
 
@@ -297,7 +377,7 @@
 
 ---
 
-### 2.3 research_patent - 研究专利表
+### 3.3 research_patent - 研究专利表
 
 **表说明**: 存储学生申请的研究专利信息。
 
@@ -342,7 +422,7 @@
 
 ---
 
-### 2.4 research_project - 研究项目表
+### 3.4 research_project - 研究项目表
 
 **表说明**: 存储学生参与的研究项目信息。
 
@@ -391,9 +471,9 @@
 
 ---
 
-## 3. 评审与规则表
+## 4. 评审与规则表
 
-### 3.1 review_record - 评审记录表
+### 4.1 review_record - 评审记录表
 
 **表说明**: 存储每笔申请的各级评审记录，包括导师审核、院系审核、学校审核等阶段。
 
@@ -420,7 +500,7 @@
 
 ---
 
-### 3.2 result_appeal - 结果申诉表
+### 4.2 result_appeal - 结果申诉表
 
 **表说明**: 存储学生对评审结果有异议时的申诉信息。
 
@@ -456,7 +536,7 @@
 
 ---
 
-### 3.3 score_rule - 评分规则表
+### 4.3 score_rule - 评分规则表
 
 **表说明**: 存储评分规则，定义各类成果类型、级别对应的分数。
 
@@ -486,7 +566,7 @@
 
 ---
 
-### 3.4 rule_category - 规则分类表
+### 4.4 rule_category - 规则分类表
 
 **表说明**: 存储评分规则的分类信息。
 
@@ -509,9 +589,9 @@
 
 ---
 
-## 4. 系统管理表
+## 5. 系统管理表
 
-### 4.1 sys_user - 系统用户表
+### 5.1 sys_user - 系统用户表
 
 **表说明**: 存储系统用户的基本信息，包括学生、教师、管理员等所有用户类型。
 
@@ -540,7 +620,7 @@
 
 ---
 
-### 4.2 sys_role - 系统角色表
+### 5.2 sys_role - 系统角色表
 
 **表说明**: 存储系统角色信息，如学生角色、教师角色、管理员角色等。
 
@@ -562,7 +642,7 @@
 
 ---
 
-### 4.3 sys_permission - 系统权限表
+### 5.3 sys_permission - 系统权限表
 
 **表说明**: 存储系统权限（菜单/按钮）信息，采用树形结构组织。
 
@@ -589,7 +669,7 @@
 
 ---
 
-### 4.4 sys_user_role - 用户角色关系表
+### 5.4 sys_user_role - 用户角色关系表
 
 **表说明**: 存储用户与角色的关联关系（多对多）。
 
@@ -607,7 +687,7 @@
 
 ---
 
-### 4.5 sys_role_permission - 角色权限关系表
+### 5.5 sys_role_permission - 角色权限关系表
 
 **表说明**: 存储角色与权限的关联关系（多对多）。
 
@@ -625,7 +705,7 @@
 
 ---
 
-### 4.6 sys_notification - 系统通知表
+### 5.6 sys_notification - 系统通知表
 
 **表说明**: 存储系统通知消息，支持发送给特定用户、特定角色或全体用户。
 
@@ -655,7 +735,7 @@
 
 ---
 
-### 4.7 sys_operation_log - 操作日志表
+### 5.7 sys_operation_log - 操作日志表
 
 **表说明**: 存储用户在系统中的操作日志，用于审计和追踪。
 
@@ -692,30 +772,6 @@
 
 ---
 
-## 5. 备份表
-
-### 5.1 sys_user_backup_20260222 - 用户备份表
-
-**表说明**: sys_user 表的备份表（备份于 2026-02-22），结构与 sys_user 基本相同，无唯一索引约束。
-
-| 字段名        | 数据类型      | 可空 | 说明                          |
-|:--------------|:--------------|:-----|:------------------------------|
-| id            | bigint        | NO   | 用户 ID                        |
-| username      | varchar(50)   | NO   | 用户名                         |
-| password      | varchar(200)  | NO   | 密码                           |
-| real_name     | varchar(50)   | NO   | 真实姓名                       |
-| user_type     | tinyint       | NO   | 用户类型：1-研究生，2-教师，3-管理员 |
-| email         | varchar(100)  | YES  | 联系邮箱                       |
-| phone         | varchar(20)   | YES  | 联系电话                       |
-| avatar        | varchar(500)  | YES  | 头像 URL                       |
-| status        | tinyint       | NO   | 状态：0-禁用，1-正常            |
-| deleted       | tinyint       | NO   | 逻辑删除                       |
-| create_time   | datetime      | NO   | 创建时间                       |
-| update_time   | datetime      | NO   | 更新时间                       |
-| remark        | varchar(500)  | YES  | 备注                           |
-
----
-
 ## 6. 表关系图
 
 ### 核心业务流程关系
@@ -726,18 +782,25 @@ sys_user (用户)
     └── 1:1 ──> student_info (学生信息)
                     │
                     │ 1:N
-                    ▼
-            scholarship_application (申请)
-                    │
-        ┌───────────┼───────────┐
-        │           │           │
-        ▼           ▼           ▼
-    evaluation_result  review_record  application_achievement
-        │                                   │
-        │         ┌─────────┬─────────┬─────┴────┐
-        │         │         │         │          │
-        ▼         ▼         ▼         ▼          ▼
-    competition_award  research_paper  research_patent  research_project
+                    ├───────────────────────────────────────┐
+                    │                                       │
+                    ▼                                       ▼
+            course_score (课程成绩)              moral_performance (德育表现)
+                    │                                       │
+                    └──────────────────┬────────────────────┘
+                                       │
+                                       ▼
+                            scholarship_application (申请)
+                                       │
+                        ┌──────────────┼──────────────┐
+                        │              │              │
+                        ▼              ▼              ▼
+                evaluation_result  review_record  application_achievement
+                        │                                │
+                        │         ┌─────────┬─────────┬──┴────┐
+                        │         │         │         │       │
+                        ▼         ▼         ▼         ▼       ▼
+                competition_award  research_paper  research_patent  research_project
 
 evaluation_batch (批次) ──> evaluation_result
 
@@ -773,6 +836,48 @@ sys_user (用户)
     │
     └── N ──> sys_operation_log (操作日志)
 ```
+
+---
+
+## 7. 已知问题
+
+### 7.1 字段冗余问题 (已清理部分)
+
+以下冗余字段已于 2026-03-05 通过迁移脚本 V1.8 清理：
+
+| 表名 | 已删除字段 | 原因 |
+|:-----|:-----------|:-----|
+| research_patent | authorization_date_new | 注释乱码，代码未定义此属性 |
+| research_project | leader_name_new | 注释乱码，代码未定义此属性 |
+| evaluation_result | publish_date | 代码未定义 publishDate，使用 publicity_date |
+| result_appeal | status | 代码使用 appeal_status |
+| result_appeal | attachment_url | 代码使用 attachment_path |
+| sys_operation_log | operator_id | 代码使用 operatorId 映射到 user_id |
+| sys_operation_log | execute_time | 代码使用 executionTime 映射到 response_time |
+
+以下为仍需关注的字段冗余问题：
+
+| 表名 | 冗余字段 | 问题描述 |
+|:-----|:---------|:---------|
+| evaluation_batch | application_start_date, application_end_date vs start_date, end_date | 申请日期字段重复定义 |
+| research_patent | authorization_date, grant_date | 授权日期字段重复 |
+| evaluation_result | scholarship_amount, award_amount | 奖学金金额字段重复 |
+| evaluation_result | result_status, status | 状态字段含义重叠 |
+| review_record | review_score, score | 评审分数字段重复 |
+| review_record | review_comment, opinion | 评审意见字段重复 |
+
+### 7.2 字符集不一致
+
+| 表名 | 当前字符集 | 建议 |
+|:-----|:-----------|:-----|
+| course_score | utf8mb4_0900_ai_ci | 建议统一为 utf8mb4_unicode_ci |
+| moral_performance | utf8mb4_0900_ai_ci | 建议统一为 utf8mb4_unicode_ci |
+
+### 7.3 建议清理方案
+
+1. **删除冗余字段**：保留使用中的字段，删除旧字段（如 authorization_date_new, leader_name_new）
+2. **统一字符集**：将所有表统一为 utf8mb4_unicode_ci
+3. **添加外键约束**：建议在关键关联字段上添加外键约束，保证数据一致性
 
 ---
 

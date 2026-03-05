@@ -29,14 +29,16 @@
         <el-input v-model="queryParams.keyword" placeholder="用户名或姓名" clearable @clear="handleQuery" @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item label="角色">
-        <el-select v-model="queryParams.userType" placeholder="全部" clearable @change="handleQuery">
+        <el-select v-model="queryParams.userType" placeholder="请选择" @change="handleQuery">
+          <el-option label="全部" value="all" />
           <el-option label="研究生" :value="USER_TYPE.STUDENT" />
           <el-option label="导师" :value="USER_TYPE.TUTOR" />
           <el-option label="管理员" :value="USER_TYPE.ADMIN" />
         </el-select>
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="queryParams.status" placeholder="全部" clearable @change="handleQuery">
+        <el-select v-model="queryParams.status" placeholder="请选择" @change="handleQuery">
+          <el-option label="全部" value="all" />
           <el-option label="启用" :value="USER_STATUS.ENABLED" />
           <el-option label="禁用" :value="USER_STATUS.DISABLED" />
         </el-select>
@@ -313,13 +315,13 @@ const viewData = ref(null)
 // 批量删除 loading 状态
 const batchDeleting = ref(false)
 
-// 查询参数（使用 undefined 作为初始值，避免类型不匹配导致 el-select 显示问题）
+// 查询参数（使用 'all' 作为"全部"选项的值，避免 Element Plus 空字符串 bug）
 const queryParams = reactive({
   current: 1,
   size: 10,
   keyword: '',
-  userType: undefined,
-  status: undefined
+  userType: 'all',
+  status: 'all'
 })
 
 // 表单数据
@@ -389,16 +391,16 @@ const formRules = computed(() => ({
 // 方法
 
 /**
- * 获取查询参数（处理空值）
+ * 获取查询参数（处理空值和 'all' 值）
  */
 function getQueryParams() {
   return {
     current: queryParams.current,
     size: queryParams.size,
     keyword: queryParams.keyword,
-    // 注意：status 为 0 时是有效值（禁用状态），不能使用 || 运算符
-    userType: queryParams.userType !== undefined && queryParams.userType !== '' && queryParams.userType !== null ? queryParams.userType : undefined,
-    status: queryParams.status !== undefined && queryParams.status !== '' && queryParams.status !== null ? queryParams.status : undefined
+    // 将 'all' 转换为 undefined，不传给后端
+    userType: queryParams.userType === 'all' ? undefined : queryParams.userType,
+    status: queryParams.status === 'all' ? undefined : queryParams.status
   }
 }
 
@@ -434,8 +436,8 @@ function handleQuery() {
  */
 function handleReset() {
   queryParams.keyword = ''
-  queryParams.userType = undefined
-  queryParams.status = undefined
+  queryParams.userType = 'all'
+  queryParams.status = 'all'
   queryParams.current = 1
   loadData()
 }

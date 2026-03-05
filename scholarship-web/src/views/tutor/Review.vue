@@ -174,8 +174,8 @@ async function handleQuery() {
   loading.value = true
   try {
     const res = await getPaperPage(queryParams)
-    tableData.value = res.data.records || []
-    total.value = res.data.total || 0
+    tableData.value = res.data?.data?.records || []
+    total.value = res.data?.data?.total || 0
   } catch (error) {
     console.error('查询失败:', error)
   } finally {

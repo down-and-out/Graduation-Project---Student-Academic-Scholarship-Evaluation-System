@@ -9,11 +9,12 @@ import request from '@/utils/request'
 export interface EvaluationBatch {
   id?: number
   name: string
-  semester: string
+  academicYear?: string   // 学年（如 "2025"）
+  semester: number | null  // 后端是 Integer 类型：1=第一学期, 2=第二学期, 3=全年
   startDate: string
   endDate: string
-  applicantCount?: number
-  status?: number
+  winnerCount?: number     // 获奖人数
+  status?: number          // 状态：1=未开始, 2=申请中, 3=评审中, 4=公示中, 5=已完成
   remark?: string
   createTime?: string
   updateTime?: string
@@ -32,9 +33,11 @@ export interface EvaluationPageParams extends API.PageParams {
  */
 export interface CreateEvaluationData {
   name: string
-  semester: string
+  academicYear: string   // 学年（如 "2025"）
+  semester: number       // 学期：1=第一学期, 2=第二学期, 3=全年
   startDate: string
   endDate: string
+  status?: number        // 状态：1=未开始（默认）
   remark?: string
 }
 

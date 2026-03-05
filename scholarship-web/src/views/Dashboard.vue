@@ -15,8 +15,8 @@
       </div>
     </el-card>
 
-    <!-- 统计卡片 -->
-    <el-row :gutter="20" class="stats-row">
+    <!-- 统计卡片 - 仅学生可见 -->
+    <el-row v-if="isStudent" :gutter="20" class="stats-row">
       <el-col :span="6">
         <el-card class="stats-card">
           <div class="stats-content">
@@ -63,8 +63,8 @@
       </el-col>
     </el-row>
 
-    <!-- 快捷操作 -->
-    <el-card class="quick-actions-card">
+    <!-- 快捷操作 - 仅学生可见 -->
+    <el-card v-if="isStudent" class="quick-actions-card">
       <template #header>
         <span>快捷操作</span>
       </template>
@@ -147,6 +147,7 @@ const router = useRouter()
 // ========== 状态管理 ==========
 const userStore = useUserStore()
 const userInfo = computed(() => userStore.userInfo) as Ref<UserInfo>
+const isStudent = computed(() => userInfo.value.userType === 1)
 
 // ========== 状态 ==========
 const stats = ref<Stats>({
@@ -230,7 +231,10 @@ async function loadNotices(): Promise<void> {
 
 // ========== 生命周期 ==========
 onMounted(() => {
-  loadStats()
+  // 只有学生才加载统计数据
+  if (isStudent.value) {
+    loadStats()
+  }
   loadNotices()
 })
 </script>

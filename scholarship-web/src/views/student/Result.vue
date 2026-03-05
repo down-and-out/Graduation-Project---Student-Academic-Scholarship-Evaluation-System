@@ -237,8 +237,8 @@ async function loadHistory(): Promise<void> {
   loading.value = true
   try {
     const res = await getResultPage({ current: 1, size: 100 })
-    if (res.code === SUCCESS && res.data?.records) {
-      historyList.value = res.data.records
+    if (res.code === SUCCESS && res.data?.data?.records) {
+      historyList.value = res.data.data.records
     }
   } catch (error) {
     console.error('加载历史记录失败:', error)
