@@ -195,44 +195,6 @@ redis-cli
 
 ---
 
-## 数据库 Flyway 测试
-
-### 1. 启用 Flyway 迁移
-
-修改 `application-dev.yml`:
-```yaml
-spring:
-  flyway:
-    enabled: true
-    baseline-on-migrate: true
-```
-
-### 2. 测试迁移
-
-```bash
-# 删除原有数据库
-mysql -u root -p -e "DROP DATABASE IF EXISTS scholarship;"
-
-# 启动应用，Flyway 应自动执行迁移
-cd scholarship-admin
-mvn spring-boot:run
-
-# 查看迁移记录
-mysql -u root -p -e "USE scholarship; SELECT * FROM flyway_schema_history;"
-```
-
-**预期结果**:
-```
-+----+---------+------------------------+-----------+
-| id | Version | Description            | Success   |
-+----+---------+------------------------+-----------+
-| 1  | 1.0     | initial schema         | 1         |
-| 2  | 1.1     | add indexes            | 1         |
-+----+---------+------------------------+-----------+
-```
-
----
-
 ## 单元测试（可选）
 
 ### 1. 后端单元测试
@@ -314,7 +276,6 @@ mvn test -Dtest=LoginAttemptServiceTest
 - [ ] 前端代码语法检查通过
 
 ### 数据库检查项
-- [ ] Flyway 迁移记录存在
 - [ ] 所有索引创建成功
 - [ ] 逻辑删除字段类型统一
 

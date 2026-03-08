@@ -44,7 +44,6 @@
 | **连接池** | Druid 1.2.23 | 数据库连接池 |
 | **认证** | Spring Security + JWT | 安全认证 |
 | **API 文档** | Knife4j 4.5.0 | OpenAPI/Swagger UI |
-| **数据库迁移** | Flyway | 数据库版本管理 |
 | **工具库** | Hutool 5.8.29 | Java 工具类 |
 | **JSON** | FastJSON2 2.0.50 | JSON 处理 |
 | **Lombok** | - | 代码简化 |
