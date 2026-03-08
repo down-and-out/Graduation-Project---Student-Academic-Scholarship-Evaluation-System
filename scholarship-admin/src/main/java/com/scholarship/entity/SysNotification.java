@@ -48,15 +48,31 @@ public class SysNotification implements Serializable {
      * 1-系统通知 2-申请通知 3-评审通知 4-结果通知
      */
     @Schema(description = "通知类型：1-系统 2-申请 3-评审 4-结果")
-    @TableField("type")
     private Integer notificationType;
 
     /**
      * 接收人 ID（为空表示全员通知）
      */
     @Schema(description = "接收人 ID")
-    @TableField("user_id")
     private Long receiverId;
+
+    /**
+     * 角色 ID
+     */
+    @Schema(description = "角色 ID")
+    private Long roleId;
+
+    /**
+     * 版本号
+     */
+    @Schema(description = "版本号")
+    private Integer version;
+
+    /**
+     * 发布人 ID
+     */
+    @Schema(description = "发布人 ID")
+    private Long publisherId;
 
     /**
      * 接收人类型
@@ -109,10 +125,4 @@ public class SysNotification implements Serializable {
      */
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
-
-    /**
-     * 更新时间
-     */
-    @Schema(description = "更新时间")
-    private LocalDateTime updateTime;
 }

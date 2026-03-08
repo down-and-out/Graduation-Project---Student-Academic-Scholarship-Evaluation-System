@@ -145,9 +145,9 @@
 | review_start_date        | date          | NO   |       | NULL              |                  | 评审开始日期                    |
 | review_end_date          | date          | NO   |       | NULL              |                  | 评审截止日期                    |
 | total_quota              | int           | YES  |       | NULL              |                  | 评审名额总数                    |
-| scholarship_amount       | decimal(10,2) | YES  |       | NULL              |                  | 奖学金总金额（元）              |
+| scholarship_amount       | decimal(10,2) | YES  |       | NULL              |                  | 奖学金总额（实体类中对应 totalAmount） |
 | description              | varchar(500)  | YES  |       | NULL              |                  | 批次说明                        |
-| status                   | tinyint       | NO   | MUL   | 0                 |                  | 状态：0-未开始，1-进行中，2-评审中，3-已结束，4-已取消 |
+| status                   | tinyint       | NO   | MUL   | 0                 |                  | 批次状态（实体类中对应 batchStatus）0-未开始，1-进行中，2-评审中，3-已结束，4-已取消 |
 | deleted                  | tinyint       | NO   |       | 0                 |                  | 逻辑删除：0-未删除，1-已删除     |
 | create_time              | datetime      | NO   |       | CURRENT_TIMESTAMP |                  | 创建时间                        |
 | update_time              | datetime      | NO   |       | CURRENT_TIMESTAMP | ON UPDATE        | 更新时间                        |
@@ -184,13 +184,10 @@
 | department_rank   | int           | YES  |       | NULL              |                  | 院系排名                                 |
 | major_rank        | int           | YES  |       | NULL              |                  | 专业排名                                 |
 | award_level       | tinyint       | NO   | MUL   | NULL              |                  | 获奖等级：0-未获奖，1-一等奖学金，2-二等奖学金，3-三等奖学金 |
-| scholarship_amount| decimal(10,2) | NO   |       | 0.00              |                  | 奖学金金额（元）                         |
-| award_amount      | decimal(10,2) | YES  |       | 0.00              |                  | 奖金金额                                 |
-| publish_date      | date          | YES  |       | NULL              |                  | 公示日期                                 |
+| award_amount      | decimal(10,2) | YES  |       | 0.00              |                  | 奖学金金额（实体类对应 awardAmount）     |
 | publicity_date    | datetime      | YES  |       | NULL              |                  | 公示日期时间                             |
-| result_status     | tinyint       | YES  |       | 1                 |                  | 结果状态：1-待公示，2-已确认，3-有异议      |
-| status            | tinyint       | NO   |       | 0                 |                  | 状态：0-未公示，1-公示中，2-公示结束，3-已撤销 |
-| version           | int           | NO   |       | 1                 |                  | 乐观锁版本号                             |
+| confirm_date      | datetime      | YES  |       | NULL              |                  | 确定日期                                 |
+| result_status     | tinyint       | YES  |       | 1                 |                  | 结果状态（实体类对应 resultStatus）：1-待公示，2-已确认，3-有异议 |
 | deleted           | tinyint       | NO   |       | 0                 |                  | 逻辑删除：0-未删除，1-已删除              |
 | create_time       | datetime      | NO   |       | CURRENT_TIMESTAMP |                  | 创建时间                                 |
 | update_time       | datetime      | NO   |       | CURRENT_TIMESTAMP | ON UPDATE        | 更新时间                                 |
@@ -287,7 +284,7 @@
 | verify_date       | date          | YES  |       | NULL              |                  | 证明日期                              |
 | academic_year     | varchar(20)   | YES  |       | NULL              |                  | 学年                                  |
 | semester          | int           | YES  |       | NULL              |                  | 学期：1-第一学期，2-第二学期，3-全年     |
-| audit_status      | tinyint       | YES  |       | 0                 |                  | 审核状态：0-待审核，1-审核通过，2-审核驳回 |
+| audit_status         | tinyint       | YES  |       | 0                 |                  | 审核状态：0-待审核，1-审核通过，2-审核驳回（实体类中对应 auditStatus） |
 | auditor_id        | bigint        | YES  |       | NULL              |                  | 审核人 ID                             |
 | audit_time        | datetime      | YES  |       | NULL              |                  | 审核时间                              |
 | audit_comment     | varchar(500)  | YES  |       | NULL              |                  | 审核意见                              |
@@ -393,22 +390,14 @@
 | inventor_rank        | tinyint       | NO   |       | NULL              |                  | 学生发明人排名                                |
 | applicant            | varchar(200)  | NO   |       | NULL              |                  | 申请人（单位）                                |
 | application_date     | date          | YES  | MUL   | NULL              |                  | 申请日期                                      |
-| authorization_date   | date          | YES  |       | NULL              |                  | 授权日期（旧字段）                            |
-| authorization_date_new| date         | YES  |       | NULL              |                  | 授权日期（新字段）                            |
-| grant_date           | date          | YES  |       | NULL              |                  | 授权公告日                                    |
+| authorization_date   | date          | YES  |       | NULL              |                  | 授权日期                                      |
 | patent_status        | tinyint       | NO   |       | 1                 |                  | 专利状态：1-实质审查，2-已授权，3-已失效       |
-| attachment_url       | varchar(500)  | YES  |       | NULL              |                  | 附件 URL                                      |
-| status               | tinyint       | NO   | MUL   | 0                 |                  | 审核状态：0-待审核，1-导师审核通过，2-院系审核通过，3-审核不通过 |
-| audit_status         | tinyint       | YES  |       | 0                 |                  | 审核状态：0-待审核，1-审核通过，2-审核驳回     |
+| audit_status         | tinyint       | YES  |       | 0                 |                  | 审核状态：0-待审核，1-审核通过，2-审核驳回（实体类中对应 auditStatus） |
 | auditor_id           | bigint        | YES  |       | NULL              |                  | 审核人 ID                                     |
 | audit_time           | datetime      | YES  |       | NULL              |                  | 审核时间                                      |
 | audit_comment        | varchar(500)  | YES  |       | NULL              |                  | 审核意见                                      |
 | proof_materials      | varchar(500)  | YES  |       | NULL              |                  | 证明材料路径                                  |
 | score                | decimal(6,2)  | YES  |       | NULL              |                  | 获得分数                                      |
-| version              | int           | NO   |       | 1                 |                  | 乐观锁版本号                                  |
-| review_comment       | varchar(500)  | YES  |       | NULL              |                  | 审核意见                                      |
-| reviewer_id          | bigint        | YES  |       | NULL              |                  | 审核人 ID                                     |
-| review_time          | datetime      | YES  |       | NULL              |                  | 审核时间                                      |
 | deleted              | tinyint       | NO   |       | 0                 |                  | 逻辑删除：0-未删除，1-已删除                   |
 | create_time          | datetime      | NO   |       | CURRENT_TIMESTAMP |                  | 创建时间                                      |
 | update_time          | datetime      | NO   |       | CURRENT_TIMESTAMP | ON UPDATE        | 更新时间                                      |
@@ -417,7 +406,7 @@
 **索引**:
 - PRIMARY KEY (id)
 - KEY (student_id)
-- KEY (status)
+- KEY (audit_status)
 - KEY (application_date)
 
 ---
@@ -436,8 +425,7 @@
 | project_type     | tinyint       | NO   |       | NULL              |                  | 项目类型：1-基础研究，2-应用研究，3-开发研究    |
 | project_source   | varchar(200)  | YES  |       | NULL              |                  | 项目来源                                      |
 | leader_id        | bigint        | YES  |       | NULL              |                  | 项目负责人 ID                                 |
-| leader_name      | varchar(50)   | YES  |       | NULL              |                  | 项目负责人姓名（旧字段）                       |
-| leader_name_new  | varchar(50)   | YES  |       | NULL              |                  | 项目负责人姓名（新字段）                       |
+| leader_name      | varchar(50)   | YES  |       | NULL              |                  | 项目负责人姓名                       |
 | member_rank      | int           | YES  |       | NULL              |                  | 成员排名                                      |
 | project_role     | tinyint       | NO   |       | NULL              |                  | 学生角色：1-项目负责人，2-主要参与人，3-一般参与人 |
 | leader           | varchar(50)   | NO   |       | NULL              |                  | 项目负责人                                    |
@@ -445,19 +433,13 @@
 | start_date       | date          | YES  | MUL   | NULL              |                  | 开始日期                                      |
 | end_date         | date          | YES  |       | NULL              |                  | 结束日期                                      |
 | project_status   | tinyint       | YES  |       | 1                 |                  | 项目状态：1-在研，2-已结题，3-已终止           |
-| audit_status     | tinyint       | YES  |       | 0                 |                  | 审核状态：0-待审核，1-审核通过，2-审核驳回     |
+| audit_status     | tinyint       | YES  |       | 0                 |                  | 审核状态：0-待审核，1-审核通过，2-审核驳回（实体类中对应 auditStatus） |
 | auditor_id       | bigint        | YES  |       | NULL              |                  | 审核人 ID                                     |
 | audit_time       | datetime      | YES  |       | NULL              |                  | 审核时间                                      |
 | audit_comment    | varchar(500)  | YES  |       | NULL              |                  | 审核意见                                      |
 | proof_materials  | varchar(500)  | YES  |       | NULL              |                  | 证明材料路径                                  |
 | score            | decimal(6,2)  | YES  |       | NULL              |                  | 获得分数                                      |
 | funding          | decimal(12,2) | YES  |       | NULL              |                  | 项目经费（元）                                |
-| attachment_url   | varchar(500)  | YES  |       | NULL              |                  | 附件 URL                                      |
-| status           | tinyint       | NO   | MUL   | 0                 |                  | 审核状态：0-待审核，1-导师审核通过，2-院系审核通过，3-审核不通过 |
-| version          | int           | NO   |       | 1                 |                  | 乐观锁版本号                                  |
-| review_comment   | varchar(500)  | YES  |       | NULL              |                  | 审核意见                                      |
-| reviewer_id      | bigint        | YES  |       | NULL              |                  | 审核人 ID                                     |
-| review_time      | datetime      | YES  |       | NULL              |                  | 审核时间                                      |
 | deleted          | tinyint       | NO   |       | 0                 |                  | 逻辑删除：0-未删除，1-已删除                   |
 | create_time      | datetime      | NO   |       | CURRENT_TIMESTAMP |                  | 创建时间                                      |
 | update_time      | datetime      | NO   |       | CURRENT_TIMESTAMP | ON UPDATE        | 更新时间                                      |
@@ -466,7 +448,7 @@
 **索引**:
 - PRIMARY KEY (id)
 - KEY (student_id)
-- KEY (status)
+- KEY (audit_status)
 - KEY (start_date)
 
 ---
@@ -603,6 +585,7 @@
 | real_name     | varchar(50)   | NO   |       | NULL              |                  | 真实姓名                       |
 | user_type     | tinyint       | NO   | MUL   | 1                 |                  | 用户类型：1-研究生，2-教师，3-管理员 |
 | email         | varchar(100)  | YES  |       | NULL              |                  | 联系邮箱                       |
+| department    | varchar(100)  | YES  |       | NULL              |                  | 院系/部门                       |
 | phone         | varchar(20)   | YES  |       | NULL              |                  | 联系电话                       |
 | avatar        | varchar(500)  | YES  |       | NULL              |                  | 头像 URL                       |
 | status        | tinyint       | NO   | MUL   | 1                 |                  | 状态：0-禁用，1-正常            |
@@ -742,32 +725,28 @@
 | 字段名         | 数据类型      | 可空 | 键    | 默认值            | 额外             | 说明                          |
 |:---------------|:--------------|:-----|:------|:------------------|:-----------------|:------------------------------|
 | id             | bigint        | NO   | PRI   | NULL              | auto_increment   | **ID 主键**，自增                |
-| user_id        | bigint        | YES  | MUL   | NULL              |                  | 操作用户 ID                    |
-| operator_id    | bigint        | YES  |       | NULL              |                  | 操作人 ID                      |
+| operator_id    | bigint        | YES  | MUL   | NULL              |                  | 操作人 ID                      |
 | operator_name  | varchar(50)   | YES  |       | NULL              |                  | 操作人姓名                     |
 | module         | varchar(100)  | YES  |       | NULL              |                  | 操作模块                       |
 | operation_type | tinyint       | YES  |       | 1                 |                  | 操作类型：1-查询，2-新增，3-修改，4-删除，5-审核，6-导出 |
 | description    | varchar(200)  | YES  |       | NULL              |                  | 操作描述                       |
-| username       | varchar(50)   | YES  |       | NULL              |                  | 操作用户名                     |
 | operation      | varchar(100)  | NO   |       | NULL              |                  | 操作名称                       |
 | method         | varchar(200)  | NO   |       | NULL              |                  | 请求方法                       |
 | params         | text          | YES  |       | NULL              |                  | 请求参数                       |
-| ip             | varchar(50)   | YES  |       | NULL              |                  | IP 地址                        |
-| request_url    | varchar(200)  | YES  |       | NULL              |                  | 请求 URL                       |
+| operator_ip    | varchar(50)   | YES  |       | NULL              |                  | 操作 IP                        |
+| request_url    | varchar(500)  | YES  |       | NULL              |                  | 请求 URL                       |
 | response_data  | text          | YES  |       | NULL              |                  | 返回结果                       |
 | location       | varchar(100)  | YES  |       | NULL              |                  | IP 归属地                      |
 | browser        | varchar(50)   | YES  |       | NULL              |                  | 浏览器                         |
 | os             | varchar(50)   | YES  |       | NULL              |                  | 操作系统                       |
 | status         | tinyint       | NO   |       | NULL              |                  | 状态：0-失败，1-成功            |
-| version        | int           | NO   |       | 1                 |                  | 乐观锁版本号                   |
 | error_msg      | varchar(500)  | YES  |       | NULL              |                  | 错误信息                       |
-| execute_time   | bigint        | YES  |       | NULL              |                  | 执行时长（毫秒）               |
-| execution_time | bigint        | YES  |       | NULL              |                  | 执行时长（毫秒，冗余字段）      |
+| execution_time | bigint        | YES  |       | NULL              |                  | 执行时长（毫秒）               |
 | create_time    | datetime      | NO   | MUL   | CURRENT_TIMESTAMP |                  | 创建时间                       |
 
 **索引**:
 - PRIMARY KEY (id)
-- KEY (user_id)
+- KEY (operator_id)
 - KEY (create_time)
 
 ---
@@ -841,10 +820,9 @@ sys_user (用户)
 
 ## 7. 已知问题
 
-### 7.1 字段冗余问题 (已清理部分)
+### 7.1 字段清理历史记录
 
-以下冗余字段已于 2026-03-05 通过迁移脚本 V1.8 清理：
-
+#### V1.8 迁移（2026-03-05）已清理字段：
 | 表名 | 已删除字段 | 原因 |
 |:-----|:-----------|:-----|
 | research_patent | authorization_date_new | 注释乱码，代码未定义此属性 |
@@ -855,29 +833,77 @@ sys_user (用户)
 | sys_operation_log | operator_id | 代码使用 operatorId 映射到 user_id |
 | sys_operation_log | execute_time | 代码使用 executionTime 映射到 response_time |
 
-以下为仍需关注的字段冗余问题：
+#### V1.9 迁移（2026-03-05）已重命名字段：
+| 表名 | 旧字段名 | 新字段名 | 说明 |
+|:-----|:---------|:---------|:-----|
+| evaluation_batch | status | batch_status | 与实体类 batchStatus 一致 |
+| evaluation_batch | scholarship_amount | total_amount | 与实体类 totalAmount 一致 |
+| sys_operation_log | user_id | operator_id | 与实体类 operatorId 一致 |
+| sys_operation_log | username | operator_name | 与实体类 operatorName 一致 |
+| sys_operation_log | request_uri | request_url | 与实体类 requestUrl 一致 |
+| sys_operation_log | response_time | execution_time | 与实体类 executionTime 一致 |
+| sys_operation_log | ip_address | operator_ip | 与实体类 operatorIp 一致 |
 
-| 表名 | 冗余字段 | 问题描述 |
-|:-----|:---------|:---------|
-| evaluation_batch | application_start_date, application_end_date vs start_date, end_date | 申请日期字段重复定义 |
-| research_patent | authorization_date, grant_date | 授权日期字段重复 |
-| evaluation_result | scholarship_amount, award_amount | 奖学金金额字段重复 |
-| evaluation_result | result_status, status | 状态字段含义重叠 |
+#### V2.0 迁移（2026-03-05）已删除冗余字段：
+| 表名 | 已删除字段 | 原因 |
+|:-----|:-----------|:-----|
+| evaluation_result | status | 实体类未定义，使用 result_status |
+| evaluation_result | version | 实体类未定义 |
+| evaluation_result | scholarship_amount | 实体类使用 award_amount |
+| research_patent | status | 实体类使用 audit_status |
+| research_patent | version | 实体类未定义 |
+| research_patent | authorization_date | 与 grant_date 重复 |
+| research_patent | grant_date | 与 authorization_date 重复，保留 authorization_date |
+| research_patent | review_comment | 实体类使用 audit_comment |
+| research_patent | reviewer_id | 实体类使用 auditor_id |
+| research_patent | review_time | 实体类使用 audit_time |
+| research_project | status | 实体类使用 audit_status |
+| research_project | version | 实体类未定义 |
+| research_project | review_comment | 实体类使用 audit_comment |
+| research_project | reviewer_id | 实体类使用 auditor_id |
+| research_project | review_time | 实体类使用 audit_time |
+
+### 7.2 当前仍需关注的问题
+
+| 表名 | 问题描述 | 建议 |
+|:-----|:---------|:-----|
+| evaluation_batch | application_start_date, application_end_date vs start_date, end_date | 申请日期字段重复定义，建议统一 |
 | review_record | review_score, score | 评审分数字段重复 |
 | review_record | review_comment, opinion | 评审意见字段重复 |
 
-### 7.2 字符集不一致
+### 7.3 字符集不一致
 
 | 表名 | 当前字符集 | 建议 |
 |:-----|:-----------|:-----|
 | course_score | utf8mb4_0900_ai_ci | 建议统一为 utf8mb4_unicode_ci |
 | moral_performance | utf8mb4_0900_ai_ci | 建议统一为 utf8mb4_unicode_ci |
 
-### 7.3 建议清理方案
+### 7.4 实体类与数据库字段映射说明
 
-1. **删除冗余字段**：保留使用中的字段，删除旧字段（如 authorization_date_new, leader_name_new）
-2. **统一字符集**：将所有表统一为 utf8mb4_unicode_ci
-3. **添加外键约束**：建议在关键关联字段上添加外键约束，保证数据一致性
+本项目使用 MyBatis-Plus 进行 ORM 映射。经过 V1.9 迁移后，数据库字段名已与 Java 实体类字段名保持一致（驼峰命名转下划线命名）：
+
+| 实体类 | Java 字段名 | 数据库字段名 | 映射方式 |
+|:-------|:------------|:-------------|:---------|
+| EvaluationBatch | batchStatus | batch_status | 默认映射（驼峰转下划线） |
+| EvaluationBatch | totalAmount | total_amount | 默认映射（驼峰转下划线） |
+| EvaluationResult | awardAmount | award_amount | 默认映射（驼峰转下划线） |
+| EvaluationResult | resultStatus | result_status | 默认映射（驼峰转下划线） |
+| SysOperationLog | operatorId | operator_id | 默认映射（驼峰转下划线） |
+| SysOperationLog | operatorName | operator_name | 默认映射（驼峰转下划线） |
+| SysOperationLog | requestUrl | request_url | 默认映射（驼峰转下划线） |
+| SysOperationLog | executionTime | execution_time | 默认映射（驼峰转下划线） |
+| SysOperationLog | operatorIp | operator_ip | 默认映射（驼峰转下划线） |
+| ResearchPatent | auditStatus | audit_status | 默认映射（驼峰转下划线） |
+| ResearchProject | auditStatus | audit_status | 默认映射（驼峰转下划线） |
+
+**注意**：
+1. 大部分字段使用 MyBatis-Plus 默认的驼峰转下划线映射
+2. 少数字段（如 `create_time`, `update_time`）需要显式使用 `@TableField` 注解指定
+
+### 7.5 建议后续优化
+
+1. **统一字符集**：将所有表统一为 utf8mb4_unicode_ci
+2. **添加外键约束**：建议在关键关联字段上添加外键约束，保证数据一致性
 
 ---
 

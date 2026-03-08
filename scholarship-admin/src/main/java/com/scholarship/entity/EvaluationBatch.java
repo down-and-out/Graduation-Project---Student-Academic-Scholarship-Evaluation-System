@@ -107,7 +107,7 @@ public class EvaluationBatch implements Serializable {
      * 1-未开始 2-申请中 3-评审中 4-公示中 5-已完成
      */
     @Schema(description = "批次状态：1-未开始 2-申请中 3-评审中 4-公示中 5-已完成")
-    @TableField("status")
+    @TableField("batch_status")
     @JsonProperty("status")
     private Integer batchStatus;
 
@@ -115,7 +115,7 @@ public class EvaluationBatch implements Serializable {
      * 奖学金总额
      */
     @Schema(description = "奖学金总额")
-    @TableField("scholarship_amount")
+    @TableField("total_amount")
     @DecimalMin(value = "0", message = "奖学金总额不能为负数")
     private BigDecimal totalAmount;
 

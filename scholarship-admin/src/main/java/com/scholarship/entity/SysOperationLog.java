@@ -35,14 +35,14 @@ public class SysOperationLog implements Serializable {
      * 操作人 ID
      */
     @Schema(description = "操作人 ID")
-    @TableField("user_id")
+    @TableField("operator_id")
     private Long operatorId;
 
     /**
      * 操作人姓名
      */
     @Schema(description = "操作人姓名")
-    @TableField("username")
+    @TableField("operator_name")
     private String operatorName;
 
     /**
@@ -77,7 +77,7 @@ public class SysOperationLog implements Serializable {
      * 请求 URL
      */
     @Schema(description = "请求 URL")
-    @TableField("request_uri")
+    @TableField("request_url")
     private String requestUrl;
 
     /**
@@ -109,14 +109,14 @@ public class SysOperationLog implements Serializable {
      * 执行时长（毫秒）
      */
     @Schema(description = "执行时长（毫秒）")
-    @TableField("response_time")
+    @TableField("execution_time")
     private Long executionTime;
 
     /**
      * 操作 IP
      */
     @Schema(description = "操作 IP")
-    @TableField("ip_address")
+    @TableField("operator_ip")
     private String operatorIp;
 
     /**
