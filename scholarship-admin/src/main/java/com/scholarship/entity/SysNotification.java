@@ -69,12 +69,6 @@ public class SysNotification implements Serializable {
     private Integer version;
 
     /**
-     * 发布人 ID
-     */
-    @Schema(description = "发布人 ID")
-    private Long publisherId;
-
-    /**
      * 接收人类型
      * 1-全部 2-研究生 3-导师 4-管理员
      */
