@@ -22,6 +22,8 @@
           <el-option label="专利" :value="RULE_TYPE.PATENT" />
           <el-option label="项目" :value="RULE_TYPE.PROJECT" />
           <el-option label="竞赛" :value="RULE_TYPE.COMPETITION" />
+          <el-option label="课程" :value="RULE_TYPE.COURSE" />
+          <el-option label="德育" :value="RULE_TYPE.MORAL" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -48,6 +50,8 @@
           <el-tag v-else-if="row.ruleType === RULE_TYPE.PATENT" type="success">专利</el-tag>
           <el-tag v-else-if="row.ruleType === RULE_TYPE.PROJECT" type="warning">项目</el-tag>
           <el-tag v-else-if="row.ruleType === RULE_TYPE.COMPETITION" type="info">竞赛</el-tag>
+          <el-tag v-else-if="row.ruleType === RULE_TYPE.COURSE" type="danger">课程</el-tag>
+          <el-tag v-else-if="row.ruleType === RULE_TYPE.MORAL" type="warning">德育</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="score" label="分值" width="80" />
@@ -99,6 +103,8 @@
             <el-option label="专利" :value="RULE_TYPE.PATENT" />
             <el-option label="项目" :value="RULE_TYPE.PROJECT" />
             <el-option label="竞赛" :value="RULE_TYPE.COMPETITION" />
+            <el-option label="课程" :value="RULE_TYPE.COURSE" />
+            <el-option label="德育" :value="RULE_TYPE.MORAL" />
           </el-select>
         </el-form-item>
         <el-form-item label="规则编码" prop="ruleCode">
@@ -154,7 +160,9 @@ const RULE_TYPE = {
   PAPER: 1,       // 论文
   PATENT: 2,      // 专利
   PROJECT: 3,     // 项目
-  COMPETITION: 4  // 竞赛
+  COMPETITION: 4, // 竞赛
+  COURSE: 5,      // 课程成绩
+  MORAL: 6        // 德育表现
 }
 
 const AVAILABILITY = {
