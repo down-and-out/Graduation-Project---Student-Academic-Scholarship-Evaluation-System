@@ -17,6 +17,8 @@ import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+
 /**
  * 研究生信息控制器
  * <p>
@@ -155,5 +157,41 @@ public class StudentInfoController {
     public Result<Void> delete(@PathVariable Long id) {
         boolean success = studentInfoService.removeById(id);
         return success ? Result.success("删除成功") : Result.error("删除失败");
+    }
+
+    /**
+     * 学生更新自己的信息
+     * <p>仅允许修改：电话、邮箱、研究方向</p>
+     *
+     * @param studentInfo 学生信息（只需包含允许修改的字段）
+     * @return 是否成功
+     */
+    @PutMapping("/my")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
+    @Operation(summary = "学生更新自己的信息", description = "学生只能修改自己的电话、邮箱、研究方向")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "更新成功"),
+        @ApiResponse(responseCode = "403", description = "无权限"),
+        @ApiResponse(responseCode = "404", description = "学生信息不存在")
+    })
+    public Result<Void> updateMyInfo(@RequestBody StudentInfo studentInfo,
+                                     @AuthenticationPrincipal LoginUser loginUser) {
+        // 获取当前登录用户ID
+        Long userId = loginUser.getUserId();
+
+        // 查询当前学生的信息
+        StudentInfo existing = studentInfoService.getByUserId(userId);
+        if (existing == null) {
+            return Result.error("学生信息不存在");
+        }
+
+        // 只允许修改白名单字段
+        existing.setPhone(studentInfo.getPhone());
+        existing.setEmail(studentInfo.getEmail());
+        existing.setDirection(studentInfo.getDirection());
+        existing.setUpdateTime(LocalDateTime.now());
+
+        boolean success = studentInfoService.updateById(existing);
+        return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 }

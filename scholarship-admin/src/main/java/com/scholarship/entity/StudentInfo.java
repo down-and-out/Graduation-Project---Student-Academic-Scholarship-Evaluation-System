@@ -151,6 +151,18 @@ public class StudentInfo implements Serializable {
     private String address;
 
     /**
+     * 电话
+     */
+    @Schema(description = "电话")
+    private String phone;
+
+    /**
+     * 邮箱
+     */
+    @Schema(description = "邮箱")
+    private String email;
+
+    /**
      * 学籍状态：0-休学 1-在读 2-毕业 3-退学
      */
     @NotNull(message = "学籍状态不能为空")

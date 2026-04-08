@@ -29,7 +29,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="姓名">
-              <el-input v-model="formData.name" :disabled="!isEdit" />
+              <el-input v-model="formData.name" disabled />
             </el-form-item>
           </el-col>
         </el-row>
@@ -37,7 +37,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="性别">
-              <el-select v-model="formData.gender" :disabled="!isEdit" style="width: 100%">
+              <el-select v-model="formData.gender" disabled style="width: 100%">
                 <el-option label="男" :value="1" />
                 <el-option label="女" :value="0" />
               </el-select>
@@ -45,7 +45,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="身份证号">
-              <el-input v-model="formData.idCard" :disabled="!isEdit" />
+              <el-input v-model="formData.idCard" disabled />
             </el-form-item>
           </el-col>
         </el-row>
@@ -95,22 +95,22 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="政治面貌">
-              <el-input v-model="formData.politicalStatus" :disabled="!isEdit" />
+              <el-input v-model="formData.politicalStatus" disabled />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="民族">
-              <el-input v-model="formData.nation" :disabled="!isEdit" />
+              <el-input v-model="formData.nation" disabled />
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-form-item label="籍贯">
-          <el-input v-model="formData.nativePlace" :disabled="!isEdit" />
+          <el-input v-model="formData.nativePlace" disabled />
         </el-form-item>
 
         <el-form-item label="家庭住址">
-          <el-input v-model="formData.address" :disabled="!isEdit" />
+          <el-input v-model="formData.address" disabled />
         </el-form-item>
 
         <el-form-item label="联系电话">
@@ -134,7 +134,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { getMyInfo, updateStudent } from '@/api/student'
+import { getMyInfo, updateMyInfo } from '@/api/student'
 import type { Student } from '@/api/student'
 import { SUCCESS } from '@/constants/resultCode'
 
@@ -224,7 +224,12 @@ async function handleSave(): Promise<void> {
   if (!valid) return
 
   try {
-    await updateStudent(formData)
+    // 只传递允许学生修改的字段
+    await updateMyInfo({
+      phone: formData.phone,
+      email: formData.email,
+      direction: formData.direction
+    })
     ElMessage.success('保存成功')
     isEdit.value = false
     await loadInfo()

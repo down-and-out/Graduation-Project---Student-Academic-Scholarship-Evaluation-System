@@ -23,6 +23,11 @@ export interface Student {
   avatar?: string
   tutorId?: number
   tutorName?: string
+  direction?: string
+  politicalStatus?: string
+  nation?: string
+  nativePlace?: string
+  address?: string
 }
 
 /**
@@ -100,6 +105,19 @@ export function updateStudent(data: Partial<Student> & { id: number }): Promise<
 }
 
 /**
+ * 学生更新自己的信息
+ * @param data - 部分学生信息（phone, email, direction）
+ * @returns Promise
+ */
+export function updateMyInfo(data: Partial<Student>): Promise<API.Response<null>> {
+  return request({
+    url: '/student-info/my',
+    method: 'put',
+    data
+  })
+}
+
+/**
  * 删除学生信息
  * @param id - 学生 ID
  * @returns Promise
@@ -117,5 +135,6 @@ export default {
   getStudentById,
   addStudent,
   updateStudent,
+  updateMyInfo,
   deleteStudent
 }

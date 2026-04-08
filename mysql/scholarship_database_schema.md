@@ -68,6 +68,8 @@
 | nation             | varchar(50)   | YES  |       | NULL              |                  | 民族                                   |
 | native_place       | varchar(100)  | YES  |       | NULL              |                  | 籍贯                                   |
 | address            | varchar(200)  | YES  |       | NULL              |                  | 家庭住址                               |
+| phone              | varchar(20)   | YES  |       | NULL              |                  | 电话                                   |
+| email              | varchar(100)  | YES  |       | NULL              |                  | 邮箱                                   |
 | status             | tinyint       | NO   | MUL   | 1                 |                  | 学生状态：0-休学，1-在读，2-毕业，3-退学  |
 | version            | int           | NO   |       | 1                 |                  | 乐观锁版本号                           |
 | deleted            | tinyint       | NO   |       | 0                 |                  | 逻辑删除：0-未删除，1-已删除             |
