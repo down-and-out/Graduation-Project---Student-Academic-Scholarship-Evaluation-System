@@ -1,9 +1,8 @@
 package com.scholarship.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
+import com.scholarship.dto.query.ScoreRuleQuery;
 import com.scholarship.entity.ScoreRule;
 import com.scholarship.service.ScoreRuleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,19 +54,13 @@ public class ScoreRuleController {
             @Parameter(description = "当前页", example = "1") @RequestParam(defaultValue = "1") Long current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Long size,
             @Parameter(description = "规则类型", example = "1") @RequestParam(required = false) Integer ruleType) {
-        Page<ScoreRule> page = new Page<>(current, size);
 
-        // 添加筛选条件
-        if (ruleType != null) {
-            LambdaQueryWrapper<ScoreRule> wrapper = new LambdaQueryWrapper<ScoreRule>()
-                    .eq(ScoreRule::getRuleType, ruleType)
-                    .orderByAsc(ScoreRule::getSortOrder);
-            IPage<ScoreRule> result = scoreRuleService.page(page, wrapper);
-            return Result.success(result);
-        }
+        ScoreRuleQuery query = new ScoreRuleQuery();
+        query.setCurrent(current);
+        query.setSize(size);
+        query.setRuleType(ruleType);
 
-        // 无筛选条件时查询全部
-        IPage<ScoreRule> result = scoreRuleService.page(page);
+        IPage<ScoreRule> result = scoreRuleService.queryPage(query);
         return Result.success(result);
     }
 

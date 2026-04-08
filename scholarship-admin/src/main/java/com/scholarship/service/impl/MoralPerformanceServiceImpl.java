@@ -1,16 +1,23 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.dto.query.MoralPerformanceQuery;
 import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.entity.MoralPerformance;
+import com.scholarship.enums.AuditStatusEnum;
+import com.scholarship.exception.BusinessException;
 import com.scholarship.mapper.MoralPerformanceMapper;
 import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.MoralPerformanceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -152,5 +159,52 @@ public class MoralPerformanceServiceImpl extends ServiceImpl<MoralPerformanceMap
 
         log.debug("批量计算德育总分完成，resultCount={}", result.size());
         return result;
+    }
+
+    @Override
+    public IPage<MoralPerformance> queryPage(MoralPerformanceQuery query) {
+        log.debug("分页查询德育表现，query={}", query);
+
+        Page<MoralPerformance> page = new Page<>(query.getCurrent(), query.getSize());
+        LambdaQueryWrapper<MoralPerformance> wrapper = new LambdaQueryWrapper<>();
+
+        if (query.getStudentId() != null) {
+            wrapper.eq(MoralPerformance::getStudentId, query.getStudentId());
+        }
+        if (query.getPerformanceType() != null) {
+            wrapper.eq(MoralPerformance::getPerformanceType, query.getPerformanceType());
+        }
+        if (query.getAcademicYear() != null) {
+            wrapper.eq(MoralPerformance::getAcademicYear, query.getAcademicYear());
+        }
+        if (query.getAuditStatus() != null) {
+            wrapper.eq(MoralPerformance::getAuditStatus, query.getAuditStatus());
+        }
+
+        wrapper.orderByDesc(MoralPerformance::getCreateTime);
+        return page(page, wrapper);
+    }
+
+    @Override
+    @Transactional
+    public boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId) {
+        log.info("审核德育表现，id={}, status={}, auditorId={}", id, auditStatus, auditorId);
+
+        // 验证审核状态是否有效
+        if (!AuditStatusEnum.isValid(auditStatus)) {
+            throw new BusinessException("无效的审核状态");
+        }
+
+        MoralPerformance performance = getById(id);
+        if (performance == null) {
+            throw new BusinessException("记录不存在");
+        }
+
+        performance.setAuditStatus(auditStatus);
+        performance.setAuditComment(auditComment);
+        performance.setAuditorId(auditorId);
+        performance.setAuditTime(LocalDateTime.now());
+
+        return updateById(performance);
     }
 }

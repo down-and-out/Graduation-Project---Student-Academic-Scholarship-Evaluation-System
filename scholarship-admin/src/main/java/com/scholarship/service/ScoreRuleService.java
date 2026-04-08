@@ -1,6 +1,8 @@
 package com.scholarship.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.scholarship.dto.query.ScoreRuleQuery;
 import com.scholarship.entity.ScoreRule;
 
 import java.util.List;
@@ -61,4 +63,11 @@ public interface ScoreRuleService extends IService<ScoreRule> {
      * @return 是否成功
      */
     boolean toggleAvailability(Long id);
+
+    /**
+     * 分页查询评分规则
+     * @param query 查询参数
+     * @return 分页结果
+     */
+    IPage<ScoreRule> queryPage(ScoreRuleQuery query);
 }

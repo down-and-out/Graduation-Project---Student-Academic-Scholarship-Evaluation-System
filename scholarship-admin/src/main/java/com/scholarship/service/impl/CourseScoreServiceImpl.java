@@ -1,7 +1,10 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.dto.query.CourseScoreQuery;
 import com.scholarship.entity.CourseScore;
 import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.mapper.CourseScoreMapper;
@@ -12,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -206,5 +208,51 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
 
         log.debug("批量计算加权平均分完成，resultCount={}", result.size());
         return result;
+    }
+
+    @Override
+    public IPage<CourseScore> queryPage(CourseScoreQuery query) {
+        log.debug("分页查询课程成绩，query={}", query);
+
+        Page<CourseScore> page = new Page<>(query.getCurrent(), query.getSize());
+        LambdaQueryWrapper<CourseScore> wrapper = buildQueryWrapper(query);
+        wrapper.orderByDesc(CourseScore::getExamDate);
+
+        return page(page, wrapper);
+    }
+
+    @Override
+    public List<CourseScore> queryForExport(CourseScoreQuery query) {
+        log.debug("查询成绩列表用于导出，query={}", query);
+
+        LambdaQueryWrapper<CourseScore> wrapper = buildQueryWrapper(query);
+        wrapper.orderByDesc(CourseScore::getExamDate);
+
+        return list(wrapper);
+    }
+
+    /**
+     * 构建查询条件
+     *
+     * @param query 查询参数
+     * @return 查询条件包装器
+     */
+    private LambdaQueryWrapper<CourseScore> buildQueryWrapper(CourseScoreQuery query) {
+        LambdaQueryWrapper<CourseScore> wrapper = new LambdaQueryWrapper<>();
+
+        if (query.getStudentId() != null) {
+            wrapper.eq(CourseScore::getStudentId, query.getStudentId());
+        }
+        if (query.getAcademicYear() != null) {
+            wrapper.eq(CourseScore::getAcademicYear, query.getAcademicYear());
+        }
+        if (query.getSemester() != null) {
+            wrapper.eq(CourseScore::getSemester, query.getSemester());
+        }
+        if (query.getCourseName() != null) {
+            wrapper.like(CourseScore::getCourseName, query.getCourseName());
+        }
+
+        return wrapper;
     }
 }

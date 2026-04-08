@@ -1,7 +1,10 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.dto.query.ScoreRuleQuery;
 import com.scholarship.entity.ScoreRule;
 import com.scholarship.mapper.ScoreRuleMapper;
 import com.scholarship.service.ScoreRuleService;
@@ -86,5 +89,26 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
         }
         rule.setIsAvailable(rule.getIsAvailable() == 1 ? 0 : 1);
         return updateById(rule);
+    }
+
+    @Override
+    public IPage<ScoreRule> queryPage(ScoreRuleQuery query) {
+        log.debug("分页查询评分规则，query={}", query);
+
+        Page<ScoreRule> page = new Page<>(query.getCurrent(), query.getSize());
+        LambdaQueryWrapper<ScoreRule> wrapper = new LambdaQueryWrapper<>();
+
+        if (query.getRuleType() != null) {
+            wrapper.eq(ScoreRule::getRuleType, query.getRuleType());
+        }
+        if (query.getRuleName() != null) {
+            wrapper.like(ScoreRule::getRuleName, query.getRuleName());
+        }
+        if (query.getAvailable() != null) {
+            wrapper.eq(ScoreRule::getIsAvailable, query.getAvailable());
+        }
+
+        wrapper.orderByAsc(ScoreRule::getSortOrder);
+        return page(page, wrapper);
     }
 }

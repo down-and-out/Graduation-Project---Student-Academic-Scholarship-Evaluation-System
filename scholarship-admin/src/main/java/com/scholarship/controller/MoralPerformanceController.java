@@ -1,10 +1,11 @@
 package com.scholarship.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
+import com.scholarship.dto.query.MoralPerformanceQuery;
 import com.scholarship.entity.MoralPerformance;
+import com.scholarship.enums.AuditStatusEnum;
+import com.scholarship.security.LoginUser;
 import com.scholarship.service.MoralPerformanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -14,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -54,24 +56,15 @@ public class MoralPerformanceController {
             @Parameter(description = "学年") @RequestParam(required = false) String academicYear,
             @Parameter(description = "审核状态：0-待审核 1-通过 2-驳回") @RequestParam(required = false) Integer auditStatus) {
 
-        Page<MoralPerformance> page = new Page<>(current, size);
-        LambdaQueryWrapper<MoralPerformance> wrapper = new LambdaQueryWrapper<>();
+        MoralPerformanceQuery query = new MoralPerformanceQuery();
+        query.setCurrent(current);
+        query.setSize(size);
+        query.setStudentId(studentId);
+        query.setPerformanceType(performanceType);
+        query.setAcademicYear(academicYear);
+        query.setAuditStatus(auditStatus);
 
-        if (studentId != null) {
-            wrapper.eq(MoralPerformance::getStudentId, studentId);
-        }
-        if (performanceType != null) {
-            wrapper.eq(MoralPerformance::getPerformanceType, performanceType);
-        }
-        if (academicYear != null) {
-            wrapper.eq(MoralPerformance::getAcademicYear, academicYear);
-        }
-        if (auditStatus != null) {
-            wrapper.eq(MoralPerformance::getAuditStatus, auditStatus);
-        }
-
-        wrapper.orderByDesc(MoralPerformance::getCreateTime);
-        IPage<MoralPerformance> result = moralPerformanceService.page(page, wrapper);
+        IPage<MoralPerformance> result = moralPerformanceService.queryPage(query);
         return Result.success(result);
     }
 
@@ -103,7 +96,7 @@ public class MoralPerformanceController {
         @ApiResponse(responseCode = "403", description = "无权限")
     })
     public Result<Void> add(@RequestBody MoralPerformance performance) {
-        performance.setAuditStatus(0); // 默认为待审核
+        performance.setAuditStatus(AuditStatusEnum.PENDING.getCode()); // 使用枚举
         boolean success = moralPerformanceService.save(performance);
         return success ? Result.success("录入成功") : Result.error("录入失败");
     }
@@ -151,19 +144,12 @@ public class MoralPerformanceController {
     public Result<Void> audit(
             @PathVariable Long id,
             @Parameter(description = "审核状态：1-通过 2-驳回") @RequestParam Integer auditStatus,
-            @Parameter(description = "审核意见") @RequestParam(required = false) String auditComment) {
+            @Parameter(description = "审核意见") @RequestParam(required = false) String auditComment,
+            @AuthenticationPrincipal LoginUser loginUser) {
 
         log.info("审核德育表现，id={}, status={}", id, auditStatus);
 
-        MoralPerformance performance = moralPerformanceService.getById(id);
-        if (performance == null) {
-            return Result.error("记录不存在");
-        }
-
-        performance.setAuditStatus(auditStatus);
-        performance.setAuditComment(auditComment);
-
-        boolean success = moralPerformanceService.updateById(performance);
+        boolean success = moralPerformanceService.audit(id, auditStatus, auditComment, loginUser.getUserId());
         return success ? Result.success("审核成功") : Result.error("审核失败");
     }
 

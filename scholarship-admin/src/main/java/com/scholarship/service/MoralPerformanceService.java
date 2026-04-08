@@ -1,6 +1,7 @@
 package com.scholarship.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.scholarship.dto.query.MoralPerformanceQuery;
 import com.scholarship.entity.MoralPerformance;
 
 import java.math.BigDecimal;
@@ -14,6 +15,25 @@ import java.util.Map;
  * @version 1.0.0
  */
 public interface MoralPerformanceService extends IService<MoralPerformance> {
+
+    /**
+     * 分页查询德育表现
+     *
+     * @param query 查询参数
+     * @return 分页结果
+     */
+    com.baomidou.mybatisplus.core.metadata.IPage<MoralPerformance> queryPage(MoralPerformanceQuery query);
+
+    /**
+     * 审核德育表现
+     *
+     * @param id 记录 ID
+     * @param auditStatus 审核状态
+     * @param auditComment 审核意见
+     * @param auditorId 审核人 ID
+     * @return 是否成功
+     */
+    boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId);
 
     /**
      * 查询学生的德育表现列表

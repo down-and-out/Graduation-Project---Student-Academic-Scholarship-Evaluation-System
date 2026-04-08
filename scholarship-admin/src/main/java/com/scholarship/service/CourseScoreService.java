@@ -1,6 +1,8 @@
 package com.scholarship.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.scholarship.dto.query.CourseScoreQuery;
 import com.scholarship.entity.CourseScore;
 
 import java.math.BigDecimal;
@@ -57,4 +59,20 @@ public interface CourseScoreService extends IService<CourseScore> {
      * @return 按学生 ID 分组的加权平均分
      */
     Map<Long, BigDecimal> mapWeightedAverageByStudentIds(List<Long> studentIds, Long batchId);
+
+    /**
+     * 分页查询课程成绩
+     *
+     * @param query 查询参数
+     * @return 分页结果
+     */
+    IPage<CourseScore> queryPage(CourseScoreQuery query);
+
+    /**
+     * 根据查询条件获取成绩列表（用于导出）
+     *
+     * @param query 查询参数
+     * @return 成绩列表
+     */
+    List<CourseScore> queryForExport(CourseScoreQuery query);
 }

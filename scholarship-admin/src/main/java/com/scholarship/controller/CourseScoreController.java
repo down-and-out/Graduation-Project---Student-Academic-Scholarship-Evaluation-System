@@ -1,10 +1,9 @@
 package com.scholarship.controller;
 
 import com.alibaba.excel.EasyExcel;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
+import com.scholarship.dto.query.CourseScoreQuery;
 import com.scholarship.entity.CourseScore;
 import com.scholarship.service.CourseScoreService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,20 +54,14 @@ public class CourseScoreController {
             @Parameter(description = "学年") @RequestParam(required = false) String academicYear,
             @Parameter(description = "学期：1-第一学期 2-第二学期 3-夏季学期") @RequestParam(required = false) Integer semester) {
 
-        Page<CourseScore> page = new Page<>(current, size);
-        LambdaQueryWrapper<CourseScore> wrapper = new LambdaQueryWrapper<>();
+        CourseScoreQuery query = new CourseScoreQuery();
+        query.setCurrent(current);
+        query.setSize(size);
+        query.setStudentId(studentId);
+        query.setAcademicYear(academicYear);
+        query.setSemester(semester);
 
-        if (studentId != null) {
-            wrapper.eq(CourseScore::getStudentId, studentId);
-        }
-        if (academicYear != null) {
-            wrapper.eq(CourseScore::getAcademicYear, academicYear);
-        }
-        if (semester != null) {
-            wrapper.eq(CourseScore::getSemester, semester);
-        }
-
-        IPage<CourseScore> result = courseScoreService.page(page, wrapper);
+        IPage<CourseScore> result = courseScoreService.queryPage(query);
         return Result.success(result);
     }
 
@@ -192,15 +185,11 @@ public class CourseScoreController {
 
         log.info("导出成绩列表");
 
-        LambdaQueryWrapper<CourseScore> wrapper = new LambdaQueryWrapper<>();
-        if (studentId != null) {
-            wrapper.eq(CourseScore::getStudentId, studentId);
-        }
-        if (academicYear != null) {
-            wrapper.eq(CourseScore::getAcademicYear, academicYear);
-        }
+        CourseScoreQuery query = new CourseScoreQuery();
+        query.setStudentId(studentId);
+        query.setAcademicYear(academicYear);
 
-        List<CourseScore> list = courseScoreService.list(wrapper);
+        List<CourseScore> list = courseScoreService.queryForExport(query);
 
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setCharacterEncoding("utf-8");
