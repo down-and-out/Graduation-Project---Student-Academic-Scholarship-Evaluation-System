@@ -15,24 +15,21 @@
 
     <!-- 搜索表单 -->
     <el-form :inline="true" class="search-form">
-      <el-form-item label="学期">
-        <el-select v-model="queryParams.semester" placeholder="请选择" clearable>
-          <el-option label="全部" value="" />
-          <el-option v-for="item in SEMESTER_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+      <el-form-item label="评定批次">
+        <el-select v-model="queryParams.batchId" placeholder="请选择" clearable>
+          <el-option label="全部" :value="null" />
+          <el-option v-for="item in batchOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
       </el-form-item>
-      <el-form-item label="奖项等级">
-        <el-select v-model="queryParams.level" placeholder="请选择" clearable>
-          <el-option label="全部" value="" />
-          <el-option label="一等奖学金" value="1" />
-          <el-option label="二等奖学金" value="2" />
-          <el-option label="三等奖学金" value="3" />
-        </el-select>
+      <el-form-item label="关键词">
+        <el-input v-model="queryParams.keyword" placeholder="学号/姓名" clearable />
       </el-form-item>
-      <el-form-item label="院系">
-        <el-select v-model="queryParams.department" placeholder="请选择" clearable>
-          <el-option label="全部" value="" />
-          <el-option v-for="item in DEPARTMENT_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+      <el-form-item label="状态">
+        <el-select v-model="queryParams.status" placeholder="请选择" clearable>
+          <el-option label="全部" :value="null" />
+          <el-option label="公示中" :value="1" />
+          <el-option label="已确定" :value="2" />
+          <el-option label="有异议" :value="3" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -150,10 +147,11 @@
         </el-form-item>
         <el-form-item label="调整后" prop="level">
           <el-select v-model="adjustForm.level">
-            <el-option label="一等奖学金" :value="1" />
-            <el-option label="二等奖学金" :value="2" />
-            <el-option label="三等奖学金" :value="3" />
-            <el-option label="未获奖" :value="0" />
+            <el-option label="特等奖学金" :value="1" />
+            <el-option label="一等奖学金" :value="2" />
+            <el-option label="二等奖学金" :value="3" />
+            <el-option label="三等奖学金" :value="4" />
+            <el-option label="未获奖" :value="5" />
           </el-select>
         </el-form-item>
         <el-form-item label="调整原因" prop="reason">
@@ -172,24 +170,22 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
+import { getResultPage } from '@/api/result'
 
 // ========== 常量配置 ==========
-const SEMESTER_OPTIONS = [
-  { label: '2024-2025 学年第一学期', value: '2024-1' },
-  { label: '2024-2025 学年第二学期', value: '2024-2' }
-]
+// 批次选项（后续可从API获取）
+const batchOptions = ref([
+  { label: '2024-2025学年第一学期', value: 1 },
+  { label: '2024-2025学年第二学期', value: 2 }
+])
 
-const DEPARTMENT_OPTIONS = [
-  { label: '计算机学院', value: '计算机学院' },
-  { label: '软件学院', value: '软件学院' },
-  { label: '信息学院', value: '信息学院' }
-]
-
+// 后端奖项等级：1-特等, 2-一等, 3-二等, 4-三等, 5-未获奖
 const LEVEL_CONFIG = {
-  1: { text: '一等奖学金', type: 'danger' },
-  2: { text: '二等奖学金', type: 'warning' },
-  3: { text: '三等奖学金', type: 'success' },
-  0: { text: '未获奖', type: 'info' }
+  1: { text: '特等奖学金', type: 'danger' },
+  2: { text: '一等奖学金', type: 'danger' },
+  3: { text: '二等奖学金', type: 'warning' },
+  4: { text: '三等奖学金', type: 'success' },
+  5: { text: '未获奖', type: 'info' }
 }
 
 // ========== 状态 ==========
@@ -213,9 +209,9 @@ const stats = reactive({
 const queryParams = reactive({
   current: 1,
   size: 10,
-  semester: '',
-  level: '',
-  department: ''
+  batchId: null,
+  keyword: '',
+  status: null
 })
 
 // ========== 调整表单 ==========
@@ -235,7 +231,7 @@ const adjustRules = {
  * 获取等级标签配置
  */
 function getLevelConfig(level) {
-  return LEVEL_CONFIG[level] || LEVEL_CONFIG[0]
+  return LEVEL_CONFIG[level] || LEVEL_CONFIG[5]
 }
 
 /**
@@ -244,79 +240,67 @@ function getLevelConfig(level) {
 async function handleQuery() {
   loading.value = true
   try {
-    // TODO: 调用实际API接口
-    setTimeout(() => {
-      tableData.value = [
-        {
-          id: 1,
-          semester: '2024-2025学年第一学期',
-          studentNo: '202301001',
-          name: '张三',
-          department: '计算机学院',
-          major: '计算机科学与技术',
-          level: 1,
-          score: 95.5,
-          rank: 1,
-          details: [
-            { item: '课程成绩', score: 40, description: '加权平均分90分' },
-            { item: '科研成果', score: 35.5, description: '发表论文2篇，专利1项' },
-            { item: '综合素质', score: 20, description: '担任班长，参与多项活动' }
-          ]
-        },
-        {
-          id: 2,
-          semester: '2024-2025学年第一学期',
-          studentNo: '202301002',
-          name: '李四',
-          department: '计算机学院',
-          major: '软件工程',
-          level: 2,
-          score: 88.0,
-          rank: 2,
-          details: [
-            { item: '课程成绩', score: 38, description: '加权平均分88分' },
-            { item: '科研成果', score: 30, description: '发表论文1篇' },
-            { item: '综合素质', score: 20, description: '参与多项活动' }
-          ]
-        },
-        {
-          id: 3,
-          semester: '2024-2025学年第一学期',
-          studentNo: '202301003',
-          name: '王五',
-          department: '软件学院',
-          major: '软件工程',
-          level: 3,
-          score: 82.5,
-          rank: 3,
-          details: [
-            { item: '课程成绩', score: 35, description: '加权平均分85分' },
-            { item: '科研成果', score: 27.5, description: '参与项目1项' },
-            { item: '综合素质', score: 20, description: '表现良好' }
-          ]
-        }
-      ]
-      total.value = 3
-      stats.total = 156
-      stats.firstLevel = 20
-      stats.secondLevel = 50
-      stats.thirdLevel = 86
-      loading.value = false
-    }, 300)
+    const res = await getResultPage({
+      current: queryParams.current,
+      size: queryParams.size,
+      batchId: queryParams.batchId || undefined,
+      status: queryParams.status || undefined,
+      keyword: queryParams.keyword || undefined
+    })
+
+    if (res.code === 200 && res.data) {
+      // 映射后端数据到前端表格格式
+      tableData.value = res.data.records.map(item => ({
+        id: item.id,
+        semester: item.batchName || `批次${item.batchId}`,
+        studentNo: item.studentNo || '',
+        name: item.studentName || '',
+        department: item.department || '-',
+        major: item.major || '-',
+        level: item.awardLevel || 5,
+        score: item.totalScore || 0,
+        rank: item.departmentRank || item.majorRank || 0,
+        resultStatus: item.resultStatus,
+        details: []
+      }))
+      total.value = res.data.total || 0
+
+      // 从返回数据计算统计
+      updateStats(res.data.records)
+    } else {
+      tableData.value = []
+      total.value = 0
+    }
   } catch (error) {
     console.error('查询失败:', error)
-    ElMessage.error('查询失败，请稍后重试')
+    ElMessage.error('查询失败: ' + (error.message || '未知错误'))
+    tableData.value = []
+    total.value = 0
+  } finally {
     loading.value = false
   }
+}
+
+/**
+ * 从返回数据计算统计
+ */
+function updateStats(records) {
+  // 统计获奖人数（awardLevel 1-4 为获奖，5 为未获奖）
+  const awarded = records.filter(r => r.awardLevel && r.awardLevel >= 1 && r.awardLevel <= 4)
+  stats.total = awarded.length
+  // awardLevel: 1-特等, 2-一等, 3-二等, 4-三等
+  stats.firstLevel = records.filter(r => r.awardLevel === 2).length  // 一等奖学金
+  stats.secondLevel = records.filter(r => r.awardLevel === 3).length // 二等奖学金
+  stats.thirdLevel = records.filter(r => r.awardLevel === 4).length  // 三等奖学金
 }
 
 /**
  * 重置查询
  */
 function handleReset() {
-  queryParams.semester = ''
-  queryParams.level = ''
-  queryParams.department = ''
+  queryParams.batchId = null
+  queryParams.keyword = ''
+  queryParams.status = null
   queryParams.current = 1
   handleQuery()
 }

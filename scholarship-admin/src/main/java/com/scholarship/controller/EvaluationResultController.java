@@ -2,12 +2,12 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.*;
+import com.scholarship.dto.param.EvaluationResultQueryParam;
 import com.scholarship.vo.EvaluationResultExportVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 
 /**
  * 评定结果控制器
@@ -49,24 +50,23 @@ public class EvaluationResultController {
     /**
      * 分页查询评定结果
      *
-     * @param current   当前页
-     * @param size      每页大小
-     * @param batchId   批次 ID
-     * @param studentId 学生 ID
+     * @param queryParam 查询参数
      * @return 分页结果
      */
     @GetMapping("/page")
-    @Operation(summary = "分页查询评定结果", description = "支持按批次 ID、学生 ID 筛选")
+    @Operation(summary = "分页查询评定结果", description = "支持按批次 ID、状态、学号/姓名筛选")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "查询成功")
     })
-    public Result<IPage<EvaluationResult>> page(
-            @Parameter(description = "当前页", example = "1") @RequestParam(defaultValue = "1") Long current,
-            @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Long size,
-            @Parameter(description = "批次 ID", example = "1") @RequestParam(required = false) Long batchId,
-            @Parameter(description = "学生 ID", example = "1") @RequestParam(required = false) Long studentId) {
-        Page<EvaluationResult> page = new Page<>(current, size);
-        IPage<EvaluationResult> result = evaluationResultService.page(page);
+    public Result<IPage<EvaluationResult>> page(@Valid @ModelAttribute EvaluationResultQueryParam queryParam) {
+        IPage<EvaluationResult> result = evaluationResultService.pageResults(
+                queryParam.getCurrent(),
+                queryParam.getSize(),
+                queryParam.getBatchId(),
+                queryParam.getStudentId(),
+                queryParam.getStatus(),
+                queryParam.getKeyword()
+        );
         return Result.success(result);
     }
 

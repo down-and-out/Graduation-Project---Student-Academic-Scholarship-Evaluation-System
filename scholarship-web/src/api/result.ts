@@ -13,9 +13,14 @@ export interface EvaluationResult {
   studentId: number
   studentName?: string
   studentNo?: string
-  rank?: number
+  department?: string        // 院系
+  major?: string             // 专业
+  departmentRank?: number    // 院系排名
+  majorRank?: number         // 专业排名
+  awardLevel?: number        // 获奖等级: 1-特等, 2-一等, 3-二等, 4-三等, 5-未获奖
   totalScore: number
-  status?: number
+  resultStatus?: number      // 结果状态: 1-公示中, 2-已确定, 3-有异议
+  status?: number            // 兼容字段
   publicStartTime?: string
   publicEndTime?: string
   grantTime?: string
