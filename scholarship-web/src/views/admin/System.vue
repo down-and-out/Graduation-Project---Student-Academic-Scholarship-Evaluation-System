@@ -65,8 +65,56 @@
 
       <el-tab-pane label="奖项设置" name="award">
         <el-card shadow="never">
+          <!-- 奖项比例汇总统计 -->
+          <div v-if="awards.length > 0" class="award-summary">
+            <el-card shadow="hover" :body-style="{ padding: '16px' }">
+              <div class="summary-header">
+                <span class="summary-title">奖项比例分配</span>
+                <el-tag
+                  :type="totalAwardRatio === 100 ? 'success' : totalAwardRatio < 100 ? 'warning' : 'danger'"
+                  size="small"
+                >
+                  {{ totalAwardRatio === 100 ? '已配满' : totalAwardRatio < 100 ? '未配满' : '超出' }}
+                </el-tag>
+              </div>
+              <el-progress
+                :percentage="Math.min(totalAwardRatio, 100)"
+                :status="totalAwardRatio === 100 ? 'success' : totalAwardRatio > 100 ? 'exception' : ''"
+                :color="totalAwardRatio < 100 ? '#e6a23c' : ''"
+                :stroke-width="18"
+                style="margin: 12px 0"
+              />
+              <div v-if="totalAwardRatio > 100" class="overflow-hint">
+                已超出 {{ totalAwardRatio - 100 }}%
+              </div>
+              <div class="summary-stats">
+                <div class="stat-item">
+                  <span class="stat-label">当前总比例：</span>
+                  <span class="stat-value" :class="{
+                    'text-success': totalAwardRatio === 100,
+                    'text-warning': totalAwardRatio < 100,
+                    'text-danger': totalAwardRatio > 100
+                  }">{{ totalAwardRatio }}%</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">目标比例：</span>
+                  <span class="stat-value">100%</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">剩余比例：</span>
+                  <span class="stat-value" :class="{
+                    'text-success': 100 - totalAwardRatio === 0,
+                    'text-warning': 100 - totalAwardRatio > 0,
+                    'text-danger': 100 - totalAwardRatio < 0
+                  }">{{ 100 - totalAwardRatio }}%</span>
+                </div>
+              </div>
+            </el-card>
+          </div>
+
+          <!-- 奖项列表 -->
           <div class="award-list">
-            <div v-for="(award, index) in awards" :key="award.name" class="award-item">
+            <div v-for="(award, index) in awards" :key="award.id" class="award-item">
               <el-row :gutter="20" align="middle">
                 <el-col :span="6">
                   <el-tag :type="getAwardTagType(index)">{{ award.name }}</el-tag>
@@ -83,15 +131,28 @@
               </el-row>
             </div>
           </div>
+
+          <!-- 空状态引导 -->
+          <el-empty
+            v-if="awards.length === 0"
+            description="暂无奖项配置"
+            :image-size="120"
+          >
+            <template #default>
+              <p class="empty-hint">请配置奖项，名额比例总和必须等于 100%</p>
+            </template>
+          </el-empty>
+
           <el-alert
-            v-if="totalAwardRatio !== 100"
-            title="名额比例总和不等于 100%，请调整"
-            type="warning"
+            v-if="awards.length > 0 && totalAwardRatio !== 100"
+            :title="totalAwardRatio < 100 ? `名额比例总和为 ${totalAwardRatio}%，还差 ${100 - totalAwardRatio}% 未分配` : `名额比例总和为 ${totalAwardRatio}%，已超出 ${totalAwardRatio - 100}%`"
+            :type="totalAwardRatio < 100 ? 'warning' : 'error'"
             :closable="false"
-            style="margin-bottom: 20px"
+            show-icon
+            style="margin: 20px 0"
           />
-          <el-divider />
-          <el-button type="primary" @click="handleSaveAwards">保存奖项设置</el-button>
+          <el-divider v-if="awards.length > 0" />
+          <el-button v-if="awards.length > 0" type="primary" @click="handleSaveAwards">保存奖项设置</el-button>
         </el-card>
       </el-tab-pane>
 
@@ -151,6 +212,15 @@
           <el-input-number v-model="awardForm.amount" :min="0" :step="100" />
           <span style="margin-left: 10px">元</span>
         </el-form-item>
+        <el-form-item label="分数范围">
+          <el-input-number v-model="awardForm.scoreRange.min" :min="0" :max="100" :precision="2" placeholder="最低分" />
+          <span style="margin: 0 10px">-</span>
+          <el-input-number v-model="awardForm.scoreRange.max" :min="0" :max="100" :precision="2" placeholder="最高分" />
+        </el-form-item>
+        <el-form-item label="优先级">
+          <el-input-number v-model="awardForm.priority" :min="1" :max="10" :step="1" />
+          <span style="margin-left: 10px; color: #909399; font-size: 12px">数字越小优先级越高</span>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="handleCloseAwardDialog">取消</el-button>
@@ -160,9 +230,21 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import {
+  getSetting,
+  updateSetting,
+  getOperationLogPage,
+} from '@/api/system'
+import type {
+  BasicSetting,
+  WeightSetting,
+  AwardConfig,
+  AwardRule,
+  OperationLog
+} from '@/api/system'
 
 // 常量定义
 const LOG_TYPE_TEXT = {
@@ -250,16 +332,16 @@ const totalWeight = computed(() => {
 })
 
 // 奖项设置
-const awards = ref([
-  { name: '一等奖学金', ratio: 10, amount: 10000 },
-  { name: '二等奖学金', ratio: 30, amount: 5000 },
-  { name: '三等奖学金', ratio: 50, amount: 2000 }
-])
+const awards = ref<AwardRule[]>([])
 
 const awardForm = reactive({
+  id: '',
   name: '',
   ratio: 0,
-  amount: 0
+  amount: 0,
+  scoreRange: { min: 0, max: 100 },
+  conditions: [],
+  priority: 1
 })
 
 const awardRules = {
@@ -292,10 +374,15 @@ async function handleSaveBasic() {
   if (!valid) return
 
   try {
-    // TODO: 调用 API 保存
-    ElMessage.success('保存成功')
+    const res = await updateSetting<BasicSetting>('basic', basicForm)
+    if (res.code === 200) {
+      ElMessage.success('保存成功')
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
   } catch (error) {
-    ElMessage.error(error.message || '保存失败')
+    console.error('保存基本设置失败:', error)
+    ElMessage.error('保存失败')
   }
 }
 
@@ -309,22 +396,33 @@ async function handleSaveWeight() {
   if (!valid) return
 
   try {
-    // TODO: 调用 API 保存
-    ElMessage.success('保存成功')
+    const res = await updateSetting<WeightSetting>('weight', weightForm)
+    if (res.code === 200) {
+      ElMessage.success('保存成功')
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
   } catch (error) {
-    ElMessage.error(error.message || '保存失败')
+    console.error('保存权重设置失败:', error)
+    ElMessage.error('保存失败')
   }
 }
 
 function getAwardTagType(index) {
-  return AWARD_TAG_TYPES[index] || ''
+  // 循环使用标签类型，避免超出数组范围
+  return AWARD_TAG_TYPES[index % AWARD_TAG_TYPES.length] || 'info'
 }
 
 function handleEditAward(award, index) {
   currentAwardIndex.value = index
+  // 复制所有字段，保留 scoreRange 和 conditions
+  awardForm.id = award.id
   awardForm.name = award.name
   awardForm.ratio = award.ratio
   awardForm.amount = award.amount
+  awardForm.scoreRange = award.scoreRange || { min: 0, max: 100 }
+  awardForm.conditions = award.conditions || []
+  awardForm.priority = award.priority || index + 1
   awardDialogVisible.value = true
 }
 
@@ -338,19 +436,52 @@ async function handleSaveAward() {
   if (!valid) return
 
   if (currentAwardIndex.value >= 0 && currentAwardIndex.value < awards.value.length) {
-    awards.value[currentAwardIndex.value] = { ...awardForm }
+    // 保留原有字段，只更新编辑的字段
+    const originalAward = awards.value[currentAwardIndex.value]
+    awards.value[currentAwardIndex.value] = {
+      ...originalAward,
+      id: awardForm.id,
+      name: awardForm.name,
+      ratio: awardForm.ratio,
+      amount: awardForm.amount,
+      scoreRange: awardForm.scoreRange,
+      conditions: awardForm.conditions,
+      priority: awardForm.priority
+    }
     awardDialogVisible.value = false
     ElMessage.success('保存成功')
   }
 }
 
-function handleSaveAwards() {
+async function handleSaveAwards() {
   if (totalAwardRatio.value !== 100) {
-    ElMessage.warning('名额比例总和必须等于 100%')
+    const diff = 100 - totalAwardRatio.value
+    if (diff > 0) {
+      ElMessage.warning(`名额比例总和为 ${totalAwardRatio.value}%，还差 ${diff}% 才能达到 100%，请调整后再保存`)
+    } else {
+      ElMessage.warning(`名额比例总和为 ${totalAwardRatio.value}%，已超出 ${Math.abs(diff)}%，请调整后再保存`)
+    }
     return
   }
-  // TODO: 调用 API 保存
-  ElMessage.success('奖项设置保存成功')
+
+  try {
+    // 构造奖项配置对象
+    const awardConfig: AwardConfig = {
+      version: '1.0',
+      name: `${new Date().getFullYear()}年奖项配置`,
+      rules: awards.value,
+      allocationStrategy: 'scorePriority'
+    }
+    const res = await updateSetting<AwardConfig>('awards', awardConfig)
+    if (res.code === 200) {
+      ElMessage.success('奖项设置保存成功')
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
+  } catch (error) {
+    console.error('保存奖项设置失败:', error)
+    ElMessage.error('保存失败')
+  }
 }
 
 function getLogTypeText(type) {
@@ -360,33 +491,83 @@ function getLogTypeText(type) {
 async function handleQueryLog() {
   logLoading.value = true
   try {
-    // TODO: 调用 API 查询
-    logData.value = [
-      {
-        operator: 'admin',
-        type: 'login',
-        description: '用户登录系统',
-        ip: '192.168.1.100',
-        createTime: '2024-02-19 10:30:15'
-      },
-      {
-        operator: 'admin',
-        type: 'system',
-        description: '修改系统设置',
-        ip: '192.168.1.100',
-        createTime: '2024-02-19 10:35:22'
-      }
-    ]
-    logTotal.value = 2
+    const res = await getOperationLogPage({
+      current: logQuery.current,
+      size: logQuery.size,
+      operationType: logQuery.type || undefined,
+      username: logQuery.operator || undefined
+    })
+    if (res.code === 200 && res.data) {
+      // 字段映射：后端字段名 → 前端字段名
+      logData.value = res.data.records.map((item: OperationLog) => ({
+        operator: item.username,
+        type: item.operationType,
+        description: item.operationDesc,
+        ip: item.ipAddress,
+        createTime: item.createTime
+      }))
+      logTotal.value = res.data.total
+    } else {
+      logData.value = []
+      logTotal.value = 0
+    }
   } catch (error) {
-    ElMessage.error(error.message || '查询失败')
+    console.error('查询操作日志失败:', error)
+    ElMessage.error('查询失败')
+    logData.value = []
+    logTotal.value = 0
   } finally {
     logLoading.value = false
   }
 }
 
-onMounted(() => {
-  handleQueryLog()
+/**
+ * 加载所有系统设置
+ */
+async function loadSettings() {
+  try {
+    // 并行加载三个设置
+    const [basicRes, weightRes, awardsRes] = await Promise.all([
+      getSetting<BasicSetting>('basic'),
+      getSetting<WeightSetting>('weight'),
+      getSetting<AwardConfig>('awards')
+    ])
+
+    // 回填基本设置
+    if (basicRes.data?.code === 200 && basicRes.data?.data) {
+      const basicData = typeof basicRes.data.data === 'string'
+        ? JSON.parse(basicRes.data.data)
+        : basicRes.data.data
+      Object.assign(basicForm, basicData)
+    }
+
+    // 回填权重设置
+    if (weightRes.data?.code === 200 && weightRes.data?.data) {
+      const weightData = typeof weightRes.data.data === 'string'
+        ? JSON.parse(weightRes.data.data)
+        : weightRes.data.data
+      Object.assign(weightForm, weightData)
+    }
+
+    // 回填奖项设置
+    if (awardsRes.data?.code === 200 && awardsRes.data?.data) {
+      // 后端返回的是JSON字符串，需要解析
+      const awardsData = typeof awardsRes.data.data === 'string'
+        ? JSON.parse(awardsRes.data.data)
+        : awardsRes.data.data
+      if (awardsData && awardsData.rules) {
+        awards.value = awardsData.rules
+      }
+    }
+  } catch (error) {
+    console.error('加载设置失败:', error)
+    ElMessage.error('加载系统设置失败')
+  }
+}
+
+onMounted(async () => {
+  await loadSettings()
+  await handleQueryLog()
 })
 </script>
 
@@ -432,5 +613,74 @@ onMounted(() => {
 
 .award-item:last-child {
   border-bottom: none;
+}
+
+/* 奖项比例汇总统计 */
+.award-summary {
+  margin-bottom: 20px;
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.summary-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.summary-stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #ebeef5;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+}
+
+.stat-label {
+  color: #606266;
+  font-size: 14px;
+}
+
+.stat-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.text-success {
+  color: #67c23a;
+}
+
+.text-warning {
+  color: #e6a23c;
+}
+
+.text-danger {
+  color: #f56c6c;
+}
+
+/* 超出比例提示 */
+.overflow-hint {
+  color: #f56c6c;
+  font-size: 12px;
+  text-align: center;
+  margin-top: -8px;
+  margin-bottom: 8px;
+}
+
+/* 空状态提示 */
+.empty-hint {
+  color: #909399;
+  font-size: 14px;
+  margin-top: 8px;
 }
 </style>
