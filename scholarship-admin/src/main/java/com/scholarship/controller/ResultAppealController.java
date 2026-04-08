@@ -13,7 +13,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.validation.Valid;
-import org.hibernate.validator.constraints.Length;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -72,8 +71,7 @@ public class ResultAppealController {
         @ApiResponse(responseCode = "400", description = "参数错误")
     })
     public Result<Void> submit(@Valid @RequestBody ResultAppeal appeal) {
-        appeal.setAppealStatus(1); // 待处理
-        boolean success = resultAppealService.save(appeal);
+        boolean success = resultAppealService.submitAppeal(appeal);
         return success ? Result.success("提交成功") : Result.error("提交失败");
     }
 
@@ -96,13 +94,7 @@ public class ResultAppealController {
             @PathVariable Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "处理参数")
             @RequestBody HandleAppealRequest request) {
-        ResultAppeal appeal = resultAppealService.getById(id);
-        if (appeal == null) {
-            return Result.error("异议不存在");
-        }
-        appeal.setAppealStatus(3); // 已处理
-        appeal.setHandleResult(request.handleResult());
-        boolean success = resultAppealService.updateById(appeal);
+        boolean success = resultAppealService.handleAppeal(id, request.handleResult());
         return success ? Result.success("处理成功") : Result.error("处理失败");
     }
 

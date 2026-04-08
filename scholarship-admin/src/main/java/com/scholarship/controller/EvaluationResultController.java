@@ -1,10 +1,9 @@
 package com.scholarship.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.EvaluationResult;
-import com.scholarship.entity.StudentInfo;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.*;
 import com.scholarship.dto.param.EvaluationResultQueryParam;
@@ -111,27 +110,7 @@ public class EvaluationResultController {
             return Result.error("用户未登录");
         }
 
-        // 根据用户 ID 查询学生信息
-        StudentInfo studentInfo = studentInfoService.getOne(
-            new LambdaQueryWrapper<StudentInfo>()
-                .eq(StudentInfo::getUserId, loginUser.getUserId())
-        );
-
-        if (studentInfo == null) {
-            return Result.error("未找到学生信息");
-        }
-
-        LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<EvaluationResult>()
-            .eq(EvaluationResult::getStudentId, studentInfo.getId());
-
-        if (batchId != null) {
-            wrapper.eq(EvaluationResult::getBatchId, batchId);
-        } else {
-            // 如果没有传入 batchId，获取最新的评定结果
-            wrapper.orderByDesc(EvaluationResult::getBatchId);
-        }
-
-        EvaluationResult result = evaluationResultService.getOne(wrapper);
+        EvaluationResult result = evaluationResultService.getStudentResult(loginUser.getUserId(), batchId);
 
         if (result == null) {
             return Result.error("暂无评定结果");
@@ -249,14 +228,7 @@ public class EvaluationResultController {
     public Result<Void> confirmResult(@PathVariable Long id) {
         log.info("确认评定结果，id={}", id);
 
-        EvaluationResult result = evaluationResultService.getById(id);
-        if (result == null) {
-            return Result.error("评定结果不存在");
-        }
-
-        result.setResultStatus(2); // 2-已确定
-        boolean success = evaluationResultService.updateById(result);
-
+        boolean success = evaluationResultService.confirmResult(id);
         return success ? Result.success("结果已确认") : Result.error("确认失败");
     }
 
@@ -277,14 +249,7 @@ public class EvaluationResultController {
     public Result<Void> objectResult(@PathVariable Long id) {
         log.info("标记有异议，id={}", id);
 
-        EvaluationResult result = evaluationResultService.getById(id);
-        if (result == null) {
-            return Result.error("评定结果不存在");
-        }
-
-        result.setResultStatus(3); // 3-有异议
-        boolean success = evaluationResultService.updateById(result);
-
+        boolean success = evaluationResultService.objectResult(id);
         return success ? Result.success("已标记有异议") : Result.error("操作失败");
     }
 
@@ -308,17 +273,7 @@ public class EvaluationResultController {
 
         log.info("获取批次排名列表，batchId={}, type={}", batchId, type);
 
-        LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<EvaluationResult>()
-            .eq(EvaluationResult::getBatchId, batchId)
-            .orderByAsc(EvaluationResult::getTotalScore);
-
-        if ("department".equals(type)) {
-            wrapper.orderByAsc(EvaluationResult::getDepartmentRank);
-        } else {
-            wrapper.orderByAsc(EvaluationResult::getMajorRank);
-        }
-
-        List<EvaluationResult> results = evaluationResultService.list(wrapper);
+        List<EvaluationResult> results = evaluationResultService.getBatchRanks(batchId, type);
         return Result.success(results);
     }
 
@@ -386,37 +341,7 @@ public class EvaluationResultController {
         log.info("导出评定结果，batchId={}", batchId);
 
         try {
-            // 查询数据
-            LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
-            if (batchId != null) {
-                wrapper.eq(EvaluationResult::getBatchId, batchId);
-            }
-            wrapper.orderByDesc(EvaluationResult::getTotalScore);
-
-            List<EvaluationResult> results = evaluationResultService.list(wrapper);
-
-            // 转换为导出 VO
-            List<EvaluationResultExportVO> exportData = new java.util.ArrayList<>();
-            int index = 1;
-            for (EvaluationResult result : results) {
-                EvaluationResultExportVO vo = new EvaluationResultExportVO();
-                vo.setIndex(index++);
-                vo.setStudentNo(result.getStudentNo());
-                vo.setStudentName(result.getStudentName());
-                vo.setDepartment(result.getDepartment());
-                vo.setMajor(result.getMajor());
-                vo.setCourseScore(result.getCourseScore());
-                vo.setResearchScore(result.getResearchScore());
-                vo.setCompetitionScore(result.getCompetitionScore());
-                vo.setQualityScore(result.getQualityScore());
-                vo.setTotalScore(result.getTotalScore());
-                vo.setDepartmentRank(result.getDepartmentRank());
-                vo.setMajorRank(result.getMajorRank());
-                vo.setAwardLevelName(getAwardLevelName(result.getAwardLevel()));
-                vo.setAwardAmount(result.getAwardAmount());
-                vo.setResultStatusName(getResultStatusName(result.getResultStatus()));
-                exportData.add(vo);
-            }
+            List<EvaluationResultExportVO> exportData = evaluationResultService.exportBatchResults(batchId);
 
             // 设置 Excel 响应头
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -425,7 +350,7 @@ public class EvaluationResultController {
             response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".xlsx");
 
             // 使用 EasyExcel 写入
-            com.alibaba.excel.EasyExcel.write(response.getOutputStream(), EvaluationResultExportVO.class)
+            EasyExcel.write(response.getOutputStream(), EvaluationResultExportVO.class)
                 .sheet("评定结果")
                 .doWrite(exportData);
 
@@ -433,33 +358,5 @@ public class EvaluationResultController {
         } catch (Exception e) {
             log.error("评定结果导出失败", e);
         }
-    }
-
-    /**
-     * 获取获奖等级名称
-     */
-    private String getAwardLevelName(Integer awardLevel) {
-        if (awardLevel == null) return "";
-        return switch (awardLevel) {
-            case 1 -> "特等奖学金";
-            case 2 -> "一等奖学金";
-            case 3 -> "二等奖学金";
-            case 4 -> "三等奖学金";
-            case 5 -> "未获奖";
-            default -> "";
-        };
-    }
-
-    /**
-     * 获取结果状态名称
-     */
-    private String getResultStatusName(Integer resultStatus) {
-        if (resultStatus == null) return "";
-        return switch (resultStatus) {
-            case 1 -> "公示中";
-            case 2 -> "已确定";
-            case 3 -> "有异议";
-            default -> "";
-        };
     }
 }

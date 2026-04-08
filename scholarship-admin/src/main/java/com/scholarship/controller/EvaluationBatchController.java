@@ -150,12 +150,7 @@ public class EvaluationBatchController {
         @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<Void> startBatch(@PathVariable Long id) {
-        EvaluationBatch batch = evaluationBatchService.getById(id);
-        if (batch == null) {
-            return Result.error("批次不存在");
-        }
-        batch.setBatchStatus(2); // 申请中
-        boolean success = evaluationBatchService.updateById(batch);
+        boolean success = evaluationBatchService.startBatch(id);
         return success ? Result.success("批次已开启") : Result.error("操作失败");
     }
 
@@ -170,10 +165,7 @@ public class EvaluationBatchController {
         @ApiResponse(responseCode = "200", description = "查询成功")
     })
     public Result<List<EvaluationBatch>> getAvailable() {
-        List<EvaluationBatch> batches = evaluationBatchService.list(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<EvaluationBatch>()
-                .eq(EvaluationBatch::getBatchStatus, 2) // 申请中
-        );
+        List<EvaluationBatch> batches = evaluationBatchService.listAvailableForApplication();
         return Result.success(batches);
     }
 
@@ -192,12 +184,7 @@ public class EvaluationBatchController {
         @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<Void> publishBatch(@PathVariable Long id) {
-        EvaluationBatch batch = evaluationBatchService.getById(id);
-        if (batch == null) {
-            return Result.error("批次不存在");
-        }
-        batch.setBatchStatus(1); // 1-未开始（已发布）
-        boolean success = evaluationBatchService.updateById(batch);
+        boolean success = evaluationBatchService.publishBatch(id);
         return success ? Result.success("批次已发布") : Result.error("操作失败");
     }
 
@@ -216,12 +203,7 @@ public class EvaluationBatchController {
         @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<Void> closeBatch(@PathVariable Long id) {
-        EvaluationBatch batch = evaluationBatchService.getById(id);
-        if (batch == null) {
-            return Result.error("批次不存在");
-        }
-        batch.setBatchStatus(5); // 5-已完成
-        boolean success = evaluationBatchService.updateById(batch);
+        boolean success = evaluationBatchService.closeBatch(id);
         return success ? Result.success("批次已结束") : Result.error("操作失败");
     }
 
@@ -240,12 +222,7 @@ public class EvaluationBatchController {
         @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<Void> startReview(@PathVariable Long id) {
-        EvaluationBatch batch = evaluationBatchService.getById(id);
-        if (batch == null) {
-            return Result.error("批次不存在");
-        }
-        batch.setBatchStatus(3); // 3-评审中
-        boolean success = evaluationBatchService.updateById(batch);
+        boolean success = evaluationBatchService.startReview(id);
         return success ? Result.success("已进入评审阶段") : Result.error("操作失败");
     }
 
@@ -264,12 +241,7 @@ public class EvaluationBatchController {
         @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<Void> startPublicity(@PathVariable Long id) {
-        EvaluationBatch batch = evaluationBatchService.getById(id);
-        if (batch == null) {
-            return Result.error("批次不存在");
-        }
-        batch.setBatchStatus(4); // 4-公示中
-        boolean success = evaluationBatchService.updateById(batch);
+        boolean success = evaluationBatchService.startPublicity(id);
         return success ? Result.success("已进入公示阶段") : Result.error("操作失败");
     }
 }
