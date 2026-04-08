@@ -3,10 +3,7 @@
     <!-- 页面头部 -->
     <div class="page-header">
       <h2 class="page-title">研究生信息管理</h2>
-      <el-button type="primary" @click="handleAdd">
-        <el-icon><Plus /></el-icon>
-        添加学生
-      </el-button>
+      <!-- 添加学生按钮已隐藏：学生应通过"用户管理"页面创建，确保有登录账号 -->
     </div>
 
     <!-- 搜索表单 -->
@@ -89,7 +86,7 @@
     <!-- 添加/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogTitle"
+      title="编辑学生信息"
       width="700px"
       @close="handleDialogClose"
     >
@@ -171,8 +168,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { getStudentPage, addStudent, updateStudent, deleteStudent } from '@/api/student'
+import { getStudentPage, updateStudent, deleteStudent } from '@/api/student'
 
 // 常量定义
 const GENDER = { MALE: 1, FEMALE: 0 }
@@ -195,9 +191,6 @@ const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
-
-// 计算属性
-const dialogTitle = computed(() => isEdit.value ? '编辑学生信息' : '添加学生')
 
 // 查询参数（使用 'all' 作为"全部"选项的值，避免 Element Plus 空字符串 bug）
 const queryParams = reactive({
@@ -318,13 +311,14 @@ function handleReset() {
 }
 
 /**
- * 添加学生
+ * 添加学生功能已禁用
+ * 学生应通过"用户管理"页面创建，确保有登录账号
  */
-function handleAdd() {
-  isEdit.value = false
-  Object.assign(formData, resetFormData())
-  dialogVisible.value = true
-}
+// function handleAdd() {
+//   isEdit.value = false
+//   Object.assign(formData, resetFormData())
+//   dialogVisible.value = true
+// }
 
 /**
  * 编辑学生
@@ -345,11 +339,16 @@ function handleEdit(row) {
  */
 async function handleDelete(row) {
   try {
-    await ElMessageBox.confirm('确定要删除该学生信息吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      '确定要删除该学生信息吗？此操作将同时删除该学生的登录账号，不可恢复！',
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
     deleteLoading.value = true
     await deleteStudent(row.id)
     ElMessage.success('删除成功')
@@ -371,15 +370,13 @@ async function handleSubmit() {
   if (!valid) return
 
   try {
+    // 添加功能已禁用，只允许编辑
     if (isEdit.value) {
       await updateStudent(formData)
       ElMessage.success('修改成功')
-    } else {
-      await addStudent(formData)
-      ElMessage.success('添加成功')
+      dialogVisible.value = false
+      handleQuery()
     }
-    dialogVisible.value = false
-    handleQuery()
   } catch (error) {
     ElMessage.error(error.message || '提交失败')
   }
