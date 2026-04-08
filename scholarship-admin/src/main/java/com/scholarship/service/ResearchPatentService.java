@@ -51,4 +51,14 @@ public interface ResearchPatentService extends IService<ResearchPatent> {
      * @return 按学生 ID 分组的专利列表
      */
     Map<Long, List<ResearchPatent>> mapByStudentIds(List<Long> studentIds);
+
+    /**
+     * 审核专利
+     *
+     * @param id           专利 ID
+     * @param auditStatus  审核状态
+     * @param auditComment 审核意见
+     * @return 是否成功
+     */
+    boolean audit(Long id, Integer auditStatus, String auditComment);
 }

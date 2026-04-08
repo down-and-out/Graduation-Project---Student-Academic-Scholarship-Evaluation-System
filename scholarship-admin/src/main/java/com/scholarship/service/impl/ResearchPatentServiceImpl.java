@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.entity.ResearchPatent;
+import com.scholarship.exception.BusinessException;
 import com.scholarship.mapper.ResearchPatentMapper;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.ResearchPatentService;
@@ -92,5 +93,22 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
 
         return patents.stream()
             .collect(Collectors.groupingBy(ResearchPatent::getStudentId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean audit(Long id, Integer auditStatus, String auditComment) {
+        log.info("审核专利，id={}，auditStatus={}", id, auditStatus);
+
+        ResearchPatent patent = getById(id);
+        if (patent == null) {
+            throw new BusinessException("专利不存在");
+        }
+
+        patent.setAuditStatus(auditStatus);
+        patent.setAuditComment(auditComment);
+        patent.setAuditTime(java.time.LocalDateTime.now());
+
+        return updateById(patent);
     }
 }

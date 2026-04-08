@@ -42,4 +42,22 @@ public interface RuleCategoryService extends IService<RuleCategory> {
      * @return 规则列表
      */
     List<com.scholarship.entity.ScoreRule> listRulesByCategory(Long categoryId);
+
+    /**
+     * 删除分类（带检查）
+     * <p>
+     * 如果分类下存在规则，则抛出异常
+     *
+     * @param id 分类 ID
+     * @return 是否成功
+     */
+    boolean deleteWithCheck(Long id);
+
+    /**
+     * 切换分类状态
+     *
+     * @param id 分类 ID
+     * @return 是否成功
+     */
+    boolean toggleStatus(Long id);
 }

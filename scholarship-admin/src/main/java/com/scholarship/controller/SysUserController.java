@@ -1,7 +1,6 @@
 package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.SysUser;
 import com.scholarship.service.SysUserService;
@@ -17,7 +16,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 系统用户控制器
@@ -50,16 +48,7 @@ public class SysUserController {
             @Parameter(description = "搜索关键字") @RequestParam(required = false) String keyword,
             @Parameter(description = "用户类型：1-研究生 2-导师 3-管理员") @RequestParam(required = false) Integer userType,
             @Parameter(description = "状态：0-禁用 1-正常") @RequestParam(required = false) Integer status) {
-        IPage<SysUser> userPage = sysUserService.pageUsers(current, size, keyword, userType, status);
-
-        // 转换为 VO 分页对象
-        IPage<SysUserVO> voPage = new Page<>(userPage.getCurrent(), userPage.getSize(), userPage.getTotal());
-        List<SysUserVO> voList = userPage.getRecords().stream()
-                .map(SysUserVO::fromEntity)
-                .collect(Collectors.toList());
-        voPage.setRecords(voList);
-
-        return Result.success(voPage);
+        return Result.success(sysUserService.pageUserVOs(current, size, keyword, userType, status));
     }
 
     /**

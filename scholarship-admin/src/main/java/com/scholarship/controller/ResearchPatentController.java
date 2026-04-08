@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ResearchPatent;
+import com.scholarship.exception.BusinessException;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.ResearchPatentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -172,14 +173,12 @@ public class ResearchPatentController {
             @PathVariable @Min(value = 1, message = "专利 ID 无效") Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "审核参数")
             @RequestBody AuditRequest request) {
-        ResearchPatent patent = researchPatentService.getById(id);
-        if (patent == null) {
-            return Result.error("专利不存在");
+        try {
+            boolean success = researchPatentService.audit(id, request.auditStatus(), request.auditComment());
+            return success ? Result.success("审核成功") : Result.error("审核失败");
+        } catch (BusinessException e) {
+            return Result.error(e.getMessage());
         }
-        patent.setAuditStatus(request.auditStatus());
-        patent.setAuditComment(request.auditComment());
-        boolean success = researchPatentService.updateById(patent);
-        return success ? Result.success("审核成功") : Result.error("审核失败");
     }
 
     /**

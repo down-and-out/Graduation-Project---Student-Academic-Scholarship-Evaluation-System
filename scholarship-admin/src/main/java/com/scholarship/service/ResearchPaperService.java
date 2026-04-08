@@ -68,4 +68,14 @@ public interface ResearchPaperService extends IService<ResearchPaper> {
      * @return 按学生 ID 分组的论文列表
      */
     Map<Long, List<ResearchPaper>> mapByStudentIds(List<Long> studentIds);
+
+    /**
+     * 删除论文（带权限校验）
+     *
+     * @param id 论文 ID
+     * @param currentUserId 当前用户 ID
+     * @param isAdmin 是否为管理员
+     * @return 是否成功
+     */
+    boolean deleteWithAuth(Long id, Long currentUserId, boolean isAdmin);
 }

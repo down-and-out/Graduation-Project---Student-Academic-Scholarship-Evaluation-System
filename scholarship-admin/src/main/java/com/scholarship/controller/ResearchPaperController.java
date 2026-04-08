@@ -153,20 +153,8 @@ public class ResearchPaperController {
     })
     public Result<Void> delete(@PathVariable Long id,
                                @AuthenticationPrincipal LoginUser loginUser) {
-        ResearchPaper paper = researchPaperService.getById(id);
-        if (paper == null) {
-            return Result.error("论文不存在");
-        }
-        // 权限验证：只有论文所有者或管理员可以删除
-        // 用户类型：1-研究生 2-导师 3-管理员
         boolean isAdmin = loginUser.getUserType() == 3;
-        if (!paper.getStudentId().equals(loginUser.getUserId()) && !isAdmin) {
-            return Result.error("无权限删除该论文");
-        }
-        if (paper.getStatus() != 0) {
-            return Result.error("已提交的论文不能删除");
-        }
-        boolean success = researchPaperService.removeById(id);
+        boolean success = researchPaperService.deleteWithAuth(id, loginUser.getUserId(), isAdmin);
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 }

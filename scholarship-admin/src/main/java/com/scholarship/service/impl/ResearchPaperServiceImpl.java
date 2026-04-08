@@ -234,4 +234,27 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
         return papers.stream()
             .collect(Collectors.groupingBy(ResearchPaper::getStudentId));
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deleteWithAuth(Long id, Long currentUserId, boolean isAdmin) {
+        log.info("删除论文，id={}, currentUserId={}, isAdmin={}", id, currentUserId, isAdmin);
+
+        ResearchPaper paper = researchPaperMapper.selectById(id);
+        if (paper == null) {
+            throw new com.scholarship.exception.BusinessException("论文不存在");
+        }
+
+        // 权限验证：只有论文所有者或管理员可以删除
+        if (!paper.getStudentId().equals(currentUserId) && !isAdmin) {
+            throw new com.scholarship.exception.BusinessException("无权限删除该论文");
+        }
+
+        // 状态检查：只有草稿状态（status=0）的论文可以删除
+        if (paper.getStatus() != 0) {
+            throw new com.scholarship.exception.BusinessException("已提交的论文不能删除");
+        }
+
+        return removeById(id);
+    }
 }

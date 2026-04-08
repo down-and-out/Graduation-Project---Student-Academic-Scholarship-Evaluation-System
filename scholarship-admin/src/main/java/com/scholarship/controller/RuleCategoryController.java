@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import com.scholarship.exception.BusinessException;
+
 import java.util.List;
 
 /**
@@ -149,14 +151,12 @@ public class RuleCategoryController {
         @ApiResponse(responseCode = "400", description = "该分类下存在规则，无法删除")
     })
     public Result<Void> delete(@PathVariable Long id) {
-        // 检查分类下是否有规则
-        List<ScoreRule> rules = ruleCategoryService.listRulesByCategory(id);
-        if (!rules.isEmpty()) {
-            return Result.error("该分类下存在规则，无法删除");
+        try {
+            boolean success = ruleCategoryService.deleteWithCheck(id);
+            return success ? Result.success("删除成功") : Result.error("删除失败");
+        } catch (BusinessException e) {
+            return Result.error(e.getMessage());
         }
-
-        boolean success = ruleCategoryService.removeById(id);
-        return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
     /**
@@ -173,12 +173,11 @@ public class RuleCategoryController {
         @ApiResponse(responseCode = "404", description = "分类不存在")
     })
     public Result<Void> toggleStatus(@PathVariable Long id) {
-        RuleCategory category = ruleCategoryService.getById(id);
-        if (category == null) {
-            return Result.error("分类不存在");
+        try {
+            boolean success = ruleCategoryService.toggleStatus(id);
+            return success ? Result.success("操作成功") : Result.error("操作失败");
+        } catch (BusinessException e) {
+            return Result.error(e.getMessage());
         }
-        category.setStatus(category.getStatus() == 1 ? 0 : 1);
-        boolean success = ruleCategoryService.updateById(category);
-        return success ? Result.success("操作成功") : Result.error("操作失败");
     }
 }

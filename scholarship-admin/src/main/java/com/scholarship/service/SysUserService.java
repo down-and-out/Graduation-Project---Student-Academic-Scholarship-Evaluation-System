@@ -3,6 +3,7 @@ package com.scholarship.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.scholarship.entity.SysUser;
+import com.scholarship.vo.SysUserVO;
 
 /**
  * 系统用户服务接口
@@ -23,6 +24,18 @@ public interface SysUserService extends IService<SysUser> {
      * @return 分页结果
      */
     IPage<SysUser> pageUsers(Long current, Long size, String keyword, Integer userType, Integer status);
+
+    /**
+     * 分页查询用户（返回 VO 对象）
+     *
+     * @param current 当前页
+     * @param size 每页大小
+     * @param keyword 搜索关键字（用户名或姓名）
+     * @param userType 用户类型
+     * @param status 状态
+     * @return 分页结果（VO）
+     */
+    IPage<SysUserVO> pageUserVOs(Long current, Long size, String keyword, Integer userType, Integer status);
 
     /**
      * 根据用户名查询用户

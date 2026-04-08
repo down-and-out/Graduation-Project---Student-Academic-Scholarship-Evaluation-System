@@ -8,7 +8,9 @@ import com.scholarship.mapper.RuleCategoryMapper;
 import com.scholarship.service.RuleCategoryService;
 import com.scholarship.service.ScoreRuleService;
 import lombok.extern.slf4j.Slf4j;
+import com.scholarship.exception.BusinessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,5 +76,42 @@ public class RuleCategoryServiceImpl extends ServiceImpl<RuleCategoryMapper, Rul
         log.debug("根据分类查询规则，categoryId={}", categoryId);
 
         return scoreRuleService.listByCategoryId(categoryId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deleteWithCheck(Long id) {
+        log.info("删除分类（带检查），id={}", id);
+
+        // 检查分类是否存在
+        RuleCategory category = getById(id);
+        if (category == null) {
+            throw new BusinessException("分类不存在");
+        }
+
+        // 检查分类下是否有规则
+        List<ScoreRule> rules = listRulesByCategory(id);
+        if (!rules.isEmpty()) {
+            throw new BusinessException("该分类下存在规则，无法删除");
+        }
+
+        return removeById(id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean toggleStatus(Long id) {
+        log.info("切换分类状态，id={}", id);
+
+        RuleCategory category = getById(id);
+        if (category == null) {
+            throw new BusinessException("分类不存在");
+        }
+
+        // 切换状态：1 -> 0, 0 -> 1
+        Integer newStatus = category.getStatus() == 1 ? 0 : 1;
+        category.setStatus(newStatus);
+
+        return updateById(category);
     }
 }
