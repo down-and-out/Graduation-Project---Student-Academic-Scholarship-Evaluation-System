@@ -49,9 +49,10 @@ public interface SysUserService extends IService<SysUser> {
      * 创建用户
      *
      * @param user 用户信息
+     * @param major 专业（仅学生类型需要）
      * @return 是否成功
      */
-    boolean createUser(SysUser user);
+    boolean createUser(SysUser user, String major);
 
     /**
      * 更新用户

@@ -15,6 +15,7 @@ export interface User {
   userType?: number
   role?: string  // 用于显示
   department?: string
+  major?: string  // 专业（仅学生类型）
   phone?: string
   email?: string
   avatar?: string

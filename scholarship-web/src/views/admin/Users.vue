@@ -162,6 +162,13 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20" v-if="formData.userType === USER_TYPE.STUDENT">
+          <el-col :span="12">
+            <el-form-item label="专业" prop="major">
+              <el-input v-model="formData.major" placeholder="请输入专业" />
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="联系电话" prop="phone">
@@ -331,6 +338,7 @@ const defaultFormData = {
   realName: '',
   userType: 1,  // 使用 userType 字段（1-研究生 2-导师 3-管理员）
   department: '',
+  major: '',  // 专业（仅学生类型）
   phone: '',
   email: '',
   status: 1
@@ -359,6 +367,18 @@ const formRules = computed(() => ({
   realName: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   userType: [{ required: true, message: '请选择角色', trigger: 'change' }],
   department: [{ required: true, message: '请输入院系', trigger: 'blur' }],
+  major: [
+    {
+      validator: (rule, value, callback) => {
+        if (formData.userType === USER_TYPE.STUDENT && (!value || !value.trim())) {
+          callback(new Error('请输入专业'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ],
   phone: [
     { required: true, message: '请输入联系电话', trigger: 'blur' },
     {
@@ -611,6 +631,7 @@ async function handleSubmit() {
       realName: formData.realName,
       userType: formData.userType,
       department: formData.department,
+      major: formData.userType === USER_TYPE.STUDENT ? formData.major : undefined,
       phone: formData.phone,
       email: formData.email,
       status: formData.status

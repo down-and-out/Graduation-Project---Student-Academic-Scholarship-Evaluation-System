@@ -77,8 +77,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean createUser(SysUser user) {
-        log.info("创建用户，username={}, realName={}, userType={}", user.getUsername(), user.getRealName(), user.getUserType());
+    public boolean createUser(SysUser user, String major) {
+        log.info("创建用户，username={}, realName={}, userType={}, major={}", user.getUsername(), user.getRealName(), user.getUserType(), major);
 
         // 检查用户名是否存在
         SysUser existUser = getByUsername(user.getUsername());
@@ -87,7 +87,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
         }
 
         // 加密密码
-        if (user.getPassword() != null) {
+        if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+            // 默认密码为 a123456789
+            user.setPassword(passwordEncoder.encode("a123456789"));
+        } else {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
 
@@ -102,9 +105,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
             return false;
         }
 
+        // 确保 ID 已生成
+        if (user.getId() == null) {
+            throw new RuntimeException("用户保存失败：未能获取生成的用户ID");
+        }
+
         // 如果是学生类型（userType=1），自动创建 student_info 记录
         if (user.getUserType() != null && user.getUserType() == 1) {
-            createStudentInfo(user);
+            createStudentInfo(user, major);
         }
 
         return true;
@@ -114,9 +122,15 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
      * 创建学生档案信息
      *
      * @param user 系统用户信息
+     * @param major 专业
      */
-    private void createStudentInfo(SysUser user) {
-        log.info("自动创建学生档案，userId={}, username={}", user.getId(), user.getUsername());
+    private void createStudentInfo(SysUser user, String major) {
+        log.info("自动创建学生档案，userId={}, username={}, major={}", user.getId(), user.getUsername(), major);
+
+        // 校验必要字段
+        if (user.getRealName() == null || user.getRealName().trim().isEmpty()) {
+            throw new RuntimeException("创建学生档案失败：姓名为空，请填写真实姓名");
+        }
 
         StudentInfo studentInfo = new StudentInfo();
         studentInfo.setUserId(user.getId());
@@ -126,6 +140,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
         studentInfo.setName(user.getRealName());
         // 院系
         studentInfo.setDepartment(user.getDepartment());
+        // 专业
+        studentInfo.setMajor(major);
         // 电话、邮箱同步
         studentInfo.setPhone(user.getPhone());
         studentInfo.setEmail(user.getEmail());
@@ -140,8 +156,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
         // 默认性别为男（可在后续修改）
         studentInfo.setGender(1);
 
-        studentInfoService.save(studentInfo);
-        log.info("学生档案创建完成");
+        boolean success = studentInfoService.save(studentInfo);
+        if (!success) {
+            throw new RuntimeException("创建学生档案失败：数据库保存失败");
+        }
+        log.info("学生档案创建完成，studentInfoId={}", studentInfo.getId());
     }
 
     @Override

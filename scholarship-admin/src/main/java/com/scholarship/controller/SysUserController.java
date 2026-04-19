@@ -2,6 +2,7 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.scholarship.common.result.Result;
+import com.scholarship.dto.UserCreateRequest;
 import com.scholarship.entity.SysUser;
 import com.scholarship.service.SysUserService;
 import com.scholarship.vo.SysUserVO;
@@ -81,9 +82,9 @@ public class SysUserController {
         @ApiResponse(responseCode = "400", description = "用户名已存在"),
         @ApiResponse(responseCode = "403", description = "无权限")
     })
-    public Result<Void> add(@RequestBody SysUser user) {
+    public Result<Void> add(@RequestBody UserCreateRequest request) {
         try {
-            boolean success = sysUserService.createUser(user);
+            boolean success = sysUserService.createUser(request.getUser(), request.getMajor());
             return success ? Result.success("新增成功") : Result.error("新增失败");
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
