@@ -62,7 +62,7 @@
 | department         | varchar(100)  | NO   | MUL   | NULL              |                  | 院系名称                               |
 | major              | varchar(100)  | NO   |       | NULL              |                  | 专业名称                               |
 | class_name         | varchar(50)   | YES  |       | NULL              |                  | 班级名称                               |
-| tutor_id           | bigint        | YES  | MUL   | NULL              |                  | 导师 ID，关联 sys_user 表（教师用户）     |
+| tutor_id           | bigint        | YES  | MUL   | NULL              |                  | 导师 ID，关联 sys_user 表（导师用户）     |
 | direction          | varchar(100)  | YES  |       | NULL              |                  | 研究方向                               |
 | political_status   | varchar(50)   | YES  |       | NULL              |                  | 政治面貌（如党员、团员等）               |
 | nation             | varchar(50)   | YES  |       | NULL              |                  | 民族                                   |
@@ -585,7 +585,7 @@
 | username      | varchar(50)   | NO   | UNI   | NULL              |                  | 用户名（登录账号），唯一        |
 | password      | varchar(200)  | NO   |       | NULL              |                  | 密码（BCrypt 加密）             |
 | real_name     | varchar(50)   | NO   |       | NULL              |                  | 真实姓名                       |
-| user_type     | tinyint       | NO   | MUL   | 1                 |                  | 用户类型：1-研究生，2-教师，3-管理员 |
+| user_type     | tinyint       | NO   | MUL   | 1                 |                  | 用户类型：1-研究生，2-导师，3-管理员 |
 | email         | varchar(100)  | YES  |       | NULL              |                  | 联系邮箱                       |
 | department    | varchar(100)  | YES  |       | NULL              |                  | 院系/部门                       |
 | phone         | varchar(20)   | YES  |       | NULL              |                  | 联系电话                       |
