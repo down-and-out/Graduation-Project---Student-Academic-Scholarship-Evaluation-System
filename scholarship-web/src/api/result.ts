@@ -13,17 +13,20 @@ export interface EvaluationResult {
   studentId: number
   studentName?: string
   studentNo?: string
-  department?: string        // 院系
-  major?: string             // 专业
-  departmentRank?: number    // 院系排名
-  majorRank?: number         // 专业排名
-  awardLevel?: number        // 获奖等级: 1-特等, 2-一等, 3-二等, 4-三等, 5-未获奖
+  department?: string
+  major?: string
+  departmentRank?: number
+  majorRank?: number
+  awardLevel?: number
   totalScore: number
-  resultStatus?: number      // 结果状态: 1-公示中, 2-已确定, 3-有异议
-  status?: number            // 兼容字段
+  scholarshipAmount?: number
+  rank?: number
+  resultStatus?: number
+  status?: number
   publicStartTime?: string
   publicEndTime?: string
   grantTime?: string
+  publishDate?: string
   createTime?: string
 }
 
@@ -39,8 +42,6 @@ export interface ResultPageParams extends API.PageParams {
 
 /**
  * 分页查询评定结果
- * @param params - 查询参数
- * @returns 分页响应
  */
 export function getResultPage(
   params: ResultPageParams
@@ -54,8 +55,6 @@ export function getResultPage(
 
 /**
  * 获取结果详情
- * @param id - 结果 ID
- * @returns Promise
  */
 export function getResultDetail(id: number): Promise<API.Response<EvaluationResult>> {
   return request({
@@ -66,8 +65,6 @@ export function getResultDetail(id: number): Promise<API.Response<EvaluationResu
 
 /**
  * 获取我的评定结果
- * @param batchId - 批次 ID
- * @returns Promise
  */
 export function getMyResult(batchId?: number): Promise<API.Response<EvaluationResult>> {
   return request({
@@ -79,8 +76,6 @@ export function getMyResult(batchId?: number): Promise<API.Response<EvaluationRe
 
 /**
  * 导出结果
- * @param batchId - 批次 ID
- * @returns Blob (Excel 文件)
  */
 export async function exportResult(batchId?: number): Promise<Blob> {
   const response = await request({

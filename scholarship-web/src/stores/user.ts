@@ -5,7 +5,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { login as loginApi, logout as logoutApi, getCurrentUser } from '@/api/auth'
-import type { LoginParams, UserInfo as UserInfoAPI } from '@/api/auth'
+import type { LoginData, LoginParams, UserInfo as UserInfoAPI } from '@/api/auth'
 import { tokenStore, userInfoStore } from '@/utils/secureStorage'
 import type { UserInfo } from '@/utils/secureStorage'
 
@@ -55,7 +55,12 @@ export const useUserStore = defineStore('user', () => {
       // 后端返回格式：Result.success("登录成功", loginResponse)
       // 所以数据结构是：{ code: 200, message: "...", data: { token, userId, ... } }
       // request.ts 返回的是 response，所以 res.data 是后端响应体
-      const loginData = res.data?.data || res.data
+      const raw = res as unknown as {
+        data?: LoginData | { data?: LoginData }
+      } & Partial<LoginData>
+      const loginData = raw.data && 'data' in raw.data
+        ? raw.data.data as LoginData
+        : (raw.data as LoginData | undefined) || (raw as LoginData)
 
       // 安全存储 token（内存存储）
       token.value = loginData.token

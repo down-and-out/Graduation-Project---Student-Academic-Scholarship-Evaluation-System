@@ -11,11 +11,17 @@ export interface Paper {
   studentId: number
   studentName?: string
   title: string
+  paperTitle?: string
   authors: string
   journal?: string
+  journalName?: string
   conference?: string
   publishDate?: string
+  publicationDate?: string
   doi?: string
+  authorRank?: number
+  journalLevel?: number
+  impactFactor?: number
   status?: number
   reviewComment?: string
   reviewTime?: string

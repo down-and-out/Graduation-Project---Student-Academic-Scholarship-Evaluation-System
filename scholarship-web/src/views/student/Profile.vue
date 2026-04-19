@@ -4,12 +4,10 @@
 -->
 <template>
   <div class="profile-page">
-    <!-- 页面头部 -->
     <div class="page-header">
       <h2 class="page-title">个人信息</h2>
     </div>
 
-    <!-- 信息卡片 -->
     <el-card class="info-card">
       <template #header>
         <div class="card-header">
@@ -20,7 +18,13 @@
         </div>
       </template>
 
-      <el-form :model="formData" :rules="rules" ref="formRef" label-width="100px" label-position="left">
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="rules"
+        label-width="100px"
+        label-position="left"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="学号">
@@ -131,31 +135,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import type { FormInstance } from 'element-plus'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import { getMyInfo, updateMyInfo } from '@/api/student'
 import type { Student } from '@/api/student'
 import { SUCCESS } from '@/constants/resultCode'
 
-/**
- * 编辑状态
- */
 const isEdit = ref(false)
-
-/**
- * 表单引用
- */
 const formRef = ref<FormInstance | null>(null)
-
-/**
- * 加载状态
- */
 const loading = ref(false)
 
-/**
- * 表单数据
- */
 const formData = reactive<Student>({
   id: 0,
   studentNo: '',
@@ -177,35 +167,33 @@ const formData = reactive<Student>({
   email: ''
 })
 
-/**
- * 表单验证规则
- */
-const rules = {
+const rules: FormRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  phone: [
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
-  ],
-  email: [
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
-  ]
+  phone: [{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }],
+  email: [{ type: 'email' as const, message: '请输入正确的邮箱地址', trigger: 'blur' }]
 }
 
-/**
- * 加载学生信息
- */
 async function loadInfo(): Promise<void> {
   loading.value = true
   try {
-    const res = await getMyInfo()
-    // 检查响应状态码是否为成功（200）
-    if (res.code === SUCCESS && res.data) {
-      const studentData = res.data
-      Object.keys(formData).forEach((key) => {
-        if (studentData[key as keyof Student] !== undefined) {
-          formData[key as keyof Student] = studentData[key as keyof Student]
-        }
-      })
+    const response = await getMyInfo()
+    const studentData = extractStudentData(response)
+
+    if (studentData.code !== SUCCESS) {
+      return
     }
+
+    const profile = studentData.payload
+    if (!profile) {
+      throw new Error('学生信息为空')
+    }
+
+    Object.keys(formData).forEach((key) => {
+      const field = key as keyof Student
+      if (profile[field] !== undefined) {
+        formData[field] = profile[field] as never
+      }
+    })
   } catch (error) {
     console.error('加载学生信息失败:', error)
     ElMessage.error('加载学生信息失败')
@@ -214,9 +202,6 @@ async function loadInfo(): Promise<void> {
   }
 }
 
-/**
- * 保存修改
- */
 async function handleSave(): Promise<void> {
   if (!formRef.value) return
 
@@ -224,7 +209,6 @@ async function handleSave(): Promise<void> {
   if (!valid) return
 
   try {
-    // 只传递允许学生修改的字段
     await updateMyInfo({
       phone: formData.phone,
       email: formData.email,
@@ -239,15 +223,47 @@ async function handleSave(): Promise<void> {
   }
 }
 
-/**
- * 取消编辑，恢复原始数据
- */
 function handleCancel(): void {
   isEdit.value = false
   loadInfo()
 }
 
-// ========== 生命周期 ==========
+function extractStudentData(payload: unknown): { code?: number; payload: Partial<Student> | null } {
+  if (!payload || typeof payload !== 'object') {
+    return { payload: null }
+  }
+
+  const raw = payload as Record<string, unknown>
+  if (typeof raw.code === 'number' && raw.data && typeof raw.data === 'object') {
+    const data = raw.data as Record<string, unknown>
+    if (data.data && typeof data.data === 'object') {
+      return {
+        code: raw.code,
+        payload: data.data as Partial<Student>
+      }
+    }
+
+    return {
+      code: raw.code,
+      payload: raw.data as Partial<Student>
+    }
+  }
+
+  if (raw.data && typeof raw.data === 'object') {
+    const data = raw.data as Record<string, unknown>
+    return {
+      code: typeof data.code === 'number' ? data.code : undefined,
+      payload: data.data && typeof data.data === 'object'
+        ? data.data as Partial<Student>
+        : raw.data as Partial<Student>
+    }
+  }
+
+  return {
+    payload: raw as Partial<Student>
+  }
+}
+
 onMounted(() => {
   loadInfo()
 })
@@ -264,18 +280,18 @@ onMounted(() => {
   border-bottom: 1px solid #e4e7ed;
 
   .page-title {
+    margin: 0;
+    color: #303133;
     font-size: 18px;
     font-weight: 500;
-    color: #303133;
-    margin: 0;
   }
 }
 
 .info-card {
   .card-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
   }
 }
 </style>
