@@ -41,7 +41,6 @@ import jakarta.validation.Valid;
 public class EvaluationResultController {
 
     private final EvaluationResultService evaluationResultService;
-    private final StudentInfoService studentInfoService;
     private final EvaluationCalculationService evaluationCalculationService;
     private final EvaluationRankService evaluationRankService;
     private final AwardAllocationService awardAllocationService;

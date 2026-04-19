@@ -74,8 +74,28 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(allEntries = true)
+    public boolean save(ScoreRule entity) {
+        // 根据 rule_type 设置 category_id（1对1映射）
+        if (entity.getCategoryId() == null && entity.getRuleType() != null) {
+            entity.setCategoryId(Long.valueOf(entity.getRuleType()));
+        }
+        return super.save(entity);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(allEntries = true)
     public boolean saveBatch(List<ScoreRule> rules) {
         log.debug("批量保存规则，数量：{}", rules != null ? rules.size() : 0);
+        // 根据 rule_type 设置 category_id（1对1映射）
+        if (rules != null) {
+            for (ScoreRule rule : rules) {
+                if (rule.getCategoryId() == null && rule.getRuleType() != null) {
+                    rule.setCategoryId(Long.valueOf(rule.getRuleType()));
+                }
+            }
+        }
         return super.saveBatch(rules, rules != null ? rules.size() : 10);
     }
 

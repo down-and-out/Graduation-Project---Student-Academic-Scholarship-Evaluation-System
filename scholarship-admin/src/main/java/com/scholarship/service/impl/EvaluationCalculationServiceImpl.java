@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -191,6 +192,18 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         }
 
         log.info("批次申请评分计算完成，batchId={}, 计算数量={}", batchId, results.size());
+
+        // 保存评定结果到数据库
+        if (!results.isEmpty()) {
+            List<EvaluationResult> resultList = new ArrayList<>(results.values());
+            // 先删除该批次已有的评定结果（避免重复）
+            remove(new LambdaQueryWrapper<EvaluationResult>()
+                    .eq(EvaluationResult::getBatchId, batchId));
+            // 批量保存新的评定结果
+            saveBatch(resultList);
+            log.info("批次评定结果已保存到数据库，batchId={}, 数量={}", batchId, resultList.size());
+        }
+
         return results;
     }
 

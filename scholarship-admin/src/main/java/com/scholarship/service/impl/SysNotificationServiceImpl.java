@@ -98,10 +98,11 @@ public class SysNotificationServiceImpl extends ServiceImpl<SysNotificationMappe
     public int getUnreadCount(Long userId) {
         log.debug("获取未读通知数，userId={}", userId);
 
-        Long count = count(new LambdaQueryWrapper<SysNotification>()
-            .and(w -> w.eq(SysNotification::getReceiverId, userId)
+        LambdaQueryWrapper<SysNotification> wrapper = new LambdaQueryWrapper<>();
+        wrapper.and(w -> w.eq(SysNotification::getReceiverId, userId)
                     .or().eq(SysNotification::getReceiverType, 1))
-            .eq(SysNotification::getIsRead, 0));
+            .eq(SysNotification::getIsRead, 0);
+        Long count = count(wrapper);
 
         return count != null ? count.intValue() : 0;
     }
@@ -110,10 +111,11 @@ public class SysNotificationServiceImpl extends ServiceImpl<SysNotificationMappe
     public List<SysNotification> getLatestNotifications(Long userId, Integer limit) {
         log.debug("获取最新通知，userId={}, limit={}", userId, limit);
 
-        return list(new LambdaQueryWrapper<SysNotification>()
-            .and(w -> w.eq(SysNotification::getReceiverId, userId)
+        LambdaQueryWrapper<SysNotification> wrapper = new LambdaQueryWrapper<>();
+        wrapper.and(w -> w.eq(SysNotification::getReceiverId, userId)
                     .or().eq(SysNotification::getReceiverType, 1))
             .orderByDesc(SysNotification::getCreateTime)
-            .last("LIMIT " + (limit != null ? limit : 10)));
+            .last("LIMIT " + (limit != null ? limit : 10));
+        return list(wrapper);
     }
 }

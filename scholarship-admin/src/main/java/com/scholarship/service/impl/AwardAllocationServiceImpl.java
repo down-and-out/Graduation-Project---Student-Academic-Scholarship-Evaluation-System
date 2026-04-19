@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 
 /**
@@ -244,10 +245,10 @@ public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapp
             int winnerCount = batch.getWinnerCount() != null ? batch.getWinnerCount() : 1;
 
             switch (awardLevel) {
-                case 1: return totalAmount.multiply(new BigDecimal("0.4")).divide(BigDecimal.valueOf(winnerCount), 2, BigDecimal.ROUND_HALF_UP);
-                case 2: return totalAmount.multiply(new BigDecimal("0.3")).divide(BigDecimal.valueOf(winnerCount), 2, BigDecimal.ROUND_HALF_UP);
-                case 3: return totalAmount.multiply(new BigDecimal("0.2")).divide(BigDecimal.valueOf(winnerCount), 2, BigDecimal.ROUND_HALF_UP);
-                case 4: return totalAmount.multiply(new BigDecimal("0.1")).divide(BigDecimal.valueOf(winnerCount), 2, BigDecimal.ROUND_HALF_UP);
+                case 1: return totalAmount.multiply(new BigDecimal("0.4")).divide(BigDecimal.valueOf(winnerCount), 2, RoundingMode.HALF_UP);
+                case 2: return totalAmount.multiply(new BigDecimal("0.3")).divide(BigDecimal.valueOf(winnerCount), 2, RoundingMode.HALF_UP);
+                case 3: return totalAmount.multiply(new BigDecimal("0.2")).divide(BigDecimal.valueOf(winnerCount), 2, RoundingMode.HALF_UP);
+                case 4: return totalAmount.multiply(new BigDecimal("0.1")).divide(BigDecimal.valueOf(winnerCount), 2, RoundingMode.HALF_UP);
             }
         }
 
