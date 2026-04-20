@@ -48,8 +48,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="身份证号">
-              <el-input v-model="formData.idCard" disabled />
+            <el-form-item label="身份证号" prop="idCard">
+              <el-input v-model="formData.idCard" :disabled="!isEdit" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -109,12 +109,12 @@
           </el-col>
         </el-row>
 
-        <el-form-item label="籍贯">
-          <el-input v-model="formData.nativePlace" disabled />
+        <el-form-item label="籍贯" prop="nativePlace">
+          <el-input v-model="formData.nativePlace" :disabled="!isEdit" />
         </el-form-item>
 
-        <el-form-item label="家庭住址">
-          <el-input v-model="formData.address" disabled />
+        <el-form-item label="家庭住址" prop="address">
+          <el-input v-model="formData.address" :disabled="!isEdit" />
         </el-form-item>
 
         <el-form-item label="联系电话">
@@ -170,7 +170,10 @@ const formData = reactive<Student>({
 const rules: FormRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   phone: [{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }],
-  email: [{ type: 'email' as const, message: '请输入正确的邮箱地址', trigger: 'blur' }]
+  email: [{ type: 'email' as const, message: '请输入正确的邮箱地址', trigger: 'blur' }],
+  idCard: [{ pattern: /(^\d{15}$)|(^\d{18}$)|(^\d{17}(\d|X|x)$)/, message: '请输入正确的身份证号', trigger: 'blur' }],
+  nativePlace: [{ required: true, message: '请输入籍贯', trigger: 'blur' }],
+  address: [{ required: true, message: '请输入家庭住址', trigger: 'blur' }]
 }
 
 async function loadInfo(): Promise<void> {
@@ -212,7 +215,10 @@ async function handleSave(): Promise<void> {
     await updateMyInfo({
       phone: formData.phone,
       email: formData.email,
-      direction: formData.direction
+      direction: formData.direction,
+      idCard: formData.idCard,
+      nativePlace: formData.nativePlace,
+      address: formData.address
     })
     ElMessage.success('保存成功')
     isEdit.value = false

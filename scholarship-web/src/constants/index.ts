@@ -117,6 +117,50 @@ export const USER_STATUS_TEXT: Record<number, string> = {
   [USER_STATUS.ENABLED]: '正常'
 }
 
+/**
+ * 培养方式常量
+ */
+export const TRAINING_MODE = {
+  FULL_TIME: 1 as const,    // 全日制
+  PART_TIME: 2 as const     // 非全日制
+}
+
+/**
+ * 培养方式文本映射
+ */
+export const TRAINING_MODE_TEXT: Record<number, string> = {
+  [TRAINING_MODE.FULL_TIME]: '全日制',
+  [TRAINING_MODE.PART_TIME]: '非全日制'
+}
+
+/**
+ * 学籍状态常量
+ */
+export const STUDENT_STATUS = {
+  SUSPENDED: 0 as const,   // 休学
+  ACTIVE: 1 as const,      // 在读
+  GRADUATED: 2 as const,   // 毕业
+  DROPPED: 3 as const       // 退学
+}
+
+/**
+ * 学籍状态文本映射
+ */
+export const STUDENT_STATUS_TEXT: Record<number, string> = {
+  [STUDENT_STATUS.SUSPENDED]: '休学',
+  [STUDENT_STATUS.ACTIVE]: '在读',
+  [STUDENT_STATUS.GRADUATED]: '毕业',
+  [STUDENT_STATUS.DROPPED]: '退学'
+}
+
+/**
+ * 生成年份选项（当前年份前后若干年）
+ */
+export function generateYearOptions(range: number = 5): number[] {
+  const year = new Date().getFullYear()
+  return Array.from({ length: range * 2 + 1 }, (_, i) => year - range + i).reverse()
+}
+
 export default {
   USER_ROLE,
   USER_TYPE_MAP,
@@ -128,5 +172,10 @@ export default {
   EDUCATION_LEVEL,
   EDUCATION_LEVEL_TEXT,
   USER_STATUS,
-  USER_STATUS_TEXT
+  USER_STATUS_TEXT,
+  TRAINING_MODE,
+  TRAINING_MODE_TEXT,
+  STUDENT_STATUS,
+  STUDENT_STATUS_TEXT,
+  generateYearOptions
 }

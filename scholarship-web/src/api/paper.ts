@@ -16,12 +16,15 @@ export interface Paper {
   journal?: string
   journalName?: string
   conference?: string
+  date?: string
   publishDate?: string
   publicationDate?: string
   doi?: string
   authorRank?: number
   journalLevel?: number
   impactFactor?: number
+  level?: string
+  score?: number
   status?: number
   reviewComment?: string
   reviewTime?: string

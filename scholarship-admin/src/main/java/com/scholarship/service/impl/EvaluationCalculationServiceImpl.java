@@ -77,7 +77,7 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         BigDecimal totalScore = calculateTotalScore(courseScore, researchScore, competitionScore, qualityScore);
 
         // 获取学生信息
-        StudentInfo studentInfo = studentInfoService.getByUserId(studentId);
+        StudentInfo studentInfo = studentInfoService.getById(studentId);
 
         // 构建评定结果
         EvaluationResult result = new EvaluationResult();
@@ -130,7 +130,7 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
 
         // 4. 批量查询所有学生数据（各1次查询）
         log.debug("开始批量查询学生数据...");
-        Map<Long, StudentInfo> studentInfoMap = studentInfoService.mapByUserIds(studentIds);
+        Map<Long, StudentInfo> studentInfoMap = studentInfoService.mapByIds(studentIds);
         Map<Long, List<ResearchPaper>> papersByStudent = researchPaperService.mapByStudentIds(studentIds);
         Map<Long, List<ResearchPatent>> patentsByStudent = researchPatentService.mapByStudentIds(studentIds);
         Map<Long, List<ResearchProject>> projectsByStudent = researchProjectService.mapByStudentIds(studentIds);

@@ -20,6 +20,7 @@ export interface EvaluationResult {
   awardLevel?: number
   totalScore: number
   scholarshipAmount?: number
+  awardAmount?: number
   rank?: number
   resultStatus?: number
   status?: number
@@ -27,6 +28,7 @@ export interface EvaluationResult {
   publicEndTime?: string
   grantTime?: string
   publishDate?: string
+  publicityDate?: string
   createTime?: string
 }
 

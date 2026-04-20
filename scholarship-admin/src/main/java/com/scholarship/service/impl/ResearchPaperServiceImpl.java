@@ -66,13 +66,18 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
         if (loginUser != null) {
             if (loginUser.getUserType() == 1) {
                 // 学生用户只能看到自己的论文
-                wrapper.eq(ResearchPaper::getStudentId, loginUser.getUserId());
+                StudentInfo currentStudent = studentInfoService.getByUserId(loginUser.getUserId());
+                if (currentStudent == null) {
+                    Page<ResearchPaper> emptyPage = new Page<>(current, size, 0);
+                    return convertToVOPage(emptyPage, new ArrayList<>());
+                }
+                wrapper.eq(ResearchPaper::getStudentId, currentStudent.getId());
             } else if (loginUser.getUserType() == 2) {
                 // 导师用户可以看到所指导学生的论文
                 List<StudentInfo> students = studentInfoService.list(new LambdaQueryWrapper<StudentInfo>()
                     .eq(StudentInfo::getTutorId, loginUser.getUserId()));
                 List<Long> studentIds = students.stream()
-                    .map(s -> s.getUserId())
+                    .map(StudentInfo::getId)
                     .collect(Collectors.toList());
                 if (studentIds.isEmpty()) {
                     // 如果没有指导学生，返回空结果
@@ -91,7 +96,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
                     .or()
                     .like(StringUtils.hasText(keyword), StudentInfo::getName, keyword)));
             List<Long> studentIds = students.stream()
-                .map(StudentInfo::getUserId)
+                .map(StudentInfo::getId)
                 .collect(Collectors.toList());
             if (studentIds.isEmpty()) {
                 Page<ResearchPaper> emptyPage = new Page<>(current, size, 0);
@@ -122,7 +127,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
         List<StudentInfo> students = new ArrayList<>();
         if (!studentIds.isEmpty()) {
             students = studentInfoService.list(new LambdaQueryWrapper<StudentInfo>()
-                .in(StudentInfo::getUserId, studentIds));
+                .in(StudentInfo::getId, studentIds));
         }
 
         return convertToVOPage(paperPage, students);
@@ -135,7 +140,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
         Page<ResearchPaperVO> voPage = new Page<>(paperPage.getCurrent(), paperPage.getSize(), paperPage.getTotal());
 
         Map<Long, StudentInfo> studentMap = students.stream()
-            .collect(Collectors.toMap(StudentInfo::getUserId, s -> s));
+            .collect(Collectors.toMap(StudentInfo::getId, s -> s));
 
         List<ResearchPaperVO> voList = new ArrayList<>();
         for (ResearchPaper paper : paperPage.getRecords()) {
@@ -155,6 +160,10 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
 
             // 论文标题映射为成果名称
             vo.setTitle(paper.getPaperTitle());
+            vo.setPaperTitle(paper.getPaperTitle());
+            vo.setJournalName(paper.getJournalName());
+            vo.setJournalLevel(paper.getJournalLevel());
+            vo.setImpactFactor(paper.getImpactFactor());
 
             // 期刊级别映射为级别文本
             if (paper.getJournalLevel() != null) {
@@ -167,6 +176,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
             vo.setAuthors(paper.getAuthors());
             vo.setAuthorRank(paper.getAuthorRank());
             vo.setDate(paper.getPublicationDate());
+            vo.setPublicationDate(paper.getPublicationDate());
             vo.setSubmitTime(paper.getCreateTime());
             vo.setStatus(paper.getStatus());
             vo.setReviewComment(paper.getReviewComment());
@@ -185,7 +195,12 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
     @Transactional(rollbackFor = Exception.class)
     public boolean submitPaper(ResearchPaper paper, Long studentId) {
         // 设置学生 ID
-        paper.setStudentId(studentId);
+        StudentInfo studentInfo = studentInfoService.getByUserId(studentId);
+        if (studentInfo == null) {
+            throw new BusinessException("瀛︾敓淇℃伅涓嶅瓨鍦?");
+        }
+
+        paper.setStudentId(studentInfo.getId());
         paper.setStatus(0); // 待审核
         paper.setCreateTime(LocalDateTime.now());
         return researchPaperMapper.insert(paper) > 0;
@@ -246,7 +261,16 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
         }
 
         // 权限验证：只有论文所有者或管理员可以删除
-        if (!paper.getStudentId().equals(currentUserId) && !isAdmin) {
+        Long currentStudentId = currentUserId;
+        if (!isAdmin) {
+            StudentInfo currentStudent = studentInfoService.getByUserId(currentUserId);
+            if (currentStudent == null) {
+                throw new com.scholarship.exception.BusinessException("学生信息不存在");
+            }
+            currentStudentId = currentStudent.getId();
+        }
+
+        if (!paper.getStudentId().equals(currentStudentId) && !isAdmin) {
             throw new com.scholarship.exception.BusinessException("无权限删除该论文");
         }
 

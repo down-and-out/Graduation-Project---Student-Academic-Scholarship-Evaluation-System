@@ -184,7 +184,7 @@ function normalizePaper(row: Paper): PaperRow {
     authorRank: row.authorRank ?? 1,
     journalLevel: row.journalLevel ?? undefined,
     impactFactor: row.impactFactor ?? undefined,
-    publicationDate: row.publicationDate || row.publishDate || ''
+    publicationDate: row.publicationDate || row.publishDate || row.date || ''
   }
 }
 

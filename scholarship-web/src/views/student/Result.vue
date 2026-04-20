@@ -106,8 +106,16 @@ import type { EvaluationResult } from '@/api/result'
 
 type TagType = 'info' | 'warning' | 'success'
 
-const result = ref<EvaluationResult | null>(null)
-const historyList = ref<EvaluationResult[]>([])
+interface StudentResultView extends EvaluationResult {
+  scholarshipAmount?: number
+  rank?: number
+  status?: number
+  batchName: string
+  publishDate?: string
+}
+
+const result = ref<StudentResultView | null>(null)
+const historyList = ref<StudentResultView[]>([])
 const appealDialogVisible = ref(false)
 const appealFormRef = ref<FormInstance | null>(null)
 const loading = ref(false)
@@ -176,10 +184,22 @@ function getStatusType(status: number): TagType {
   return 'info'
 }
 
+function normalizeResult(payload: EvaluationResult): StudentResultView {
+  return {
+    ...payload,
+    batchName: payload.batchName || `批次${payload.batchId}`,
+    scholarshipAmount: payload.scholarshipAmount ?? payload.awardAmount,
+    rank: payload.rank ?? payload.departmentRank ?? payload.majorRank,
+    status: payload.status ?? payload.resultStatus ?? 0,
+    publishDate: payload.publishDate || payload.publicityDate
+  }
+}
+
 async function loadResult(): Promise<void> {
   try {
     const response = await getMyResult()
-    result.value = extractNestedData<EvaluationResult>(response)
+    const raw = extractNestedData<EvaluationResult>(response)
+    result.value = raw ? normalizeResult(raw) : null
   } catch (error) {
     console.error('加载评定结果失败:', error)
   }
@@ -190,7 +210,7 @@ async function loadHistory(): Promise<void> {
   try {
     const response = await getResultPage({ current: 1, size: 100 })
     const pageData = extractNestedData<API.PageResponse<EvaluationResult>>(response)
-    historyList.value = pageData?.records || []
+    historyList.value = (pageData?.records || []).map(normalizeResult)
   } catch (error) {
     console.error('加载历史记录失败:', error)
   } finally {
@@ -226,7 +246,7 @@ function handleExport(): void {
   ElMessage.info('导出功能开发中')
 }
 
-function handleViewDetail(_row: EvaluationResult): void {
+function handleViewDetail(_row: StudentResultView): void {
   ElMessage.info('查看详情功能开发中')
 }
 

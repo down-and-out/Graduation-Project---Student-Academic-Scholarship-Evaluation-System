@@ -2,17 +2,25 @@ package com.scholarship.controller;
 
 import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
-import com.scholarship.entity.EvaluationResult;
-import com.scholarship.security.LoginUser;
-import com.scholarship.service.*;
 import com.scholarship.dto.param.EvaluationResultQueryParam;
+import com.scholarship.entity.EvaluationResult;
+import com.scholarship.entity.StudentInfo;
+import com.scholarship.security.LoginUser;
+import com.scholarship.service.AwardAllocationService;
+import com.scholarship.service.EvaluationCalculationService;
+import com.scholarship.service.EvaluationRankService;
+import com.scholarship.service.EvaluationResultService;
+import com.scholarship.service.StudentInfoService;
 import com.scholarship.vo.EvaluationResultExportVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,18 +29,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.Valid;
 
-/**
- * 评定结果控制器
- * <p>
- * 处理奖学金评定结果相关的请求，包括结果查询、公示等
- * </p>
- *
- * @author Scholarship Development Team
- * @version 1.0.0
- */
 @Slf4j
 @RestController
 @RequestMapping("/evaluation-result")
@@ -44,36 +41,35 @@ public class EvaluationResultController {
     private final EvaluationCalculationService evaluationCalculationService;
     private final EvaluationRankService evaluationRankService;
     private final AwardAllocationService awardAllocationService;
+    private final StudentInfoService studentInfoService;
 
-    /**
-     * 分页查询评定结果
-     *
-     * @param queryParam 查询参数
-     * @return 分页结果
-     */
     @GetMapping("/page")
-    @Operation(summary = "分页查询评定结果", description = "支持按批次 ID、状态、学号/姓名筛选")
+    @Operation(summary = "分页查询评定结果", description = "支持按批次 ID、状态、学号、姓名筛选")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "查询成功")
     })
-    public Result<IPage<EvaluationResult>> page(@Valid @ModelAttribute EvaluationResultQueryParam queryParam) {
+    public Result<IPage<EvaluationResult>> page(@Valid @ModelAttribute EvaluationResultQueryParam queryParam,
+                                                @AuthenticationPrincipal LoginUser loginUser) {
+        Long studentId = queryParam.getStudentId();
+        if (loginUser != null && loginUser.getUserType() == 1) {
+            StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
+            if (studentInfo == null) {
+                return Result.success(new Page<>(queryParam.getCurrent(), queryParam.getSize(), 0));
+            }
+            studentId = studentInfo.getId();
+        }
+
         IPage<EvaluationResult> result = evaluationResultService.pageResults(
                 queryParam.getCurrent(),
                 queryParam.getSize(),
                 queryParam.getBatchId(),
-                queryParam.getStudentId(),
+                studentId,
                 queryParam.getStatus(),
                 queryParam.getKeyword()
         );
         return Result.success(result);
     }
 
-    /**
-     * 获取结果详情
-     *
-     * @param id 结果 ID
-     * @return 结果详情
-     */
     @GetMapping("/{id}")
     @Operation(summary = "获取评定结果详情")
     @ApiResponses(value = {
@@ -88,12 +84,6 @@ public class EvaluationResultController {
         return Result.success(result);
     }
 
-    /**
-     * 获取我的评定结果
-     *
-     * @param batchId 批次 ID（可选，不传则获取最新的评定结果）
-     * @return 评定结果
-     */
     @GetMapping("/my-result")
     @Operation(summary = "获取我的评定结果", description = "获取当前登录学生的评定结果")
     @ApiResponses(value = {
@@ -104,13 +94,16 @@ public class EvaluationResultController {
     public Result<EvaluationResult> getMyResult(
             @Parameter(description = "批次 ID", example = "1") @RequestParam(required = false) Long batchId,
             @AuthenticationPrincipal LoginUser loginUser) {
-        // 从当前登录用户获取学生 ID
         if (loginUser == null || loginUser.getUserId() == null) {
             return Result.error("用户未登录");
         }
 
-        EvaluationResult result = evaluationResultService.getStudentResult(loginUser.getUserId(), batchId);
+        StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
+        if (studentInfo == null) {
+            return Result.error("未找到学生信息");
+        }
 
+        EvaluationResult result = evaluationResultService.getStudentResult(studentInfo.getId(), batchId);
         if (result == null) {
             return Result.error("暂无评定结果");
         }
@@ -118,12 +111,6 @@ public class EvaluationResultController {
         return Result.success(result);
     }
 
-    /**
-     * 计算某批次所有申请的评分
-     *
-     * @param batchId 批次 ID
-     * @return 计算结果统计
-     */
     @PostMapping("/calculate/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "计算批次评分", description = "计算某批次下所有申请的评分")
@@ -138,7 +125,6 @@ public class EvaluationResultController {
         try {
             Map<Long, EvaluationResult> results = evaluationCalculationService.calculateBatchApplications(batchId);
 
-            // 构建统计信息
             Map<String, Object> stats = new java.util.HashMap<>();
             stats.put("batchId", batchId);
             stats.put("calculatedCount", results.size());
@@ -147,16 +133,10 @@ public class EvaluationResultController {
             return Result.success("评分计算完成", stats);
         } catch (Exception e) {
             log.error("批次评分计算失败，batchId={}", batchId, e);
-            return Result.error("评分计算失败：" + e.getMessage());
+            return Result.error("评分计算失败: " + e.getMessage());
         }
     }
 
-    /**
-     * 生成某批次的排名
-     *
-     * @param batchId 批次 ID
-     * @return 排名结果统计
-     */
     @PostMapping("/generate-ranks/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "生成批次排名", description = "生成某批次下所有学生的院系排名和专业排名")
@@ -171,7 +151,6 @@ public class EvaluationResultController {
         try {
             Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
 
-            // 构建统计信息
             Map<String, Object> stats = new java.util.HashMap<>();
             stats.put("batchId", batchId);
             stats.put("rankedCount", rankResults.size());
@@ -179,16 +158,10 @@ public class EvaluationResultController {
             return Result.success("排名生成完成", stats);
         } catch (Exception e) {
             log.error("批次排名生成失败，batchId={}", batchId, e);
-            return Result.error("排名生成失败：" + e.getMessage());
+            return Result.error("排名生成失败: " + e.getMessage());
         }
     }
 
-    /**
-     * 生成评定结果（分配奖项）
-     *
-     * @param batchId 批次 ID
-     * @return 奖项分配结果
-     */
     @PostMapping("/generate/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "生成评定结果", description = "根据评分和排名自动分配奖项等级和奖学金金额")
@@ -202,20 +175,13 @@ public class EvaluationResultController {
 
         try {
             AwardAllocationService.AwardAllocationResult result = awardAllocationService.allocateAwards(batchId);
-
             return Result.success("奖项分配完成", result);
         } catch (Exception e) {
             log.error("奖项分配失败，batchId={}", batchId, e);
-            return Result.error("奖项分配失败：" + e.getMessage());
+            return Result.error("奖项分配失败: " + e.getMessage());
         }
     }
 
-    /**
-     * 确认评定结果
-     *
-     * @param id 结果 ID
-     * @return 是否成功
-     */
     @PutMapping("/confirm/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "确认评定结果", description = "公示无异议后确认评定结果")
@@ -226,17 +192,10 @@ public class EvaluationResultController {
     })
     public Result<Void> confirmResult(@PathVariable Long id) {
         log.info("确认评定结果，id={}", id);
-
         boolean success = evaluationResultService.confirmResult(id);
         return success ? Result.success("结果已确认") : Result.error("确认失败");
     }
 
-    /**
-     * 标记有异议
-     *
-     * @param id 结果 ID
-     * @return 是否成功
-     */
     @PutMapping("/object/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "标记有异议", description = "将评定结果标记为有异议状态")
@@ -247,18 +206,10 @@ public class EvaluationResultController {
     })
     public Result<Void> objectResult(@PathVariable Long id) {
         log.info("标记有异议，id={}", id);
-
         boolean success = evaluationResultService.objectResult(id);
         return success ? Result.success("已标记有异议") : Result.error("操作失败");
     }
 
-    /**
-     * 获取批次排名列表
-     *
-     * @param batchId 批次 ID
-     * @param type 排名类型（department-院系排名，major-专业排名）
-     * @return 排名列表
-     */
     @GetMapping("/batch/{batchId}/ranks")
     @Operation(summary = "获取批次排名列表", description = "支持按院系或专业查看排名")
     @ApiResponses(value = {
@@ -269,19 +220,11 @@ public class EvaluationResultController {
             @PathVariable Long batchId,
             @Parameter(description = "排名类型", example = "department")
             @RequestParam(defaultValue = "department") String type) {
-
         log.info("获取批次排名列表，batchId={}, type={}", batchId, type);
-
         List<EvaluationResult> results = evaluationResultService.getBatchRanks(batchId, type);
         return Result.success(results);
     }
 
-    /**
-     * 一键完成评定（计算 + 排名 + 奖项分配）
-     *
-     * @param batchId 批次 ID
-     * @return 评定结果统计
-     */
     @PostMapping("/evaluate/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "一键完成评定", description = "依次执行评分计算、排名生成、奖项分配")
@@ -296,17 +239,14 @@ public class EvaluationResultController {
         try {
             Map<String, Object> result = new java.util.HashMap<>();
 
-            // 1. 计算评分
             log.info("步骤 1: 计算评分");
             Map<Long, EvaluationResult> calcResults = evaluationCalculationService.calculateBatchApplications(batchId);
             result.put("calculatedCount", calcResults.size());
 
-            // 2. 生成排名
             log.info("步骤 2: 生成排名");
             Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
             result.put("rankedCount", rankResults.size());
 
-            // 3. 分配奖项
             log.info("步骤 3: 分配奖项");
             AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId);
             result.put("awardResult", awardResult);
@@ -317,16 +257,10 @@ public class EvaluationResultController {
             return Result.success("评定完成", result);
         } catch (Exception e) {
             log.error("一键评定失败，batchId={}", batchId, e);
-            return Result.error("评定失败：" + e.getMessage());
+            return Result.error("评定失败: " + e.getMessage());
         }
     }
 
-    /**
-     * 导出评定结果为 Excel
-     *
-     * @param batchId 批次 ID（可选，不传则导出所有）
-     * @param response HTTP 响应
-     */
     @GetMapping("/export")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "导出评定结果", description = "导出某批次的评定结果为 Excel 文件")
@@ -342,13 +276,11 @@ public class EvaluationResultController {
         try {
             List<EvaluationResultExportVO> exportData = evaluationResultService.exportBatchResults(batchId);
 
-            // 设置 Excel 响应头
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
             response.setCharacterEncoding("utf-8");
             String fileName = java.net.URLEncoder.encode("评定结果" + (batchId != null ? "_" + batchId : ""), "UTF-8");
             response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".xlsx");
 
-            // 使用 EasyExcel 写入
             EasyExcel.write(response.getOutputStream(), EvaluationResultExportVO.class)
                 .sheet("评定结果")
                 .doWrite(exportData);

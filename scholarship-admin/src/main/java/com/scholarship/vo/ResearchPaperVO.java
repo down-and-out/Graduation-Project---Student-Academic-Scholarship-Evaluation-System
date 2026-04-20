@@ -58,6 +58,10 @@ public class ResearchPaperVO implements Serializable {
      */
     @Schema(description = "成果名称")
     private String title;
+    private String paperTitle;
+    private String journalName;
+    private Integer journalLevel;
+    private BigDecimal impactFactor;
 
     /**
      * 级别（期刊级别）
@@ -88,6 +92,7 @@ public class ResearchPaperVO implements Serializable {
      */
     @Schema(description = "发表日期")
     private LocalDate date;
+    private LocalDate publicationDate;
 
     /**
      * 提交时间
