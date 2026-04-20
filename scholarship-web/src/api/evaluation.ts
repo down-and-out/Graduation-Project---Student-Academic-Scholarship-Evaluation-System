@@ -1,66 +1,84 @@
-/**
- * 评定管理相关 API 接口
- */
 import request from '@/utils/request'
 
-/**
- * 评定批次
- */
 export interface EvaluationBatch {
   id?: number
   name: string
-  academicYear?: string   // 学年（如 "2025"）
-  semester: number | null  // 后端是 Integer 类型：1=第一学期, 2=第二学期, 3=全年
+  batchCode?: string
+  academicYear?: string
+  semester: number | null
   startDate: string
   endDate: string
-  winnerCount?: number     // 获奖人数
-  status?: number          // 状态：1=未开始, 2=申请中, 3=评审中, 4=公示中, 5=已完成
+  reviewStartDate?: string
+  reviewEndDate?: string
+  publicityStartDate?: string
+  publicityEndDate?: string
+  winnerCount?: number
+  totalAmount?: number
+  status?: number
+  description?: string
   remark?: string
   createTime?: string
   updateTime?: string
 }
 
-/**
- * 分页查询评定参数
- */
 export interface EvaluationPageParams extends API.PageParams {
-  semester?: string
-  status?: number
+  academicYears?: string[] | string
+  semesters?: number[] | number
+  statuses?: number[] | number
+  semester?: string[] | string
+  status?: number[] | number
 }
 
-/**
- * 创建评定参数
- */
 export interface CreateEvaluationData {
   name: string
-  academicYear: string   // 学年（如 "2025"）
-  semester: number       // 学期：1=第一学期, 2=第二学期, 3=全年
+  academicYear: string
+  semester: number
   startDate: string
   endDate: string
-  status?: number        // 状态：1=未开始（默认）
+  status?: number
   remark?: string
 }
 
-/**
- * 分页查询评定
- * @param params - 查询参数
- * @returns 分页响应
- */
+function buildParamsSerializer() {
+  return {
+    serialize: (rawParams: Record<string, unknown>) => {
+      const searchParams = new URLSearchParams()
+
+      Object.entries(rawParams).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') {
+          return
+        }
+
+        if (Array.isArray(value)) {
+          const normalized = value
+            .filter(item => item !== undefined && item !== null && item !== '')
+            .map(item => String(item))
+
+          if (normalized.length > 0) {
+            searchParams.append(key, normalized.join(','))
+          }
+          return
+        }
+
+        searchParams.append(key, String(value))
+      })
+
+      return searchParams.toString()
+    }
+  }
+}
+
 export function getEvaluationPage(
   params: EvaluationPageParams
 ): Promise<API.Response<API.PageResponse<EvaluationBatch>>> {
   return request({
     url: '/evaluation-batch/page',
     method: 'get',
-    params
+    params,
+    paramsSerializer: buildParamsSerializer()
   })
 }
 
-/**
- * 获取评定详情
- * @param id - 评定 ID
- * @returns Promise
- */
 export function getEvaluationDetail(id: number): Promise<API.Response<EvaluationBatch>> {
   return request({
     url: `/evaluation-batch/${id}`,
@@ -68,11 +86,6 @@ export function getEvaluationDetail(id: number): Promise<API.Response<Evaluation
   })
 }
 
-/**
- * 创建评定
- * @param data - 评定信息
- * @returns Promise
- */
 export function createEvaluation(data: CreateEvaluationData): Promise<API.Response<null>> {
   return request({
     url: '/evaluation-batch',
@@ -81,35 +94,42 @@ export function createEvaluation(data: CreateEvaluationData): Promise<API.Respon
   })
 }
 
-/**
- * 发布评定
- * @param id - 评定 ID
- * @returns Promise
- */
-export function publishEvaluation(id: number): Promise<API.Response<null>> {
+export function startEvaluationApplication(id: number): Promise<API.Response<null>> {
   return request({
-    url: `/evaluation-batch/publish/${id}`,
+    url: `/evaluation-batch/start/${id}`,
     method: 'put'
   })
 }
 
-/**
- * 结束评定
- * @param id - 评定 ID
- * @returns Promise
- */
-export function closeEvaluation(id: number): Promise<API.Response<null>> {
+export function startEvaluationReview(id: number): Promise<API.Response<null>> {
+  return request({
+    url: `/evaluation-batch/start-review/${id}`,
+    method: 'put'
+  })
+}
+
+export function startEvaluationPublicity(id: number): Promise<API.Response<null>> {
+  return request({
+    url: `/evaluation-batch/start-publicity/${id}`,
+    method: 'put'
+  })
+}
+
+export function completeEvaluation(id: number): Promise<API.Response<null>> {
   return request({
     url: `/evaluation-batch/close/${id}`,
     method: 'put'
   })
 }
 
-/**
- * 删除评定
- * @param id - 评定 ID
- * @returns Promise
- */
+export function publishEvaluation(id: number): Promise<API.Response<null>> {
+  return startEvaluationApplication(id)
+}
+
+export function closeEvaluation(id: number): Promise<API.Response<null>> {
+  return completeEvaluation(id)
+}
+
 export function deleteEvaluation(id: number): Promise<API.Response<null>> {
   return request({
     url: `/evaluation-batch/${id}`,
@@ -117,11 +137,23 @@ export function deleteEvaluation(id: number): Promise<API.Response<null>> {
   })
 }
 
+export function getAvailableBatches(): Promise<API.Response<EvaluationBatch[]>> {
+  return request({
+    url: '/evaluation-batch/available',
+    method: 'get'
+  })
+}
+
 export default {
   getEvaluationPage,
   getEvaluationDetail,
   createEvaluation,
+  startEvaluationApplication,
+  startEvaluationReview,
+  startEvaluationPublicity,
+  completeEvaluation,
   publishEvaluation,
   closeEvaluation,
-  deleteEvaluation
+  deleteEvaluation,
+  getAvailableBatches
 }

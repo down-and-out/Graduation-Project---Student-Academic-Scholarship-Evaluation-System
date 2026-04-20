@@ -1,78 +1,74 @@
-/**
- * 评定批次相关 API 接口
- */
+import {
+  type EvaluationBatch,
+  type EvaluationPageParams,
+  createEvaluation,
+  deleteEvaluation,
+  getAvailableBatches,
+  getEvaluationDetail,
+  getEvaluationPage,
+  startEvaluationApplication
+} from '@/api/evaluation'
 import request from '@/utils/request'
 
-/**
- * 评定批次
- */
-export interface EvaluationBatch {
-  id?: number
-  batchName: string
-  batchNo?: string
-  startTime: string
-  endTime: string
-  quota?: number
-  amount?: number
-  description?: string
-  status?: number
-  createTime?: string
-  updateTime?: string
+export interface BatchImportResult {
+  successCount: number
+  failCount: number
+  successNames: string[]
+  failures: Array<{
+    studentNo: string
+    name: string
+    reason: string
+  }>
 }
 
-/**
- * 分页查询评定批次参数
- */
-export interface BatchPageParams extends API.PageParams {
+export interface BatchPageParams extends EvaluationPageParams {
   keyword?: string
-  status?: number
 }
 
-/**
- * 分页查询评定批次
- * @param params - 查询参数
- * @returns 分页响应
- */
-export function getBatchPage(
-  params: BatchPageParams
-): Promise<API.Response<API.PageResponse<EvaluationBatch>>> {
-  return request({
-    url: '/evaluation-batch/page',
-    method: 'get',
-    params
-  })
-}
+export function importStudents(file: File): Promise<API.Response<BatchImportResult>> {
+  const formData = new FormData()
+  formData.append('file', file)
 
-/**
- * 获取批次详情
- * @param id - 批次 ID
- * @returns Promise
- */
-export function getBatchDetail(id: number): Promise<API.Response<EvaluationBatch>> {
   return request({
-    url: `/evaluation-batch/${id}`,
-    method: 'get'
-  })
-}
-
-/**
- * 新增评定批次
- * @param data - 批次信息
- * @returns Promise
- */
-export function addBatch(data: Omit<EvaluationBatch, 'id'>): Promise<API.Response<null>> {
-  return request({
-    url: '/evaluation-batch',
+    url: '/batch/import/students',
     method: 'post',
-    data
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
   })
 }
 
-/**
- * 更新评定批次
- * @param data - 批次信息（必须包含 id）
- * @returns Promise
- */
+export function downloadStudentTemplate(): Promise<void> {
+  return request({
+    url: '/batch/import/students/template',
+    method: 'get',
+    responseType: 'blob'
+  })
+}
+
+export { type EvaluationBatch }
+
+export function getBatchPage(params: BatchPageParams): Promise<API.Response<API.PageResponse<EvaluationBatch>>> {
+  return getEvaluationPage(params)
+}
+
+export function getBatchDetail(id: number): Promise<API.Response<EvaluationBatch>> {
+  return getEvaluationDetail(id)
+}
+
+export function addBatch(data: Omit<EvaluationBatch, 'id'>): Promise<API.Response<null>> {
+  return createEvaluation({
+    name: data.name ?? '',
+    academicYear: data.academicYear ?? '',
+    semester: data.semester ?? 1,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    status: data.status,
+    remark: data.remark
+  })
+}
+
 export function updateBatch(data: Partial<EvaluationBatch> & { id: number }): Promise<API.Response<null>> {
   return request({
     url: '/evaluation-batch',
@@ -81,42 +77,19 @@ export function updateBatch(data: Partial<EvaluationBatch> & { id: number }): Pr
   })
 }
 
-/**
- * 删除评定批次
- * @param id - 批次 ID
- * @returns Promise
- */
 export function deleteBatch(id: number): Promise<API.Response<null>> {
-  return request({
-    url: `/evaluation-batch/${id}`,
-    method: 'delete'
-  })
+  return deleteEvaluation(id)
 }
 
-/**
- * 开启批次
- * @param id - 批次 ID
- * @returns Promise
- */
 export function startBatch(id: number): Promise<API.Response<null>> {
-  return request({
-    url: `/evaluation-batch/start/${id}`,
-    method: 'put'
-  })
+  return startEvaluationApplication(id)
 }
 
-/**
- * 获取当前可申请的批次
- * @returns Promise
- */
-export function getAvailableBatches(): Promise<API.Response<EvaluationBatch[]>> {
-  return request({
-    url: '/evaluation-batch/available',
-    method: 'get'
-  })
-}
+export { getAvailableBatches }
 
 export default {
+  importStudents,
+  downloadStudentTemplate,
   getBatchPage,
   getBatchDetail,
   addBatch,

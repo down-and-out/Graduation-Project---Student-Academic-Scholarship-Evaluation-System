@@ -113,7 +113,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { DocumentAdd } from '@element-plus/icons-vue'
 import { getApplicationPage, submitApplication } from '@/api/application'
 import type { Application, SubmitApplicationData } from '@/api/application'
-import { getAvailableBatches } from '@/api/batch'
+import { getAvailableBatches } from '@/api/evaluation'
 import { applicationStatusMapper } from '@/composables/useStatusMapper'
 
 type TagType = 'primary' | 'success' | 'info' | 'warning' | 'danger'
@@ -138,14 +138,21 @@ interface ApplicationForm {
 
 interface BatchLike {
   id?: number
+  name?: string
   batchName?: string
+  startDate?: string
+  endDate?: string
   startTime?: string
   endTime?: string
   status?: number
   quota?: number
   amount?: number
+  totalQuota?: number
+  totalAmount?: number
   description?: string
 }
+
+const APPLICATION_REMARK_SEPARATOR = '\n\n---补充说明---\n'
 
 const dialogVisible = ref(false)
 const submitting = ref(false)
@@ -218,14 +225,21 @@ async function loadBatchInfo(): Promise<void> {
     if (!batches.length) return
 
     const batch = batches[0]
+    const start = batch.startTime || batch.startDate || ''
+    const end = batch.endTime || batch.endDate || ''
+    batch.startTime = start
+    batch.endTime = end
+    batch.status = 1
+    batch.quota = batch.quota ?? batch.totalQuota
+    batch.amount = batch.amount ?? batch.totalAmount
     batchInfo.value = {
       id: batch.id ?? null,
-      name: batch.batchName || '',
+      name: batch.batchName || batch.name || '',
       applyPeriod: `${batch.startTime || ''} 至 ${batch.endTime || ''}`,
-      status: batch.status === 1 ? 'active' : 'closed',
+      status: 'active',
       statusText: batch.status === 1 ? '可申请' : '已结束',
-      quota: batch.quota || 0,
-      amount: batch.amount || 0,
+      quota: batch.quota ?? batch.totalQuota ?? 0,
+      amount: batch.amount ?? batch.totalAmount ?? 0,
       description: batch.description || ''
     }
   } catch (error) {
@@ -246,6 +260,39 @@ async function loadMyApplication(): Promise<void> {
   }
 }
 
+function deserializeApplicationRemark(text?: string): { selfEvaluation: string; remark: string } {
+  if (!text) {
+    return {
+      selfEvaluation: '',
+      remark: ''
+    }
+  }
+
+  const [selfEvaluation, remark] = text.split(APPLICATION_REMARK_SEPARATOR, 2)
+  if (remark !== undefined) {
+    return {
+      selfEvaluation,
+      remark
+    }
+  }
+
+  return {
+    selfEvaluation: text,
+    remark: ''
+  }
+}
+
+function serializeApplicationRemark(selfEvaluation: string, remark: string): string | undefined {
+  const trimmedSelfEvaluation = selfEvaluation.trim()
+  const trimmedRemark = remark.trim()
+
+  if (trimmedSelfEvaluation && trimmedRemark) {
+    return `${trimmedSelfEvaluation}${APPLICATION_REMARK_SEPARATOR}${trimmedRemark}`
+  }
+
+  return trimmedSelfEvaluation || trimmedRemark || undefined
+}
+
 async function handleApply(): Promise<void> {
   if (hasApplied.value) {
     try {
@@ -254,9 +301,10 @@ async function handleApply(): Promise<void> {
       const app = pageData?.records?.[0]
       if (!app) return
 
+      const formContent = deserializeApplicationRemark(app.remark)
       formData.batchId = app.batchId
-      formData.selfEvaluation = app.selfEvaluation || ''
-      formData.remark = app.remark || ''
+      formData.selfEvaluation = app.selfEvaluation || formContent.selfEvaluation
+      formData.remark = formContent.remark
       isViewMode.value = true
       dialogVisible.value = true
     } catch {
@@ -295,7 +343,7 @@ async function handleSubmit(): Promise<void> {
     const payload: SubmitApplicationData = {
       batchId,
       selfEvaluation: formData.selfEvaluation,
-      remark: formData.remark || undefined
+      remark: serializeApplicationRemark(formData.selfEvaluation, formData.remark)
     }
     await submitApplication(payload)
     ElMessage.success('申请提交成功')

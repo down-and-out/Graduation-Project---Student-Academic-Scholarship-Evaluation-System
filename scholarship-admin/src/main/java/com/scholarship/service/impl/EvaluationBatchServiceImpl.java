@@ -13,12 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * 评定批次服务实现类
- *
- * @author Scholarship Development Team
- * @version 1.0.0
- */
 @Slf4j
 @Service
 public class EvaluationBatchServiceImpl extends ServiceImpl<EvaluationBatchMapper, EvaluationBatch> implements EvaluationBatchService {
@@ -26,71 +20,31 @@ public class EvaluationBatchServiceImpl extends ServiceImpl<EvaluationBatchMappe
     @Override
     @Transactional
     public boolean startBatch(Long id) {
-        log.info("开启批次，id={}", id);
-
-        EvaluationBatch batch = getById(id);
-        if (batch == null) {
-            throw new BusinessException("批次不存在");
-        }
-
-        batch.setBatchStatus(BatchStatusEnum.APPLYING.getCode());
-        return updateById(batch);
+        return updateBatchStatus(id, BatchStatusEnum.APPLYING, "开始申请");
     }
 
     @Override
     @Transactional
     public boolean publishBatch(Long id) {
-        log.info("发布批次，id={}", id);
-
-        EvaluationBatch batch = getById(id);
-        if (batch == null) {
-            throw new BusinessException("批次不存在");
-        }
-
-        batch.setBatchStatus(BatchStatusEnum.NOT_STARTED.getCode());
-        return updateById(batch);
+        return updateBatchStatus(id, BatchStatusEnum.NOT_STARTED, "发布批次");
     }
 
     @Override
     @Transactional
     public boolean closeBatch(Long id) {
-        log.info("关闭批次，id={}", id);
-
-        EvaluationBatch batch = getById(id);
-        if (batch == null) {
-            throw new BusinessException("批次不存在");
-        }
-
-        batch.setBatchStatus(BatchStatusEnum.COMPLETED.getCode());
-        return updateById(batch);
+        return updateBatchStatus(id, BatchStatusEnum.COMPLETED, "完成评定");
     }
 
     @Override
     @Transactional
     public boolean startReview(Long id) {
-        log.info("开始评审，id={}", id);
-
-        EvaluationBatch batch = getById(id);
-        if (batch == null) {
-            throw new BusinessException("批次不存在");
-        }
-
-        batch.setBatchStatus(BatchStatusEnum.REVIEWING.getCode());
-        return updateById(batch);
+        return updateBatchStatus(id, BatchStatusEnum.REVIEWING, "开始评审");
     }
 
     @Override
     @Transactional
     public boolean startPublicity(Long id) {
-        log.info("开始公示，id={}", id);
-
-        EvaluationBatch batch = getById(id);
-        if (batch == null) {
-            throw new BusinessException("批次不存在");
-        }
-
-        batch.setBatchStatus(BatchStatusEnum.PUBLICITY.getCode());
-        return updateById(batch);
+        return updateBatchStatus(id, BatchStatusEnum.PUBLICITY, "开始公示");
     }
 
     @Override
@@ -99,6 +53,32 @@ public class EvaluationBatchServiceImpl extends ServiceImpl<EvaluationBatchMappe
 
         LambdaQueryWrapper<EvaluationBatch> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(EvaluationBatch::getBatchStatus, BatchStatusEnum.APPLYING.getCode());
+        wrapper.orderByDesc(EvaluationBatch::getCreateTime);
         return list(wrapper);
+    }
+
+    private boolean updateBatchStatus(Long id, BatchStatusEnum targetStatus, String actionName) {
+        log.info("{}，id={}, targetStatus={}", actionName, id, targetStatus);
+
+        EvaluationBatch batch = getById(id);
+        if (batch == null) {
+            throw new BusinessException("批次不存在");
+        }
+
+        BatchStatusEnum currentStatus = BatchStatusEnum.getByCode(batch.getBatchStatus());
+        if (currentStatus == null) {
+            throw new BusinessException("批次状态非法，无法执行" + actionName);
+        }
+
+        if (!currentStatus.canTransitionTo(targetStatus)) {
+            throw new BusinessException("当前状态不允许执行" + actionName + "：" + currentStatus.getDescription() + " -> " + targetStatus.getDescription());
+        }
+
+        if (currentStatus == targetStatus) {
+            return true;
+        }
+
+        batch.setBatchStatus(targetStatus.getCode());
+        return updateById(batch);
     }
 }
