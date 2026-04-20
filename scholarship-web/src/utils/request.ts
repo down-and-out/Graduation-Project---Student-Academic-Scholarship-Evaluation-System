@@ -100,6 +100,10 @@ request.interceptors.request.use(
  */
 request.interceptors.response.use(
   (response: AxiosResponse<API.Response>) => {
+    if (response.config.responseType === 'blob' || response.config.responseType === 'arraybuffer') {
+      return response
+    }
+
     const res = response.data
 
     // 如果响应码不是 200，视为错误

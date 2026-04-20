@@ -4,13 +4,17 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.dto.param.EvaluationResultAdjustRequest;
 import com.scholarship.dto.query.EvaluationResultQuery;
+import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.enums.AwardLevelEnum;
 import com.scholarship.enums.ResultStatusEnum;
 import com.scholarship.exception.BusinessException;
 import com.scholarship.mapper.EvaluationResultMapper;
+import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.EvaluationResultService;
+import com.scholarship.vo.AdminEvaluationResultVO;
 import com.scholarship.vo.EvaluationResultExportVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +23,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 评定结果服务实现类
@@ -33,6 +41,7 @@ import java.util.List;
 public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMapper, EvaluationResult> implements EvaluationResultService {
 
     private final EvaluationResultMapper evaluationResultMapper;
+    private final EvaluationBatchService evaluationBatchService;
 
     @Override
     public IPage<EvaluationResult> pageResults(Long current, Long size, Long batchId, Long studentId, Integer status, String keyword) {
@@ -71,6 +80,18 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     }
 
     @Override
+    public IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, Long studentId, Integer status, String keyword) {
+        IPage<EvaluationResult> pageResult = pageResults(current, size, batchId, studentId, status, keyword);
+        Map<Long, String> batchNameMap = loadBatchNameMap(pageResult.getRecords());
+
+        Page<AdminEvaluationResultVO> adminPage = new Page<>(pageResult.getCurrent(), pageResult.getSize(), pageResult.getTotal());
+        adminPage.setRecords(pageResult.getRecords().stream()
+                .map(item -> toAdminVO(item, batchNameMap))
+                .toList());
+        return adminPage;
+    }
+
+    @Override
     public IPage<EvaluationResult> queryPage(EvaluationResultQuery query) {
         return pageResults(
                 query.getCurrent(),
@@ -97,6 +118,15 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         }
 
         return getOne(wrapper);
+    }
+
+    @Override
+    public AdminEvaluationResultVO getAdminResultById(Long id) {
+        EvaluationResult result = getById(id);
+        if (result == null) {
+            return null;
+        }
+        return toAdminVO(result, loadBatchNameMap(List.of(result)));
     }
 
     @Override
@@ -180,5 +210,60 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         }
 
         return exportData;
+    }
+
+    @Override
+    @Transactional
+    public boolean adjustResult(Long id, EvaluationResultAdjustRequest request) {
+        EvaluationResult result = getById(id);
+        if (result == null) {
+            throw new BusinessException("评定结果不存在");
+        }
+
+        result.setAwardLevel(request.getAwardLevel());
+        result.setRemark(request.getReason().trim());
+        return updateById(result);
+    }
+
+    private Map<Long, String> loadBatchNameMap(List<EvaluationResult> results) {
+        Set<Long> batchIds = results.stream()
+                .map(EvaluationResult::getBatchId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+
+        if (batchIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return evaluationBatchService.listByIds(batchIds).stream()
+                .collect(Collectors.toMap(EvaluationBatch::getId, EvaluationBatch::getBatchName, (left, right) -> left, HashMap::new));
+    }
+
+    private AdminEvaluationResultVO toAdminVO(EvaluationResult result, Map<Long, String> batchNameMap) {
+        AdminEvaluationResultVO vo = new AdminEvaluationResultVO();
+        vo.setId(result.getId());
+        vo.setBatchId(result.getBatchId());
+        vo.setBatchName(batchNameMap.get(result.getBatchId()));
+        vo.setStudentId(result.getStudentId());
+        vo.setStudentName(result.getStudentName());
+        vo.setStudentNo(result.getStudentNo());
+        vo.setDepartment(result.getDepartment());
+        vo.setMajor(result.getMajor());
+        vo.setCourseScore(result.getCourseScore());
+        vo.setResearchScore(result.getResearchScore());
+        vo.setCompetitionScore(result.getCompetitionScore());
+        vo.setQualityScore(result.getQualityScore());
+        vo.setTotalScore(result.getTotalScore());
+        vo.setDepartmentRank(result.getDepartmentRank());
+        vo.setMajorRank(result.getMajorRank());
+        vo.setAwardLevel(result.getAwardLevel());
+        vo.setAwardAmount(result.getAwardAmount());
+        vo.setResultStatus(result.getResultStatus());
+        vo.setPublicityDate(result.getPublicityDate());
+        vo.setConfirmDate(result.getConfirmDate());
+        vo.setRemark(result.getRemark());
+        vo.setCreateTime(result.getCreateTime());
+        vo.setUpdateTime(result.getUpdateTime());
+        return vo;
     }
 }

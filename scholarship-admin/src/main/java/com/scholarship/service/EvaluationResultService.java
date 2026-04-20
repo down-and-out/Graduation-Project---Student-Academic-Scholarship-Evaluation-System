@@ -2,8 +2,10 @@ package com.scholarship.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.scholarship.dto.param.EvaluationResultAdjustRequest;
 import com.scholarship.dto.query.EvaluationResultQuery;
 import com.scholarship.entity.EvaluationResult;
+import com.scholarship.vo.AdminEvaluationResultVO;
 import com.scholarship.vo.EvaluationResultExportVO;
 
 import java.util.List;
@@ -29,6 +31,8 @@ public interface EvaluationResultService extends IService<EvaluationResult> {
      */
     IPage<EvaluationResult> pageResults(Long current, Long size, Long batchId, Long studentId, Integer status, String keyword);
 
+    IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, Long studentId, Integer status, String keyword);
+
     /**
      * 根据查询参数分页查询
      *
@@ -45,6 +49,10 @@ public interface EvaluationResultService extends IService<EvaluationResult> {
      * @return 评定结果
      */
     EvaluationResult getStudentResult(Long studentId, Long batchId);
+
+    AdminEvaluationResultVO getAdminResultById(Long id);
+
+    boolean adjustResult(Long id, EvaluationResultAdjustRequest request);
 
     /**
      * 确认评定结果

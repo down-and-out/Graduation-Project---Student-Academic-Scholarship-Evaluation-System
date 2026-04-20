@@ -4,6 +4,7 @@ import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
+import com.scholarship.dto.param.EvaluationResultAdjustRequest;
 import com.scholarship.dto.param.EvaluationResultQueryParam;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.entity.StudentInfo;
@@ -13,6 +14,7 @@ import com.scholarship.service.EvaluationCalculationService;
 import com.scholarship.service.EvaluationRankService;
 import com.scholarship.service.EvaluationResultService;
 import com.scholarship.service.StudentInfoService;
+import com.scholarship.vo.AdminEvaluationResultVO;
 import com.scholarship.vo.EvaluationResultExportVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -25,8 +27,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,7 +46,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/evaluation-result")
 @RequiredArgsConstructor
-@Tag(name = "11-评定结果管理", description = "奖学金评定结果的查询接口")
+@Tag(name = "11-评定结果管理", description = "奖学金评定结果查询与管理接口")
 public class EvaluationResultController {
 
     private final EvaluationResultService evaluationResultService;
@@ -44,12 +56,13 @@ public class EvaluationResultController {
     private final StudentInfoService studentInfoService;
 
     @GetMapping("/page")
-    @Operation(summary = "分页查询评定结果", description = "支持按批次 ID、状态、学号、姓名筛选")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_STUDENT')")
+    @Operation(summary = "分页查询评定结果", description = "支持按批次、状态、学号和姓名筛选")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "查询成功")
+            @ApiResponse(responseCode = "200", description = "查询成功")
     })
-    public Result<IPage<EvaluationResult>> page(@Valid @ModelAttribute EvaluationResultQueryParam queryParam,
-                                                @AuthenticationPrincipal LoginUser loginUser) {
+    public Result<IPage<AdminEvaluationResultVO>> page(@Valid @ModelAttribute EvaluationResultQueryParam queryParam,
+                                                       @AuthenticationPrincipal LoginUser loginUser) {
         Long studentId = queryParam.getStudentId();
         if (loginUser != null && loginUser.getUserType() == 1) {
             StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
@@ -59,7 +72,7 @@ public class EvaluationResultController {
             studentId = studentInfo.getId();
         }
 
-        IPage<EvaluationResult> result = evaluationResultService.pageResults(
+        IPage<AdminEvaluationResultVO> result = evaluationResultService.pageAdminResults(
                 queryParam.getCurrent(),
                 queryParam.getSize(),
                 queryParam.getBatchId(),
@@ -71,25 +84,50 @@ public class EvaluationResultController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_STUDENT')")
     @Operation(summary = "获取评定结果详情")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "获取成功"),
-        @ApiResponse(responseCode = "404", description = "结果不存在")
+            @ApiResponse(responseCode = "200", description = "获取成功"),
+            @ApiResponse(responseCode = "404", description = "结果不存在")
     })
-    public Result<EvaluationResult> getById(@PathVariable Long id) {
-        EvaluationResult result = evaluationResultService.getById(id);
+    public Result<AdminEvaluationResultVO> getById(@PathVariable Long id,
+                                                   @AuthenticationPrincipal LoginUser loginUser) {
+        AdminEvaluationResultVO result = evaluationResultService.getAdminResultById(id);
         if (result == null) {
-            return Result.error("结果不存在");
+            return Result.error("评定结果不存在");
         }
+
+        if (loginUser != null && loginUser.getUserType() == 1) {
+            StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
+            if (studentInfo == null || !studentInfo.getId().equals(result.getStudentId())) {
+                return Result.error(403, "无权查看该评定结果");
+            }
+        }
+
         return Result.success(result);
     }
 
+    @PutMapping("/adjust/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "调整评定结果", description = "管理员调整奖项等级并记录调整原因")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "调整成功"),
+            @ApiResponse(responseCode = "403", description = "无权限"),
+            @ApiResponse(responseCode = "404", description = "结果不存在")
+    })
+    public Result<Void> adjustResult(@PathVariable Long id,
+                                     @Valid @RequestBody EvaluationResultAdjustRequest request) {
+        boolean success = evaluationResultService.adjustResult(id, request);
+        return success ? Result.success("调整成功") : Result.error("调整失败");
+    }
+
     @GetMapping("/my-result")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
     @Operation(summary = "获取我的评定结果", description = "获取当前登录学生的评定结果")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "获取成功"),
-        @ApiResponse(responseCode = "401", description = "用户未登录"),
-        @ApiResponse(responseCode = "404", description = "未找到学生信息或该批次暂无评定结果")
+            @ApiResponse(responseCode = "200", description = "获取成功"),
+            @ApiResponse(responseCode = "401", description = "用户未登录"),
+            @ApiResponse(responseCode = "404", description = "未找到学生信息或暂无评定结果")
     })
     public Result<EvaluationResult> getMyResult(
             @Parameter(description = "批次 ID", example = "1") @RequestParam(required = false) Long batchId,
@@ -115,9 +153,9 @@ public class EvaluationResultController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "计算批次评分", description = "计算某批次下所有申请的评分")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "计算成功"),
-        @ApiResponse(responseCode = "403", description = "无权限"),
-        @ApiResponse(responseCode = "404", description = "批次不存在")
+            @ApiResponse(responseCode = "200", description = "计算成功"),
+            @ApiResponse(responseCode = "403", description = "无权限"),
+            @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<Map<String, Object>> calculateBatch(@PathVariable Long batchId) {
         log.info("管理员触发批次评分计算，batchId={}", batchId);
@@ -125,7 +163,7 @@ public class EvaluationResultController {
         try {
             Map<Long, EvaluationResult> results = evaluationCalculationService.calculateBatchApplications(batchId);
 
-            Map<String, Object> stats = new java.util.HashMap<>();
+            Map<String, Object> stats = new HashMap<>();
             stats.put("batchId", batchId);
             stats.put("calculatedCount", results.size());
             stats.put("results", results);
@@ -141,9 +179,9 @@ public class EvaluationResultController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "生成批次排名", description = "生成某批次下所有学生的院系排名和专业排名")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "生成成功"),
-        @ApiResponse(responseCode = "403", description = "无权限"),
-        @ApiResponse(responseCode = "404", description = "批次不存在")
+            @ApiResponse(responseCode = "200", description = "生成成功"),
+            @ApiResponse(responseCode = "403", description = "无权限"),
+            @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<Map<String, Object>> generateRanks(@PathVariable Long batchId) {
         log.info("管理员触发批次排名生成，batchId={}", batchId);
@@ -151,7 +189,7 @@ public class EvaluationResultController {
         try {
             Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
 
-            Map<String, Object> stats = new java.util.HashMap<>();
+            Map<String, Object> stats = new HashMap<>();
             stats.put("batchId", batchId);
             stats.put("rankedCount", rankResults.size());
 
@@ -166,9 +204,9 @@ public class EvaluationResultController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "生成评定结果", description = "根据评分和排名自动分配奖项等级和奖学金金额")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "生成成功"),
-        @ApiResponse(responseCode = "403", description = "无权限"),
-        @ApiResponse(responseCode = "404", description = "批次不存在")
+            @ApiResponse(responseCode = "200", description = "生成成功"),
+            @ApiResponse(responseCode = "403", description = "无权限"),
+            @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<AwardAllocationService.AwardAllocationResult> generateAwards(@PathVariable Long batchId) {
         log.info("管理员触发奖项分配，batchId={}", batchId);
@@ -186,9 +224,9 @@ public class EvaluationResultController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "确认评定结果", description = "公示无异议后确认评定结果")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "确认成功"),
-        @ApiResponse(responseCode = "403", description = "无权限"),
-        @ApiResponse(responseCode = "404", description = "结果不存在")
+            @ApiResponse(responseCode = "200", description = "确认成功"),
+            @ApiResponse(responseCode = "403", description = "无权限"),
+            @ApiResponse(responseCode = "404", description = "结果不存在")
     })
     public Result<Void> confirmResult(@PathVariable Long id) {
         log.info("确认评定结果，id={}", id);
@@ -200,9 +238,9 @@ public class EvaluationResultController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "标记有异议", description = "将评定结果标记为有异议状态")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "操作成功"),
-        @ApiResponse(responseCode = "403", description = "无权限"),
-        @ApiResponse(responseCode = "404", description = "结果不存在")
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "403", description = "无权限"),
+            @ApiResponse(responseCode = "404", description = "结果不存在")
     })
     public Result<Void> objectResult(@PathVariable Long id) {
         log.info("标记有异议，id={}", id);
@@ -213,8 +251,8 @@ public class EvaluationResultController {
     @GetMapping("/batch/{batchId}/ranks")
     @Operation(summary = "获取批次排名列表", description = "支持按院系或专业查看排名")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "查询成功"),
-        @ApiResponse(responseCode = "404", description = "批次不存在")
+            @ApiResponse(responseCode = "200", description = "查询成功"),
+            @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<List<EvaluationResult>> getBatchRanks(
             @PathVariable Long batchId,
@@ -227,17 +265,17 @@ public class EvaluationResultController {
 
     @PostMapping("/evaluate/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "一键完成评定", description = "依次执行评分计算、排名生成、奖项分配")
+    @Operation(summary = "一键完成评定", description = "依次执行评分计算、排名生成和奖项分配")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "评定完成"),
-        @ApiResponse(responseCode = "403", description = "无权限"),
-        @ApiResponse(responseCode = "404", description = "批次不存在")
+            @ApiResponse(responseCode = "200", description = "评定完成"),
+            @ApiResponse(responseCode = "403", description = "无权限"),
+            @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<Map<String, Object>> evaluateBatch(@PathVariable Long batchId) {
         log.info("一键完成评定，batchId={}", batchId);
 
         try {
-            Map<String, Object> result = new java.util.HashMap<>();
+            Map<String, Object> result = new HashMap<>();
 
             log.info("步骤 1: 计算评分");
             Map<Long, EvaluationResult> calcResults = evaluationCalculationService.calculateBatchApplications(batchId);
@@ -263,10 +301,10 @@ public class EvaluationResultController {
 
     @GetMapping("/export")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "导出评定结果", description = "导出某批次的评定结果为 Excel 文件")
+    @Operation(summary = "导出评定结果", description = "导出某批次的评定结果 Excel")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "导出成功"),
-        @ApiResponse(responseCode = "403", description = "无权限")
+            @ApiResponse(responseCode = "200", description = "导出成功"),
+            @ApiResponse(responseCode = "403", description = "无权限")
     })
     public void export(@Parameter(description = "批次 ID")
                        @RequestParam(required = false) Long batchId,
@@ -282,8 +320,8 @@ public class EvaluationResultController {
             response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".xlsx");
 
             EasyExcel.write(response.getOutputStream(), EvaluationResultExportVO.class)
-                .sheet("评定结果")
-                .doWrite(exportData);
+                    .sheet("评定结果")
+                    .doWrite(exportData);
 
             log.info("评定结果导出成功，记录数={}", exportData.size());
         } catch (Exception e) {

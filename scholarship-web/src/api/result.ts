@@ -1,11 +1,5 @@
-/**
- * 评定结果相关 API 接口
- */
 import request from '@/utils/request'
 
-/**
- * 评定结果
- */
 export interface EvaluationResult {
   id?: number
   batchId: number
@@ -15,6 +9,10 @@ export interface EvaluationResult {
   studentNo?: string
   department?: string
   major?: string
+  courseScore?: number
+  researchScore?: number
+  competitionScore?: number
+  qualityScore?: number
   departmentRank?: number
   majorRank?: number
   awardLevel?: number
@@ -29,12 +27,12 @@ export interface EvaluationResult {
   grantTime?: string
   publishDate?: string
   publicityDate?: string
+  confirmDate?: string
+  remark?: string
   createTime?: string
+  updateTime?: string
 }
 
-/**
- * 分页查询评定结果参数
- */
 export interface ResultPageParams extends API.PageParams {
   batchId?: number
   studentId?: number
@@ -42,9 +40,11 @@ export interface ResultPageParams extends API.PageParams {
   keyword?: string
 }
 
-/**
- * 分页查询评定结果
- */
+export interface AdjustResultPayload {
+  awardLevel: number
+  reason: string
+}
+
 export function getResultPage(
   params: ResultPageParams
 ): Promise<API.Response<API.PageResponse<EvaluationResult>>> {
@@ -55,9 +55,6 @@ export function getResultPage(
   })
 }
 
-/**
- * 获取结果详情
- */
 export function getResultDetail(id: number): Promise<API.Response<EvaluationResult>> {
   return request({
     url: `/evaluation-result/${id}`,
@@ -65,9 +62,14 @@ export function getResultDetail(id: number): Promise<API.Response<EvaluationResu
   })
 }
 
-/**
- * 获取我的评定结果
- */
+export function adjustResult(id: number, data: AdjustResultPayload): Promise<API.Response<null>> {
+  return request({
+    url: `/evaluation-result/adjust/${id}`,
+    method: 'put',
+    data
+  })
+}
+
 export function getMyResult(batchId?: number): Promise<API.Response<EvaluationResult>> {
   return request({
     url: '/evaluation-result/my-result',
@@ -76,9 +78,6 @@ export function getMyResult(batchId?: number): Promise<API.Response<EvaluationRe
   })
 }
 
-/**
- * 导出结果
- */
 export async function exportResult(batchId?: number): Promise<Blob> {
   const response = await request({
     url: '/evaluation-result/export',
@@ -92,6 +91,7 @@ export async function exportResult(batchId?: number): Promise<Blob> {
 export default {
   getResultPage,
   getResultDetail,
+  adjustResult,
   getMyResult,
   exportResult
 }

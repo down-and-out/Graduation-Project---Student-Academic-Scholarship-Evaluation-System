@@ -392,18 +392,6 @@ function extractNestedData<T>(payload: unknown): T | null {
   return raw as T
 }
 
-function parseSettingValue<T>(payload: unknown): T | null {
-  const value = extractNestedData<T | string>(payload)
-  if (typeof value === 'string') {
-    try {
-      return JSON.parse(value) as T
-    } catch {
-      return null
-    }
-  }
-  return value as T | null
-}
-
 async function handleSaveBasic(): Promise<void> {
   const valid = await basicFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -520,9 +508,9 @@ async function loadSettings(): Promise<void> {
       getSetting<AwardConfig>('awards')
     ])
 
-    const basicData = parseSettingValue<BasicSetting>(basicRes)
-    const weightData = parseSettingValue<WeightSetting>(weightRes)
-    const awardsData = parseSettingValue<AwardConfig>(awardsRes)
+    const basicData = extractNestedData<BasicSetting>(basicRes)
+    const weightData = extractNestedData<WeightSetting>(weightRes)
+    const awardsData = extractNestedData<AwardConfig>(awardsRes)
 
     if (basicData) Object.assign(basicForm, basicData)
     if (weightData) Object.assign(weightForm, weightData)
