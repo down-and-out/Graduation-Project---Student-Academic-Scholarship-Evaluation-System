@@ -12,14 +12,12 @@
         <el-input v-model="queryParams.keyword" placeholder="学号或姓名" clearable @clear="handleQuery" @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item label="院系">
-        <el-select v-model="queryParams.department" placeholder="请选择" @change="handleQuery">
-          <el-option label="全部" value="all" />
+        <el-select v-model="queryParams.department" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
           <el-option v-for="opt in departmentOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
       <el-form-item label="学籍状态">
-        <el-select v-model="queryParams.status" placeholder="请选择" @change="handleQuery">
-          <el-option label="全部" value="all" />
+        <el-select v-model="queryParams.status" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
           <el-option label="在读" :value="STUDENT_STATUS.ACTIVE" />
           <el-option label="休学" :value="STUDENT_STATUS.SUSPENDED" />
           <el-option label="毕业" :value="STUDENT_STATUS.GRADUATED" />
@@ -197,8 +195,8 @@ const queryParams = reactive({
   current: 1,
   size: 10,
   keyword: '',
-  department: 'all',
-  status: 'all'
+  department: [],
+  status: []
 })
 
 // 表单数据
@@ -268,8 +266,8 @@ async function handleQuery() {
     // 将 'all' 转换为 undefined，不传给后端
     const params = {
       ...queryParams,
-      department: queryParams.department === 'all' ? undefined : queryParams.department,
-      status: queryParams.status === 'all' ? undefined : queryParams.status
+      department: queryParams.department.length > 0 ? queryParams.department : undefined,
+      status: queryParams.status.length > 0 ? queryParams.status : undefined
     }
     const res = await getStudentPage(params)
     tableData.value = res.data?.data?.records || []
@@ -304,8 +302,8 @@ watch(
  */
 function handleReset() {
   queryParams.keyword = ''
-  queryParams.department = 'all'
-  queryParams.status = 'all'
+  queryParams.department = []
+  queryParams.status = []
   queryParams.current = 1
   handleQuery()
 }

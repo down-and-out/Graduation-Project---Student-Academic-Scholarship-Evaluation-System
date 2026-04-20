@@ -35,8 +35,8 @@ export interface Student {
  */
 export interface StudentPageParams extends API.PageParams {
   keyword?: string
-  department?: string
-  status?: number
+  department?: string[] | string
+  status?: number[] | number
   grade?: string
 }
 
@@ -51,7 +51,33 @@ export function getStudentPage(
   return request({
     url: '/student-info/page',
     method: 'get',
-    params
+    params,
+    paramsSerializer: {
+      serialize: (rawParams: Record<string, unknown>) => {
+        const searchParams = new URLSearchParams()
+
+        Object.entries(rawParams).forEach(([key, value]) => {
+          if (value === undefined || value === null || value === '') {
+            return
+          }
+
+          if (Array.isArray(value)) {
+            const normalized = value
+              .filter(item => item !== undefined && item !== null && item !== '')
+              .map(item => String(item))
+
+            if (normalized.length > 0) {
+              searchParams.append(key, normalized.join(','))
+            }
+            return
+          }
+
+          searchParams.append(key, String(value))
+        })
+
+        return searchParams.toString()
+      }
+    }
   })
 }
 

@@ -72,6 +72,7 @@ public class StudentInfo implements Serializable {
     /**
      * 身份证号
      */
+    @NotBlank(message = "身份证号不能为空")
     @Schema(description = "身份证号")
     private String idCard;
 
@@ -120,6 +121,10 @@ public class StudentInfo implements Serializable {
     @Schema(description = "导师 ID")
     private Long tutorId;
 
+    @TableField(exist = false)
+    @Schema(description = "瀵煎笀濮撳悕")
+    private String tutorName;
+
     /**
      * 研究方向
      */
@@ -141,12 +146,14 @@ public class StudentInfo implements Serializable {
     /**
      * 籍贯
      */
+    @NotBlank(message = "籍贯不能为空")
     @Schema(description = "籍贯")
     private String nativePlace;
 
     /**
      * 家庭住址
      */
+    @NotBlank(message = "家庭住址不能为空")
     @Schema(description = "家庭住址")
     private String address;
 
