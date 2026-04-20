@@ -9,7 +9,15 @@
         <el-input v-model="queryParams.keyword" placeholder="请输入学号或姓名" clearable />
       </el-form-item>
       <el-form-item label="年级">
-        <el-input v-model="queryParams.grade" placeholder="请输入入学年份，如 2024" clearable />
+        <el-input-number
+          v-model="queryParams.grade"
+          :min="2000"
+          :max="2100"
+          :step="1"
+          :precision="0"
+          controls-position="right"
+          placeholder="请输入入学年份"
+        />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="handleQuery">查询</el-button>
@@ -128,7 +136,7 @@ const queryParams = reactive({
   current: 1,
   size: 10,
   keyword: '',
-  grade: ''
+  grade: undefined
 })
 
 async function handleQuery() {
@@ -138,7 +146,7 @@ async function handleQuery() {
       current: queryParams.current,
       size: queryParams.size,
       keyword: queryParams.keyword || undefined,
-      grade: queryParams.grade || undefined
+      grade: queryParams.grade === undefined ? undefined : String(queryParams.grade)
     })
     tableData.value = res.data?.data?.records || []
     total.value = res.data?.data?.total || 0
@@ -149,7 +157,7 @@ async function handleQuery() {
 
 function handleReset() {
   queryParams.keyword = ''
-  queryParams.grade = ''
+  queryParams.grade = undefined
   queryParams.current = 1
   handleQuery()
 }

@@ -244,7 +244,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
 
         List<ResearchPaper> papers = list(new LambdaQueryWrapper<ResearchPaper>()
             .in(ResearchPaper::getStudentId, studentIds)
-            .eq(ResearchPaper::getStatus, 2)); // 审核通过
+            .eq(ResearchPaper::getStatus, 1)); // 导师审核通过
 
         return papers.stream()
             .collect(Collectors.groupingBy(ResearchPaper::getStudentId));

@@ -91,8 +91,9 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
                     .like(StudentInfo::getName, keyword));
         }
 
-        if (StringUtils.isNotBlank(grade) && StringUtils.isNumeric(grade)) {
-            wrapper.eq(StudentInfo::getEnrollmentYear, Integer.parseInt(grade));
+        Integer enrollmentYear = normalizeEnrollmentYear(grade);
+        if (enrollmentYear != null) {
+            wrapper.eq(StudentInfo::getEnrollmentYear, enrollmentYear);
         }
 
         wrapper.orderByDesc(StudentInfo::getEnrollmentYear)
@@ -136,6 +137,18 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
 
         resultPage.setRecords(records);
         return resultPage;
+    }
+
+    private Integer normalizeEnrollmentYear(String grade) {
+        if (StringUtils.isBlank(grade)) {
+            return null;
+        }
+
+        String normalized = grade.trim()
+                .replace("级", "")
+                .replace(" ", "");
+
+        return StringUtils.isNumeric(normalized) ? Integer.parseInt(normalized) : null;
     }
 
     @Override
