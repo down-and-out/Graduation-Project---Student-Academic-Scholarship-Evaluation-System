@@ -123,7 +123,13 @@ public class ResearchPaperController {
             @RequestBody ReviewPaperRequest request,
             @AuthenticationPrincipal LoginUser loginUser) {
         Long reviewerId = loginUser.getUserId();
-        boolean success = researchPaperService.reviewPaper(id, request.status(), request.reviewComment(), reviewerId);
+        boolean success = researchPaperService.reviewPaper(
+                id,
+                request.status(),
+                request.reviewComment(),
+                reviewerId,
+                loginUser.getUserType() == 3
+        );
         return success ? Result.success("审核成功") : Result.error("审核失败");
     }
 

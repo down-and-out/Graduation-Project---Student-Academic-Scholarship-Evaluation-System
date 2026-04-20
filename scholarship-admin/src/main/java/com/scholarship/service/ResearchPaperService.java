@@ -59,7 +59,7 @@ public interface ResearchPaperService extends IService<ResearchPaper> {
      * @param reviewerId    审核人ID
      * @return 是否成功
      */
-    boolean reviewPaper(Long paperId, Integer status, String reviewComment, Long reviewerId);
+    boolean reviewPaper(Long paperId, Integer status, String reviewComment, Long reviewerId, boolean isAdmin);
 
     /**
      * 批量查询学生的审核通过论文

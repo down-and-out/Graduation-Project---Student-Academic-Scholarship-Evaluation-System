@@ -7,6 +7,7 @@ import com.scholarship.entity.SysUser;
 import com.scholarship.mapper.SysUserMapper;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.StudentInfoService;
+import com.scholarship.vo.TutorStudentVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -57,6 +58,24 @@ public class StudentInfoController {
         List<Integer> statuses = parseIntegerParams(status);
         IPage<StudentInfo> page = studentInfoService.pageStudents(current, size, keyword, departments, statuses);
         return Result.success(page);
+    }
+
+    @GetMapping("/tutor/page")
+    @PreAuthorize("hasRole('ROLE_TUTOR')")
+    @Operation(summary = "导师分页查询指导学生", description = "仅返回当前导师名下学生，并附带成果统计")
+    public Result<IPage<TutorStudentVO>> pageTutorStudents(
+            @RequestParam(defaultValue = "1") Long current,
+            @RequestParam(defaultValue = "10") Long size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String grade,
+            @AuthenticationPrincipal LoginUser loginUser) {
+        return Result.success(studentInfoService.pageTutorStudents(
+                loginUser.getUserId(),
+                current,
+                size,
+                keyword,
+                grade
+        ));
     }
 
     @GetMapping("/my")

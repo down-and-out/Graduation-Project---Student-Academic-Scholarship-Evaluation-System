@@ -3,6 +3,7 @@ package com.scholarship.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.scholarship.entity.StudentInfo;
+import com.scholarship.vo.TutorStudentVO;
 
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,8 @@ import java.util.Map;
 public interface StudentInfoService extends IService<StudentInfo> {
 
     IPage<StudentInfo> pageStudents(Long current, Long size, String keyword, List<String> departments, List<Integer> statuses);
+
+    IPage<TutorStudentVO> pageTutorStudents(Long tutorUserId, Long current, Long size, String keyword, String grade);
 
     StudentInfo getByUserId(Long userId);
 

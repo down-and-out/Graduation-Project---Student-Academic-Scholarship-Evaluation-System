@@ -208,7 +208,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean reviewPaper(Long paperId, Integer status, String reviewComment, Long reviewerId) {
+    public boolean reviewPaper(Long paperId, Integer status, String reviewComment, Long reviewerId, boolean isAdmin) {
         ResearchPaper paper = researchPaperMapper.selectById(paperId);
         if (paper == null) {
             throw new BusinessException("论文不存在");
@@ -221,7 +221,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
         }
 
         // 如果学生有导师，验证当前审核人是否为该导师
-        if (student.getTutorId() != null) {
+        if (!isAdmin && student.getTutorId() != null) {
             if (!student.getTutorId().equals(reviewerId)) {
                 log.warn("审核人 {} 尝试审核不属于她指导的学生的论文 {}", reviewerId, paperId);
                 throw new BusinessException("无权审核该论文，只能审核自己指导学生的论文");

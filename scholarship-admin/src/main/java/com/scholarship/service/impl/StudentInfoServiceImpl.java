@@ -8,12 +8,17 @@ import com.scholarship.entity.StudentInfo;
 import com.scholarship.entity.SysUser;
 import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.mapper.SysUserMapper;
+import com.scholarship.service.ResearchPaperService;
+import com.scholarship.service.ResearchPatentService;
+import com.scholarship.service.ResearchProjectService;
 import com.scholarship.service.StudentInfoService;
+import com.scholarship.vo.TutorStudentVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -25,10 +30,22 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
 
     private final StudentInfoMapper studentInfoMapper;
     private final SysUserMapper sysUserMapper;
+    private final ResearchPaperService researchPaperService;
+    private final ResearchPatentService researchPatentService;
+    private final ResearchProjectService researchProjectService;
 
-    public StudentInfoServiceImpl(StudentInfoMapper studentInfoMapper, SysUserMapper sysUserMapper) {
+    public StudentInfoServiceImpl(
+            StudentInfoMapper studentInfoMapper,
+            SysUserMapper sysUserMapper,
+            ResearchPaperService researchPaperService,
+            ResearchPatentService researchPatentService,
+            ResearchProjectService researchProjectService
+    ) {
         this.studentInfoMapper = studentInfoMapper;
         this.sysUserMapper = sysUserMapper;
+        this.researchPaperService = researchPaperService;
+        this.researchPatentService = researchPatentService;
+        this.researchProjectService = researchProjectService;
     }
 
     @Override
@@ -60,6 +77,65 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
 
         wrapper.orderByDesc(StudentInfo::getEnrollmentYear);
         return studentInfoMapper.selectPage(page, wrapper);
+    }
+
+    @Override
+    public IPage<TutorStudentVO> pageTutorStudents(Long tutorUserId, Long current, Long size, String keyword, String grade) {
+        Page<StudentInfo> page = new Page<>(current, size);
+        LambdaQueryWrapper<StudentInfo> wrapper = new LambdaQueryWrapper<StudentInfo>()
+                .eq(StudentInfo::getTutorId, tutorUserId);
+
+        if (StringUtils.isNotBlank(keyword)) {
+            wrapper.and(w -> w.like(StudentInfo::getStudentNo, keyword)
+                    .or()
+                    .like(StudentInfo::getName, keyword));
+        }
+
+        if (StringUtils.isNotBlank(grade) && StringUtils.isNumeric(grade)) {
+            wrapper.eq(StudentInfo::getEnrollmentYear, Integer.parseInt(grade));
+        }
+
+        wrapper.orderByDesc(StudentInfo::getEnrollmentYear)
+                .orderByAsc(StudentInfo::getStudentNo);
+
+        Page<StudentInfo> studentPage = studentInfoMapper.selectPage(page, wrapper);
+        Page<TutorStudentVO> resultPage = new Page<>(studentPage.getCurrent(), studentPage.getSize(), studentPage.getTotal());
+
+        List<StudentInfo> students = studentPage.getRecords();
+        if (students.isEmpty()) {
+            resultPage.setRecords(List.of());
+            return resultPage;
+        }
+
+        List<Long> studentIds = students.stream().map(StudentInfo::getId).toList();
+        Map<Long, Integer> paperCountMap = researchPaperService.mapByStudentIds(studentIds).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().size()));
+        Map<Long, Integer> patentCountMap = researchPatentService.mapByStudentIds(studentIds).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().size()));
+        Map<Long, Integer> projectCountMap = researchProjectService.mapByStudentIds(studentIds).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().size()));
+
+        List<TutorStudentVO> records = new ArrayList<>();
+        for (StudentInfo student : students) {
+            TutorStudentVO vo = new TutorStudentVO();
+            vo.setId(student.getId());
+            vo.setStudentNo(student.getStudentNo());
+            vo.setName(student.getName());
+            vo.setGender(student.getGender());
+            vo.setEnrollmentYear(student.getEnrollmentYear());
+            vo.setGrade(student.getEnrollmentYear() == null ? "" : String.valueOf(student.getEnrollmentYear()));
+            vo.setMajor(student.getMajor());
+            vo.setDirection(student.getDirection());
+            vo.setPhone(student.getPhone());
+            vo.setEmail(student.getEmail());
+            vo.setPaperCount(paperCountMap.getOrDefault(student.getId(), 0));
+            vo.setPatentCount(patentCountMap.getOrDefault(student.getId(), 0));
+            vo.setProjectCount(projectCountMap.getOrDefault(student.getId(), 0));
+            records.add(vo);
+        }
+
+        resultPage.setRecords(records);
+        return resultPage;
     }
 
     @Override

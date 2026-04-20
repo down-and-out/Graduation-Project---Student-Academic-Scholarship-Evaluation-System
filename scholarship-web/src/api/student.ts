@@ -30,6 +30,22 @@ export interface Student {
   address?: string
 }
 
+export interface TutorStudent {
+  id: number
+  studentNo: string
+  name: string
+  gender: number
+  enrollmentYear?: number
+  grade?: string
+  major?: string
+  direction?: string
+  phone?: string
+  email?: string
+  paperCount?: number
+  patentCount?: number
+  projectCount?: number
+}
+
 /**
  * 分页查询学生信息参数
  */
@@ -37,6 +53,11 @@ export interface StudentPageParams extends API.PageParams {
   keyword?: string
   department?: string[] | string
   status?: number[] | number
+  grade?: string
+}
+
+export interface TutorStudentPageParams extends API.PageParams {
+  keyword?: string
   grade?: string
 }
 
@@ -78,6 +99,16 @@ export function getStudentPage(
         return searchParams.toString()
       }
     }
+  })
+}
+
+export function getTutorStudentPage(
+  params: TutorStudentPageParams
+): Promise<API.Response<API.PageResponse<TutorStudent>>> {
+  return request({
+    url: '/student-info/tutor/page',
+    method: 'get',
+    params
   })
 }
 
@@ -157,6 +188,7 @@ export function deleteStudent(id: number): Promise<API.Response<null>> {
 
 export default {
   getStudentPage,
+  getTutorStudentPage,
   getMyInfo,
   getStudentById,
   addStudent,
