@@ -2,6 +2,7 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.scholarship.common.result.Result;
+import com.scholarship.dto.StudentCreateFields;
 import com.scholarship.dto.UserCreateRequest;
 import com.scholarship.entity.SysUser;
 import com.scholarship.service.SysUserService;
@@ -16,13 +17,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 系统用户控制器
- *
- * @author Scholarship Development Team
- * @version 1.0.0
  */
 @Slf4j
 @RestController
@@ -33,35 +32,37 @@ public class SysUserController {
 
     private final SysUserService sysUserService;
 
-    /**
-     * 分页查询用户
-     */
     @GetMapping("/page")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "分页查询用户", description = "支持按用户名、姓名、用户类型、状态筛选")
+    @Operation(summary = "分页查询用户", description = "支持按用户名、姓名、单个或多个用户类型、单个或多个状态筛选")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "查询成功"),
-        @ApiResponse(responseCode = "403", description = "无权限")
+            @ApiResponse(responseCode = "200", description = "查询成功"),
+            @ApiResponse(responseCode = "403", description = "无权限")
     })
     public Result<IPage<SysUserVO>> page(
             @Parameter(description = "当前页", example = "1") @RequestParam(defaultValue = "1") Long current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Long size,
             @Parameter(description = "搜索关键字") @RequestParam(required = false) String keyword,
-            @Parameter(description = "用户类型：1-研究生 2-导师 3-管理员") @RequestParam(required = false) Integer userType,
-            @Parameter(description = "状态：0-禁用 1-正常") @RequestParam(required = false) Integer status) {
-        return Result.success(sysUserService.pageUserVOs(current, size, keyword, userType, status));
+            @Parameter(description = "用户类型：支持单个值、逗号分隔多值或重复参数，1-研究生 2-导师 3-管理员")
+            @RequestParam(required = false) List<String> userType,
+            @Parameter(description = "状态：支持单个值、逗号分隔多值或重复参数，0-禁用 1-正常")
+            @RequestParam(required = false) List<String> status) {
+        return Result.success(sysUserService.pageUserVOs(
+                current,
+                size,
+                keyword,
+                normalizeFilterValues(userType),
+                normalizeFilterValues(status)
+        ));
     }
 
-    /**
-     * 根据 ID 查询用户
-     */
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "根据 ID 查询用户")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "查询成功"),
-        @ApiResponse(responseCode = "404", description = "用户不存在"),
-        @ApiResponse(responseCode = "403", description = "无权限")
+            @ApiResponse(responseCode = "200", description = "查询成功"),
+            @ApiResponse(responseCode = "404", description = "用户不存在"),
+            @ApiResponse(responseCode = "403", description = "无权限")
     })
     public Result<SysUserVO> getById(@PathVariable Long id) {
         SysUser user = sysUserService.getById(id);
@@ -71,36 +72,36 @@ public class SysUserController {
         return Result.success(SysUserVO.fromEntity(user));
     }
 
-    /**
-     * 新增用户
-     */
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "新增用户", description = "创建新的系统用户")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "新增成功"),
-        @ApiResponse(responseCode = "400", description = "用户名已存在"),
-        @ApiResponse(responseCode = "403", description = "无权限")
+            @ApiResponse(responseCode = "200", description = "新增成功"),
+            @ApiResponse(responseCode = "400", description = "用户名已存在"),
+            @ApiResponse(responseCode = "403", description = "无权限")
     })
     public Result<Void> add(@RequestBody UserCreateRequest request) {
         try {
-            boolean success = sysUserService.createUser(request.getUser(), request.getMajor());
+            StudentCreateFields studentFields = new StudentCreateFields(request);
+
+            boolean success = sysUserService.createUser(
+                    request.getUser(),
+                    request.getMajor(),
+                    studentFields
+            );
             return success ? Result.success("新增成功") : Result.error("新增失败");
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }
     }
 
-    /**
-     * 更新用户
-     */
     @PutMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "更新用户", description = "修改用户信息")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "更新成功"),
-        @ApiResponse(responseCode = "400", description = "用户名已存在"),
-        @ApiResponse(responseCode = "403", description = "无权限")
+            @ApiResponse(responseCode = "200", description = "更新成功"),
+            @ApiResponse(responseCode = "400", description = "用户名已存在"),
+            @ApiResponse(responseCode = "403", description = "无权限")
     })
     public Result<Void> update(@RequestBody SysUser user) {
         try {
@@ -111,46 +112,37 @@ public class SysUserController {
         }
     }
 
-    /**
-     * 删除用户
-     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除用户", description = "删除指定的系统用户")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "删除成功"),
-        @ApiResponse(responseCode = "403", description = "无权限")
+            @ApiResponse(responseCode = "200", description = "删除成功"),
+            @ApiResponse(responseCode = "403", description = "无权限")
     })
     public Result<Void> delete(@PathVariable Long id) {
         boolean success = sysUserService.deleteUser(id);
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
-    /**
-     * 批量删除用户
-     */
     @DeleteMapping("/batch")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "批量删除用户", description = "批量删除系统用户")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "删除成功"),
-        @ApiResponse(responseCode = "403", description = "无权限")
+            @ApiResponse(responseCode = "200", description = "删除成功"),
+            @ApiResponse(responseCode = "403", description = "无权限")
     })
     public Result<Void> deleteBatch(@RequestBody List<Long> ids) {
         boolean success = sysUserService.deleteUsers(ids);
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
-    /**
-     * 重置密码
-     */
     @PutMapping("/reset-password/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "重置密码", description = "重置用户密码")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "重置成功"),
-        @ApiResponse(responseCode = "404", description = "用户不存在"),
-        @ApiResponse(responseCode = "403", description = "无权限")
+            @ApiResponse(responseCode = "200", description = "重置成功"),
+            @ApiResponse(responseCode = "404", description = "用户不存在"),
+            @ApiResponse(responseCode = "403", description = "无权限")
     })
     public Result<Void> resetPassword(
             @PathVariable Long id,
@@ -161,5 +153,31 @@ public class SysUserController {
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }
+    }
+
+    private List<Integer> normalizeFilterValues(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+
+        List<Integer> normalized = new ArrayList<>();
+        for (String value : values) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+
+            String[] parts = value.split(",");
+            for (String part : parts) {
+                if (part == null || part.isBlank()) {
+                    continue;
+                }
+
+                Integer parsed = Integer.valueOf(part.trim());
+                if (!normalized.contains(parsed)) {
+                    normalized.add(parsed);
+                }
+            }
+        }
+        return normalized.isEmpty() ? null : normalized;
     }
 }

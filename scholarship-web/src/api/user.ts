@@ -1,21 +1,15 @@
-/**
- * 系统用户管理 API
- */
 import request from '@/utils/request'
 
-/**
- * 用户信息
- */
 export interface User {
   id?: number
   username: string
   password?: string
   realName?: string
-  name?: string  // 用于兼容前端
+  name?: string
   userType?: number
-  role?: string  // 用于显示
+  role?: string
   department?: string
-  major?: string  // 专业（仅学生类型）
+  major?: string
   phone?: string
   email?: string
   avatar?: string
@@ -25,29 +19,60 @@ export interface User {
   remark?: string
 }
 
-/**
- * 分页查询参数
- */
-export interface UserPageParams extends API.PageParams {
-  keyword?: string
-  userType?: number
+export interface UserCreateRequest {
+  user: Partial<User>
+  major?: string
+  studentNo?: string
+  gender?: number
+  idCard?: string
+  enrollmentYear?: number
+  educationLevel?: number
+  trainingMode?: number
+  nativePlace?: string
+  address?: string
   status?: number
 }
 
-/**
- * 分页查询用户
- */
+export interface UserPageParams extends API.PageParams {
+  keyword?: string
+  userType?: number[] | number
+  status?: number[] | number
+}
+
 export function getUserPage(params: UserPageParams): Promise<API.Response<API.PageResponse<User>>> {
   return request({
     url: '/sys/user/page',
     method: 'get',
-    params
+    params,
+    paramsSerializer: {
+      serialize: (rawParams: Record<string, unknown>) => {
+        const searchParams = new URLSearchParams()
+
+        Object.entries(rawParams).forEach(([key, value]) => {
+          if (value === undefined || value === null || value === '') {
+            return
+          }
+
+          if (Array.isArray(value)) {
+            const normalized = value
+              .filter(item => item !== undefined && item !== null && item !== '')
+              .map(item => String(item))
+
+            if (normalized.length > 0) {
+              searchParams.append(key, normalized.join(','))
+            }
+            return
+          }
+
+          searchParams.append(key, String(value))
+        })
+
+        return searchParams.toString()
+      }
+    }
   })
 }
 
-/**
- * 根据 ID 查询用户
- */
 export function getUserById(id: number): Promise<API.Response<User>> {
   return request({
     url: `/sys/user/${id}`,
@@ -55,10 +80,7 @@ export function getUserById(id: number): Promise<API.Response<User>> {
   })
 }
 
-/**
- * 新增用户
- */
-export function addUser(data: Partial<User>): Promise<API.Response<null>> {
+export function addUser(data: UserCreateRequest): Promise<API.Response<null>> {
   return request({
     url: '/sys/user',
     method: 'post',
@@ -66,9 +88,6 @@ export function addUser(data: Partial<User>): Promise<API.Response<null>> {
   })
 }
 
-/**
- * 更新用户
- */
 export function updateUser(data: Partial<User>): Promise<API.Response<null>> {
   return request({
     url: '/sys/user',
@@ -77,9 +96,6 @@ export function updateUser(data: Partial<User>): Promise<API.Response<null>> {
   })
 }
 
-/**
- * 删除用户
- */
 export function deleteUser(id: number): Promise<API.Response<null>> {
   return request({
     url: `/sys/user/${id}`,
@@ -87,9 +103,6 @@ export function deleteUser(id: number): Promise<API.Response<null>> {
   })
 }
 
-/**
- * 批量删除用户
- */
 export function batchDeleteUsers(ids: number[]): Promise<API.Response<null>> {
   return request({
     url: '/sys/user/batch',
@@ -98,9 +111,6 @@ export function batchDeleteUsers(ids: number[]): Promise<API.Response<null>> {
   })
 }
 
-/**
- * 重置密码
- */
 export function resetPassword(id: number, password: string): Promise<API.Response<null>> {
   return request({
     url: `/sys/user/reset-password/${id}`,

@@ -16,8 +16,7 @@
     <!-- 搜索表单 -->
     <el-form :inline="true" class="search-form">
       <el-form-item label="规则类型">
-        <el-select v-model="queryParams.ruleType" placeholder="请选择" @change="handleQuery">
-          <el-option label="全部" value="all" />
+        <el-select v-model="queryParams.ruleType" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
           <el-option label="论文" :value="RULE_TYPE.PAPER" />
           <el-option label="专利" :value="RULE_TYPE.PATENT" />
           <el-option label="项目" :value="RULE_TYPE.PROJECT" />
@@ -182,7 +181,7 @@ const dialogTitle = computed(() => isEdit.value ? '编辑规则' : '添加规则
 const queryParams = reactive({
   current: 1,
   size: 10,
-  ruleType: 'all'
+  ruleType: []
 })
 
 // 默认表单数据
@@ -214,7 +213,7 @@ async function handleQuery() {
     // 将 'all' 转换为 undefined，不传给后端
     const params = {
       ...queryParams,
-      ruleType: queryParams.ruleType === 'all' ? undefined : queryParams.ruleType
+      ruleType: queryParams.ruleType.length > 0 ? queryParams.ruleType : undefined
     }
     const res = await getRulePage(params)
     tableData.value = res.data?.data?.records || []
@@ -227,7 +226,7 @@ async function handleQuery() {
 }
 
 function handleReset() {
-  queryParams.ruleType = 'all'
+  queryParams.ruleType = []
   queryParams.current = 1
   handleQuery()
 }

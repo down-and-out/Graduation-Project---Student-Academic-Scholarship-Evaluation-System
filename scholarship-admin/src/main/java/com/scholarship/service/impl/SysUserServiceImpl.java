@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.dto.StudentCreateFields;
+import com.scholarship.entity.StudentInfo;
 import com.scholarship.entity.SysUser;
 import com.scholarship.mapper.SysUserMapper;
+import com.scholarship.service.StudentInfoService;
 import com.scholarship.service.SysUserService;
 import com.scholarship.vo.SysUserVO;
 import lombok.extern.slf4j.Slf4j;
@@ -13,22 +16,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.scholarship.entity.StudentInfo;
-import com.scholarship.service.StudentInfoService;
-
+import java.time.LocalDateTime;
+import java.time.Year;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * 系统用户服务实现类
- *
- * @author Scholarship Development Team
- * @version 1.0.0
  */
 @Slf4j
 @Service
-public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
-        implements SysUserService {
+public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements SysUserService {
 
     private final PasswordEncoder passwordEncoder;
     private final StudentInfoService studentInfoService;
@@ -39,14 +37,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
     }
 
     @Override
-    public IPage<SysUserVO> pageUserVOs(Long current, Long size, String keyword, Integer userType, Integer status) {
-        IPage<SysUser> userPage = pageUsers(current, size, keyword, userType, status);
+    public IPage<SysUserVO> pageUserVOs(Long current, Long size, String keyword, List<Integer> userTypes, List<Integer> statuses) {
+        IPage<SysUser> userPage = pageUsers(current, size, keyword, userTypes, statuses);
         return userPage.convert(SysUserVO::fromEntity);
     }
 
     @Override
-    public IPage<SysUser> pageUsers(Long current, Long size, String keyword, Integer userType, Integer status) {
-        log.debug("分页查询用户，current={}, size={}, keyword={}, userType={}, status={}", current, size, keyword, userType, status);
+    public IPage<SysUser> pageUsers(Long current, Long size, String keyword, List<Integer> userTypes, List<Integer> statuses) {
+        log.debug("分页查询用户，current={}, size={}, keyword={}, userTypes={}, statuses={}", current, size, keyword, userTypes, statuses);
 
         Page<SysUser> page = new Page<>(current, size);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
@@ -55,15 +53,26 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
             wrapper.and(w -> w.like(SysUser::getUsername, keyword)
                     .or().like(SysUser::getRealName, keyword));
         }
-        if (userType != null) {
-            wrapper.eq(SysUser::getUserType, userType);
-        }
-        if (status != null) {
-            wrapper.eq(SysUser::getStatus, status);
-        }
+        applyIntegerFilter(wrapper, SysUser::getUserType, userTypes);
+        applyIntegerFilter(wrapper, SysUser::getStatus, statuses);
 
         wrapper.orderByDesc(SysUser::getCreateTime);
         return page(page, wrapper);
+    }
+
+    private <T> void applyIntegerFilter(LambdaQueryWrapper<SysUser> wrapper,
+                                        com.baomidou.mybatisplus.core.toolkit.support.SFunction<SysUser, T> column,
+                                        List<T> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+
+        if (values.size() == 1) {
+            wrapper.eq(column, values.get(0));
+            return;
+        }
+
+        wrapper.in(column, values);
     }
 
     @Override
@@ -78,83 +87,72 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean createUser(SysUser user, String major) {
+        return createUser(user, major, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean createUser(SysUser user, String major, StudentCreateFields studentFields) {
         log.info("创建用户，username={}, realName={}, userType={}, major={}", user.getUsername(), user.getRealName(), user.getUserType(), major);
 
-        // 检查用户名是否存在
         SysUser existUser = getByUsername(user.getUsername());
         if (existUser != null) {
             throw new RuntimeException("用户名已存在");
         }
 
-        // 加密密码
         if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
-            // 默认密码为 a123456789
             user.setPassword(passwordEncoder.encode("a123456789"));
         } else {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
 
-        // 默认状态为正常
         if (user.getStatus() == null) {
             user.setStatus(1);
         }
 
-        // 保存用户
         boolean success = save(user);
         if (!success) {
             return false;
         }
 
-        // 确保 ID 已生成
         if (user.getId() == null) {
             throw new RuntimeException("用户保存失败：未能获取生成的用户ID");
         }
 
-        // 如果是学生类型（userType=1），自动创建 student_info 记录
         if (user.getUserType() != null && user.getUserType() == 1) {
-            createStudentInfo(user, major);
+            createStudentInfo(user, major, studentFields);
         }
 
         return true;
     }
 
-    /**
-     * 创建学生档案信息
-     *
-     * @param user 系统用户信息
-     * @param major 专业
-     */
-    private void createStudentInfo(SysUser user, String major) {
+    private void createStudentInfo(SysUser user, String major, StudentCreateFields studentFields) {
         log.info("自动创建学生档案，userId={}, username={}, major={}", user.getId(), user.getUsername(), major);
 
-        // 校验必要字段
         if (user.getRealName() == null || user.getRealName().trim().isEmpty()) {
             throw new RuntimeException("创建学生档案失败：姓名为空，请填写真实姓名");
         }
 
         StudentInfo studentInfo = new StudentInfo();
         studentInfo.setUserId(user.getId());
-        // 默认学号使用用户名
-        studentInfo.setStudentNo(user.getUsername());
-        // 姓名从 real_name 获取
+        studentInfo.setStudentNo(studentFields != null && studentFields.getStudentNo() != null && !studentFields.getStudentNo().isEmpty()
+                ? studentFields.getStudentNo() : user.getUsername());
         studentInfo.setName(user.getRealName());
-        // 院系
         studentInfo.setDepartment(user.getDepartment());
-        // 专业
         studentInfo.setMajor(major);
-        // 电话、邮箱同步
         studentInfo.setPhone(user.getPhone());
         studentInfo.setEmail(user.getEmail());
-        // 默认入学年份为当前年份
-        studentInfo.setEnrollmentYear(java.time.Year.now().getValue());
-        // 默认学历为硕士
-        studentInfo.setEducationLevel(1);
-        // 默认培养方式为全日制
-        studentInfo.setTrainingMode(1);
-        // 默认学籍状态为在读
-        studentInfo.setStatus(1);
-        // 默认性别为男（可在后续修改）
-        studentInfo.setGender(1);
+        studentInfo.setGender(studentFields != null && studentFields.getGender() != null ? studentFields.getGender() : 1);
+        studentInfo.setIdCard(studentFields != null ? studentFields.getIdCard() : null);
+        studentInfo.setEnrollmentYear(studentFields != null && studentFields.getEnrollmentYear() != null
+                ? studentFields.getEnrollmentYear() : Year.now().getValue());
+        studentInfo.setEducationLevel(studentFields != null && studentFields.getEducationLevel() != null
+                ? studentFields.getEducationLevel() : 1);
+        studentInfo.setTrainingMode(studentFields != null && studentFields.getTrainingMode() != null
+                ? studentFields.getTrainingMode() : 1);
+        studentInfo.setNativePlace(studentFields != null ? studentFields.getNativePlace() : null);
+        studentInfo.setAddress(studentFields != null ? studentFields.getAddress() : null);
+        studentInfo.setStatus(studentFields != null && studentFields.getStatus() != null ? studentFields.getStatus() : 1);
 
         boolean success = studentInfoService.save(studentInfo);
         if (!success) {
@@ -168,7 +166,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
     public boolean updateUser(SysUser user) {
         log.info("更新用户，id={}, username={}", user.getId(), user.getUsername());
 
-        // 检查用户名是否存在（排除自己）
         if (user.getUsername() != null) {
             SysUser existUser = getByUsername(user.getUsername());
             if (existUser != null && !existUser.getId().equals(user.getId())) {
@@ -176,28 +173,18 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
             }
         }
 
-        // 不允许直接修改密码，使用 resetPassword 方法
         user.setPassword(null);
 
-        // 更新用户
         boolean success = updateById(user);
         if (!success) {
             return false;
         }
 
-        // 如果更新了姓名、院系、电话、邮箱，同步到 student_info
         syncToStudentInfo(user);
-
         return true;
     }
 
-    /**
-     * 同步更新到 student_info 表
-     *
-     * @param user 系统用户信息
-     */
     private void syncToStudentInfo(SysUser user) {
-        // 查询该用户是否有关联的学生档案
         StudentInfo studentInfo = studentInfoService.getByUserId(user.getId());
         if (studentInfo == null) {
             return;
@@ -205,7 +192,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
 
         log.info("同步更新 student_info，userId={}", user.getId());
 
-        // 只更新非空字段
         if (user.getRealName() != null) {
             studentInfo.setName(user.getRealName());
         }
@@ -218,7 +204,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
         if (user.getEmail() != null) {
             studentInfo.setEmail(user.getEmail());
         }
-        studentInfo.setUpdateTime(java.time.LocalDateTime.now());
+        studentInfo.setUpdateTime(LocalDateTime.now());
 
         studentInfoService.updateById(studentInfo);
     }
@@ -227,16 +213,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
     @Transactional(rollbackFor = Exception.class)
     public boolean deleteUser(Long id) {
         if (id == null) {
-            log.warn("删除用户失败：id 不能为空");
+            log.warn("删除用户失败，id 不能为空");
             return false;
         }
 
         log.info("删除用户，id={}", id);
 
-        // 1. 先查询该用户是否有关联的学生档案
         StudentInfo studentInfo = studentInfoService.getByUserId(id);
         if (studentInfo != null) {
-            // 2. 如果存在学生档案，先删除学生档案
             log.info("级联删除学生档案，studentInfoId={}", studentInfo.getId());
             boolean studentDeleted = studentInfoService.removeById(studentInfo.getId());
             if (!studentDeleted) {
@@ -246,7 +230,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
             log.info("级联删除学生档案成功");
         }
 
-        // 3. 删除用户
         boolean userDeleted = removeById(id);
         if (!userDeleted) {
             log.error("删除用户失败，id={}，触发事务回滚", id);
@@ -278,26 +261,23 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
             return true;
         }
 
-        // 限制日志输出长度，避免大量数据导致日志过长
         String idsStr;
         if (ids.size() > 10) {
             List<Long> firstTen = ids.subList(0, 10);
-            idsStr = firstTen.toString() + "... (共" + ids.size() + "个)";
+            idsStr = firstTen + "... (共 " + ids.size() + " 个)";
         } else {
             idsStr = ids.toString();
         }
         log.info("批量删除用户，count={}，ids={}", ids.size(), idsStr);
 
-        // 1. 查询这些用户关联的所有学生档案
         LambdaQueryWrapper<StudentInfo> studentWrapper = new LambdaQueryWrapper<>();
         studentWrapper.in(StudentInfo::getUserId, ids);
         List<StudentInfo> studentInfos = studentInfoService.list(studentWrapper);
 
-        // 2. 如果存在学生档案，批量删除
         if (studentInfos != null && !studentInfos.isEmpty()) {
             List<Long> studentInfoIds = studentInfos.stream()
-                .map(StudentInfo::getId)
-                .collect(Collectors.toList());
+                    .map(StudentInfo::getId)
+                    .collect(Collectors.toList());
             log.info("级联批量删除学生档案，count={}", studentInfoIds.size());
             boolean studentsDeleted = studentInfoService.removeByIds(studentInfoIds);
             if (!studentsDeleted) {
@@ -307,7 +287,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser>
             log.info("级联批量删除学生档案成功");
         }
 
-        // 3. 批量删除用户
         boolean usersDeleted = removeByIds(ids);
         if (!usersDeleted) {
             log.error("批量删除用户失败，触发事务回滚");

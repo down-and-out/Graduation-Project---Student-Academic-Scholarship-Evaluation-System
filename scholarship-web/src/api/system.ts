@@ -116,7 +116,7 @@ export interface OperationLog {
 export interface LogQueryParams {
   current: number
   size: number
-  operationType?: string
+  operationType?: string[] | string
   username?: string
 }
 
@@ -188,7 +188,33 @@ export function getOperationLogPage(
   return request({
     url: '/operation-log/page',
     method: 'get',
-    params
+    params,
+    paramsSerializer: {
+      serialize: (rawParams: Record<string, unknown>) => {
+        const searchParams = new URLSearchParams()
+
+        Object.entries(rawParams).forEach(([key, value]) => {
+          if (value === undefined || value === null || value === '') {
+            return
+          }
+
+          if (Array.isArray(value)) {
+            const normalized = value
+              .filter(item => item !== undefined && item !== null && item !== '')
+              .map(item => String(item))
+
+            if (normalized.length > 0) {
+              searchParams.append(key, normalized.join(','))
+            }
+            return
+          }
+
+          searchParams.append(key, String(value))
+        })
+
+        return searchParams.toString()
+      }
+    }
   })
 }
 

@@ -147,8 +147,7 @@
         <el-card shadow="never">
           <el-form :inline="true" class="search-form">
             <el-form-item label="操作类型">
-              <el-select v-model="logQuery.type" placeholder="请选择" clearable>
-                <el-option label="全部" value="" />
+              <el-select v-model="logQuery.type" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
                 <el-option v-for="(label, value) in LOG_TYPE_TEXT" :key="value" :label="label" :value="value" />
               </el-select>
             </el-form-item>
@@ -341,7 +340,7 @@ const logTotal = ref(0)
 const logQuery = reactive({
   current: 1,
   size: 10,
-  type: '',
+  type: [] as string[],
   operator: ''
 })
 
@@ -490,7 +489,7 @@ async function handleQueryLog(): Promise<void> {
     const response = await getOperationLogPage({
       current: logQuery.current,
       size: logQuery.size,
-      operationType: logQuery.type || undefined,
+      operationType: logQuery.type.length > 0 ? logQuery.type : undefined,
       username: logQuery.operator || undefined
     })
     const pageData = extractNestedData<API.PageResponse<OperationLog>>(response)

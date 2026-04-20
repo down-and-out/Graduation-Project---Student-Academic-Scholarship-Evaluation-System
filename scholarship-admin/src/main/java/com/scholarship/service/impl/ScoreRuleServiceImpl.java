@@ -17,15 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * 评分规则服务实现类
- * <p>
- * 提供评分规则的基础 CRUD 操作，继承自 MyBatis-Plus 的 ServiceImpl
- * </p>
- *
- * @author Scholarship Development Team
- * @version 1.1.0
- */
 @Slf4j
 @Service
 @CacheConfig(cacheNames = "scoreRules")
@@ -34,7 +25,7 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
     @Override
     @Cacheable(key = "#id", unless = "#result == null")
     public ScoreRule getByIdWithCache(Long id) {
-        log.debug("查询评分规则：id={}", id);
+        log.debug("查询评分规则, id={}", id);
         return super.getById(id);
     }
 
@@ -46,7 +37,7 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
 
     @Override
     public List<ScoreRule> listByRuleType(Integer ruleType) {
-        log.debug("根据规则类型查询规则：ruleType={}", ruleType);
+        log.debug("根据规则类型查询规则, ruleType={}", ruleType);
         LambdaQueryWrapper<ScoreRule> wrapper = new LambdaQueryWrapper<ScoreRule>()
                 .eq(ScoreRule::getRuleType, ruleType)
                 .orderByAsc(ScoreRule::getSortOrder);
@@ -55,7 +46,7 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
 
     @Override
     public List<ScoreRule> listByCategoryId(Long categoryId) {
-        log.debug("根据分类 ID 查询规则：categoryId={}", categoryId);
+        log.debug("根据分类 ID 查询规则, categoryId={}", categoryId);
         LambdaQueryWrapper<ScoreRule> wrapper = new LambdaQueryWrapper<ScoreRule>()
                 .eq(ScoreRule::getCategoryId, categoryId)
                 .orderByAsc(ScoreRule::getSortOrder);
@@ -64,7 +55,7 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
 
     @Override
     public List<ScoreRule> listAvailableByRuleType(Integer ruleType) {
-        log.debug("查询可用规则：ruleType={}", ruleType);
+        log.debug("查询可用规则, ruleType={}", ruleType);
         LambdaQueryWrapper<ScoreRule> wrapper = new LambdaQueryWrapper<ScoreRule>()
                 .eq(ScoreRule::getRuleType, ruleType)
                 .eq(ScoreRule::getIsAvailable, 1)
@@ -76,7 +67,6 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(allEntries = true)
     public boolean save(ScoreRule entity) {
-        // 根据 rule_type 设置 category_id（1对1映射）
         if (entity.getCategoryId() == null && entity.getRuleType() != null) {
             entity.setCategoryId(Long.valueOf(entity.getRuleType()));
         }
@@ -88,7 +78,6 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
     @CacheEvict(allEntries = true)
     public boolean saveBatch(List<ScoreRule> rules) {
         log.debug("批量保存规则，数量：{}", rules != null ? rules.size() : 0);
-        // 根据 rule_type 设置 category_id（1对1映射）
         if (rules != null) {
             for (ScoreRule rule : rules) {
                 if (rule.getCategoryId() == null && rule.getRuleType() != null) {
@@ -118,9 +107,17 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
         Page<ScoreRule> page = new Page<>(query.getCurrent(), query.getSize());
         LambdaQueryWrapper<ScoreRule> wrapper = new LambdaQueryWrapper<>();
 
-        if (query.getRuleType() != null) {
+        List<Integer> ruleTypes = query.getRuleTypes();
+        if (ruleTypes != null && !ruleTypes.isEmpty()) {
+            if (ruleTypes.size() == 1) {
+                wrapper.eq(ScoreRule::getRuleType, ruleTypes.get(0));
+            } else {
+                wrapper.in(ScoreRule::getRuleType, ruleTypes);
+            }
+        } else if (query.getRuleType() != null) {
             wrapper.eq(ScoreRule::getRuleType, query.getRuleType());
         }
+
         if (query.getRuleName() != null) {
             wrapper.like(ScoreRule::getRuleName, query.getRuleName());
         }
