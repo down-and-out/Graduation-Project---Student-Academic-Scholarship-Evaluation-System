@@ -11,14 +11,24 @@ export interface CompetitionAward {
   studentId: number
   studentName?: string
   competitionName: string
-  awardLevel: string
-  awardGrade: number
+  competitionLevel?: number
+  awardLevel: number
+  awardRank?: number
+  awardType?: number
+  memberRank?: number
+  instructor?: string
+  issuingUnit?: string
   organizer?: string
+  teamMembers?: string
   awardDate?: string
-  certificateNo?: string
+  attachmentUrl?: string
+  proofMaterials?: string
   score?: number
-  status?: number
+  auditStatus?: number
+  auditComment?: string
+  auditTime?: string
   createTime?: string
+  remark?: string
 }
 
 /**
@@ -26,7 +36,7 @@ export interface CompetitionAward {
  */
 export interface CompetitionPageParams extends API.PageParams {
   studentId?: number
-  status?: number
+  auditStatus?: number
   keyword?: string
 }
 

@@ -8,20 +8,24 @@ import request from '@/utils/request'
  */
 export interface ResearchPatent {
   id?: number
-  studentId: number
+  studentId?: number
   studentName?: string
   patentName: string
   patentType: number
+  applicant?: string
   patentNo?: string
   applicationDate?: string
-  authorizationDate?: string
   inventors?: string
-  status?: number
+  inventorRank?: number
+  applicantRank?: number
+  patentStatus?: number
+  attachmentUrl?: string
   auditStatus?: number
   auditComment?: string
   auditTime?: string
   score?: number
   createTime?: string
+  remark?: string
 }
 
 /**
@@ -30,7 +34,7 @@ export interface ResearchPatent {
 export interface PatentPageParams extends API.PageParams {
   studentId?: number
   patentType?: number
-  status?: number
+  patentStatus?: number
   auditStatus?: number
   keyword?: string
 }

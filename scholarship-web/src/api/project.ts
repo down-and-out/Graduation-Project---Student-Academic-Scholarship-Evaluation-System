@@ -11,15 +11,24 @@ export interface ResearchProject {
   studentId: number
   studentName?: string
   projectName: string
+  projectLevel?: number
   projectType: number
   projectNo?: string
-  level?: number
+  projectSource?: string
+  leaderId?: number
+  leaderName?: string
+  memberRank?: number
+  projectRole?: number
+  participants?: string
   startDate?: string
   endDate?: string
   funding?: number
-  role?: number
-  status?: number
+  projectStatus?: number
+  attachmentUrl?: string
+  auditStatus?: number
+  auditComment?: string
   createTime?: string
+  remark?: string
 }
 
 /**
@@ -28,7 +37,7 @@ export interface ResearchProject {
 export interface ProjectPageParams extends API.PageParams {
   studentId?: number
   projectType?: number
-  status?: number
+  auditStatus?: number
   keyword?: string
 }
 

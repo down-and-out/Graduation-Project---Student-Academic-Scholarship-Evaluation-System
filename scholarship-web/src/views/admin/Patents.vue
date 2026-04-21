@@ -1,13 +1,9 @@
-<!--
-  管理员 - 结果管理页面
-  管理员端的专利管理页面，用于管理学生的专利信息。
--->
 <template>
   <div class="patent-container">
     <el-card class="search-card">
       <el-form :inline="true" :model="queryParams" class="search-form">
-        <el-form-item label="学生姓名">
-          <el-input v-model="queryParams.keyword" placeholder="请输入学生姓名" clearable />
+        <el-form-item label="关键词">
+          <el-input v-model="queryParams.keyword" placeholder="请输入专利名称/专利号/申请人" clearable />
         </el-form-item>
         <el-form-item label="审核状态">
           <el-select v-model="queryParams.auditStatus" placeholder="请选择" clearable>
@@ -30,26 +26,29 @@
           <el-button type="primary" @click="handleAdd">新增专利</el-button>
         </div>
       </template>
+
       <el-table :data="tableData" v-loading="loading" border stripe empty-text="暂无专利数据">
         <el-table-column prop="patentName" label="专利名称" min-width="200" />
-        <el-table-column prop="patentNo" label="专利号" width="150" />
-        <el-table-column prop="patentType" label="专利类型" width="100">
+        <el-table-column prop="studentId" label="学生ID" width="100" />
+        <el-table-column prop="applicant" label="申请人" min-width="140" />
+        <el-table-column prop="patentNo" label="专利号" min-width="160" />
+        <el-table-column prop="patentType" label="专利类型" width="110">
           <template #default="{ row }">
             <el-tag v-if="row.patentType === PATENT_TYPE.INVENT" type="danger">发明专利</el-tag>
             <el-tag v-else-if="row.patentType === PATENT_TYPE.UTILITY" type="success">实用新型</el-tag>
             <el-tag v-else type="warning">外观设计</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="applicantRank" label="申请人排名" width="100" />
+        <el-table-column prop="inventorRank" label="发明人排名" width="110" />
         <el-table-column prop="applicationDate" label="申请日期" width="120" />
         <el-table-column prop="patentStatus" label="专利状态" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.patentStatus === PATENT_STATUS.APPLYING" type="info">申请中</el-tag>
             <el-tag v-else-if="row.patentStatus === PATENT_STATUS.AUTHORIZED" type="success">已授权</el-tag>
-            <el-tag v-else type="danger">已驳回</el-tag>
+            <el-tag v-else type="danger">已失效</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="score" label="获得分数" width="100" />
+        <el-table-column prop="score" label="得分" width="90" />
         <el-table-column prop="auditStatus" label="审核状态" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.auditStatus === AUDIT_STATUS.PENDING" type="warning">待审核</el-tag>
@@ -57,10 +56,18 @@
             <el-tag v-else type="danger">驳回</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleView(row)">查看</el-button>
-            <el-button type="primary" link @click="handleAudit(row)" v-if="row.auditStatus === AUDIT_STATUS.PENDING">审核</el-button>
+            <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
+            <el-button
+              v-if="row.auditStatus === AUDIT_STATUS.PENDING"
+              type="primary"
+              link
+              @click="handleAudit(row)"
+            >
+              审核
+            </el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -73,17 +80,16 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         class="pagination"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
       />
     </el-card>
 
-    <!-- 新增/编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="600px"
-      @close="handleDialogClose"
-    >
-      <el-form :model="formData" :rules="formRules" ref="formRef" label-width="120px">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="700px" @close="handleDialogClose">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
+        <el-form-item label="学生ID" prop="studentId">
+          <el-input-number v-model="formData.studentId" :min="1" :precision="0" controls-position="right" />
+        </el-form-item>
         <el-form-item label="专利名称" prop="patentName">
           <el-input v-model="formData.patentName" placeholder="请输入专利名称" />
         </el-form-item>
@@ -97,8 +103,17 @@
             <el-option label="外观设计" :value="PATENT_TYPE.DESIGN" />
           </el-select>
         </el-form-item>
+        <el-form-item label="申请人" prop="applicant">
+          <el-input v-model="formData.applicant" placeholder="请输入申请人" />
+        </el-form-item>
+        <el-form-item label="发明人" prop="inventors">
+          <el-input v-model="formData.inventors" placeholder="多个发明人请用逗号分隔" />
+        </el-form-item>
+        <el-form-item label="发明人排名" prop="inventorRank">
+          <el-input-number v-model="formData.inventorRank" :min="1" :precision="0" controls-position="right" />
+        </el-form-item>
         <el-form-item label="申请人排名" prop="applicantRank">
-          <el-input-number v-model="formData.applicantRank" :min="1" placeholder="请输入排名" />
+          <el-input-number v-model="formData.applicantRank" :min="1" :precision="0" controls-position="right" />
         </el-form-item>
         <el-form-item label="申请日期" prop="applicationDate">
           <el-date-picker
@@ -108,30 +123,22 @@
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
-        <el-form-item label="授权日期" prop="authorizationDate">
-          <el-date-picker
-            v-model="formData.authorizationDate"
-            type="date"
-            placeholder="选择日期"
-            value-format="YYYY-MM-DD"
-          />
-        </el-form-item>
         <el-form-item label="专利状态" prop="patentStatus">
           <el-select v-model="formData.patentStatus" placeholder="请选择专利状态">
             <el-option label="申请中" :value="PATENT_STATUS.APPLYING" />
             <el-option label="已授权" :value="PATENT_STATUS.AUTHORIZED" />
-            <el-option label="已驳回" :value="PATENT_STATUS.REJECTED" />
+            <el-option label="已失效" :value="PATENT_STATUS.REJECTED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="证明材料" prop="proofMaterials">
+        <el-form-item label="证明材料" prop="attachmentUrl">
           <el-upload
             action="#"
             :file-list="uploadFileList"
             :limit="3"
-            :on-exceed="handleExceed"
             :auto-upload="false"
             :on-change="handleFileChange"
             :on-remove="handleFileRemove"
+            :on-exceed="handleExceed"
           >
             <el-button type="primary">上传文件</el-button>
           </el-upload>
@@ -146,31 +153,34 @@
       </template>
     </el-dialog>
 
-    <!-- 查看详情对话框 -->
-    <el-dialog v-model="viewDialogVisible" title="专利详情" width="600px">
-      <el-descriptions :column="2" border v-if="currentPatent">
+    <el-dialog v-model="viewDialogVisible" title="专利详情" width="700px">
+      <el-descriptions v-if="currentPatent" :column="2" border>
         <el-descriptions-item label="专利名称">{{ currentPatent.patentName }}</el-descriptions-item>
-        <el-descriptions-item label="专利号">{{ currentPatent.patentNo }}</el-descriptions-item>
+        <el-descriptions-item label="学生ID">{{ currentPatent.studentId }}</el-descriptions-item>
+        <el-descriptions-item label="申请人">{{ currentPatent.applicant || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="专利号">{{ currentPatent.patentNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="发明人">{{ currentPatent.inventors || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="发明人排名">{{ currentPatent.inventorRank || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="申请人排名">{{ currentPatent.applicantRank || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="申请日期">{{ currentPatent.applicationDate || '-' }}</el-descriptions-item>
         <el-descriptions-item label="专利类型">
           <el-tag v-if="currentPatent.patentType === PATENT_TYPE.INVENT" type="danger">发明专利</el-tag>
           <el-tag v-else-if="currentPatent.patentType === PATENT_TYPE.UTILITY" type="success">实用新型</el-tag>
           <el-tag v-else type="warning">外观设计</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="申请人排名">{{ currentPatent.applicantRank }}</el-descriptions-item>
-        <el-descriptions-item label="申请日期">{{ currentPatent.applicationDate }}</el-descriptions-item>
-        <el-descriptions-item label="授权日期">{{ currentPatent.authorizationDate || '-' }}</el-descriptions-item>
         <el-descriptions-item label="专利状态">
           <el-tag v-if="currentPatent.patentStatus === PATENT_STATUS.APPLYING" type="info">申请中</el-tag>
           <el-tag v-else-if="currentPatent.patentStatus === PATENT_STATUS.AUTHORIZED" type="success">已授权</el-tag>
-          <el-tag v-else type="danger">已驳回</el-tag>
+          <el-tag v-else type="danger">已失效</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="获得分数">{{ currentPatent.score }}</el-descriptions-item>
         <el-descriptions-item label="审核状态">
           <el-tag v-if="currentPatent.auditStatus === AUDIT_STATUS.PENDING" type="warning">待审核</el-tag>
           <el-tag v-else-if="currentPatent.auditStatus === AUDIT_STATUS.APPROVED" type="success">通过</el-tag>
           <el-tag v-else type="danger">驳回</el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="得分">{{ currentPatent.score ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="审核意见" :span="2">{{ currentPatent.auditComment || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="附件" :span="2">{{ currentPatent.attachmentUrl || '-' }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ currentPatent.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
@@ -178,7 +188,6 @@
       </template>
     </el-dialog>
 
-    <!-- 审核对话框 -->
     <el-dialog v-model="auditDialogVisible" title="审核专利" width="500px" @close="handleAuditDialogClose">
       <el-form :model="auditForm" label-width="100px">
         <el-form-item label="审核结果">
@@ -204,199 +213,284 @@
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { getPatentPage, addPatent, updatePatent, deletePatent, auditPatent } from '@/api/patent'
+<script setup lang="ts">
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile, type UploadFiles } from 'element-plus'
+import {
+  addPatent,
+  auditPatent,
+  deletePatent,
+  getPatentPage,
+  type PatentPageParams,
+  type ResearchPatent,
+  updatePatent
+} from '@/api/patent'
 
-// 常量定义
 const PATENT_TYPE = {
-  INVENT: 1,      // 发明专利
-  UTILITY: 2,     // 实用新型
-  DESIGN: 3       // 外观设计
-}
+  INVENT: 1,
+  UTILITY: 2,
+  DESIGN: 3
+} as const
 
 const PATENT_STATUS = {
-  APPLYING: 1,    // 申请中
-  AUTHORIZED: 2,  // 已授权
-  REJECTED: 3     // 已驳回
-}
+  APPLYING: 1,
+  AUTHORIZED: 2,
+  REJECTED: 3
+} as const
 
 const AUDIT_STATUS = {
-  PENDING: 0,     // 待审核
-  APPROVED: 1,    // 审核通过
-  REJECTED: 2     // 审核驳回
+  PENDING: 0,
+  APPROVED: 1,
+  REJECTED: 2
+} as const
+
+type PatentForm = {
+  id: number | null
+  studentId: number | null
+  patentName: string
+  patentNo: string
+  patentType: number
+  applicant: string
+  inventors: string
+  inventorRank: number | null
+  applicantRank: number | null
+  applicationDate: string
+  patentStatus: number
+  attachmentUrl: string
+  remark: string
 }
 
 const loading = ref(false)
-const tableData = ref([])
+const tableData = ref<ResearchPatent[]>([])
 const total = ref(0)
+const currentPatent = ref<ResearchPatent | null>(null)
+const formRef = ref<FormInstance>()
 
-const queryParams = reactive({
+const queryParams = reactive<PatentPageParams>({
   current: 1,
   size: 10,
   keyword: '',
-  auditStatus: null
+  auditStatus: undefined
 })
 
 const dialogVisible = ref(false)
-const isEditMode = ref(false)
 const dialogTitle = ref('新增专利')
-const formRef = ref(null)
+const isEditMode = ref(false)
+const viewDialogVisible = ref(false)
+const auditDialogVisible = ref(false)
+const uploadFileList = ref<UploadFile[]>([])
 
-const formData = reactive({
+const formData = reactive<PatentForm>({
   id: null,
+  studentId: null,
   patentName: '',
   patentNo: '',
   patentType: PATENT_TYPE.INVENT,
+  applicant: '',
+  inventors: '',
+  inventorRank: 1,
   applicantRank: 1,
   applicationDate: '',
-  authorizationDate: '',
   patentStatus: PATENT_STATUS.APPLYING,
-  proofMaterials: '',
+  attachmentUrl: '',
   remark: ''
 })
 
-const formRules = {
-  patentName: [{ required: true, message: '请输入专利名称', trigger: 'blur' }],
-  patentNo: [{ required: true, message: '请输入专利号', trigger: 'blur' }],
-  patentType: [{ required: true, message: '请选择专利类型', trigger: 'change' }],
-  applicantRank: [{ required: true, message: '请输入申请人排名', trigger: 'blur' }]
-}
-
-// 文件上传相关
-const uploadFileList = ref([])
-
-const handleFileChange = (file, fileList) => {
-  uploadFileList.value = fileList
-}
-
-const handleFileRemove = (file, fileList) => {
-  uploadFileList.value = fileList
-}
-
-const handleExceed = () => {
-  ElMessage.warning('最多只能上传 3 个文件')
-}
-
-// 审核相关
-const auditDialogVisible = ref(false)
 const auditForm = reactive({
-  id: null,
+  id: null as number | null,
   auditStatus: AUDIT_STATUS.APPROVED,
   auditComment: ''
 })
 
-const handleAuditDialogClose = () => {
-  auditForm.id = null
-  auditForm.auditStatus = AUDIT_STATUS.APPROVED
-  auditForm.auditComment = ''
+const formRules: FormRules<PatentForm> = {
+  studentId: [{ required: true, message: '请输入学生ID', trigger: 'blur' }],
+  patentName: [{ required: true, message: '请输入专利名称', trigger: 'blur' }],
+  patentNo: [{ required: true, message: '请输入专利号', trigger: 'blur' }],
+  patentType: [{ required: true, message: '请选择专利类型', trigger: 'change' }],
+  applicant: [{ required: true, message: '请输入申请人', trigger: 'blur' }],
+  inventors: [{ required: true, message: '请输入发明人', trigger: 'blur' }],
+  inventorRank: [{ required: true, message: '请输入发明人排名', trigger: 'blur' }],
+  applicantRank: [{ required: true, message: '请输入申请人排名', trigger: 'blur' }]
 }
 
-// 查看详情相关
-const viewDialogVisible = ref(false)
-const currentPatent = ref(null)
+function syncUploadFileList(value?: string) {
+  uploadFileList.value = (value || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .map((name, index) => ({
+      name,
+      url: name,
+      status: 'success' as const,
+      uid: Date.now() + index
+    }))
+}
 
-// 查询数据
-const fetchData = async () => {
+function resetFormData() {
+  formData.id = null
+  formData.studentId = null
+  formData.patentName = ''
+  formData.patentNo = ''
+  formData.patentType = PATENT_TYPE.INVENT
+  formData.applicant = ''
+  formData.inventors = ''
+  formData.inventorRank = 1
+  formData.applicantRank = 1
+  formData.applicationDate = ''
+  formData.patentStatus = PATENT_STATUS.APPLYING
+  formData.attachmentUrl = ''
+  formData.remark = ''
+  uploadFileList.value = []
+}
+
+async function fetchData() {
   loading.value = true
   try {
     const { data } = await getPatentPage(queryParams)
-    tableData.value = data.records
-    total.value = data.total
-  } catch (error) {
-    ElMessage.error('获取专利列表失败：' + (error.message || '未知错误'))
+    tableData.value = data.records || []
+    total.value = data.total || 0
+  } catch (error: any) {
+    ElMessage.error(`获取专利列表失败：${error?.message || '未知错误'}`)
   } finally {
     loading.value = false
   }
 }
 
-const handleQuery = () => {
+function handleQuery() {
   queryParams.current = 1
   fetchData()
 }
 
-const handleReset = () => {
+function handleReset() {
+  queryParams.current = 1
   queryParams.keyword = ''
-  queryParams.auditStatus = null
-  handleQuery()
+  queryParams.auditStatus = undefined
+  fetchData()
 }
 
-const handleAdd = () => {
+function handleSizeChange() {
+  queryParams.current = 1
+  fetchData()
+}
+
+function handleCurrentChange() {
+  fetchData()
+}
+
+function handleAdd() {
   isEditMode.value = false
   dialogTitle.value = '新增专利'
+  resetFormData()
   dialogVisible.value = true
 }
 
-const handleView = (row) => {
+function handleEdit(row: ResearchPatent) {
+  isEditMode.value = true
+  dialogTitle.value = '编辑专利'
+  formData.id = row.id || null
+  formData.studentId = row.studentId ?? null
+  formData.patentName = row.patentName || ''
+  formData.patentNo = row.patentNo || ''
+  formData.patentType = row.patentType || PATENT_TYPE.INVENT
+  formData.applicant = row.applicant || ''
+  formData.inventors = row.inventors || ''
+  formData.inventorRank = row.inventorRank ?? 1
+  formData.applicantRank = row.applicantRank ?? 1
+  formData.applicationDate = row.applicationDate || ''
+  formData.patentStatus = row.patentStatus || PATENT_STATUS.APPLYING
+  formData.attachmentUrl = row.attachmentUrl || ''
+  formData.remark = row.remark || ''
+  syncUploadFileList(row.attachmentUrl)
+  dialogVisible.value = true
+}
+
+function handleView(row: ResearchPatent) {
   currentPatent.value = row
   viewDialogVisible.value = true
 }
 
-const handleAudit = (row) => {
-  auditForm.id = row.id
+function handleAudit(row: ResearchPatent) {
+  auditForm.id = row.id || null
+  auditForm.auditStatus = AUDIT_STATUS.APPROVED
+  auditForm.auditComment = row.auditComment || ''
   auditDialogVisible.value = true
 }
 
-const handleAuditSubmit = async () => {
+async function handleAuditSubmit() {
+  if (!auditForm.id) {
+    ElMessage.error('缺少专利ID')
+    return
+  }
   try {
-    await auditPatent(auditForm.id, auditForm.auditStatus, auditForm.auditComment)
+    await auditPatent(auditForm.id, {
+      auditStatus: auditForm.auditStatus,
+      auditComment: auditForm.auditComment
+    })
     ElMessage.success('审核成功')
     auditDialogVisible.value = false
     fetchData()
-  } catch (error) {
-    ElMessage.error('审核失败：' + (error.message || '未知错误'))
+  } catch (error: any) {
+    ElMessage.error(`审核失败：${error?.message || '未知错误'}`)
   }
 }
 
-const handleDelete = async (row) => {
+async function handleDelete(row: ResearchPatent) {
   try {
     await ElMessageBox.confirm('确定要删除该专利吗？', '提示', { type: 'warning' })
-    await deletePatent(row.id)
+    await deletePatent(row.id as number)
     ElMessage.success('删除成功')
     fetchData()
-  } catch (error) {
-    if (error === 'cancel') return
-    ElMessage.error('删除失败：' + (error.message || '未知错误'))
+  } catch (error: any) {
+    if (error === 'cancel') {
+      return
+    }
+    ElMessage.error(`删除失败：${error?.message || '未知错误'}`)
   }
 }
 
-const handleSizeChange = () => {
-  fetchData()
+function handleDialogClose() {
+  formRef.value?.clearValidate()
+  resetFormData()
 }
 
-const handleCurrentChange = () => {
-  fetchData()
+function handleAuditDialogClose() {
+  auditForm.id = null
+  auditForm.auditStatus = AUDIT_STATUS.APPROVED
+  auditForm.auditComment = ''
 }
 
-const handleDialogClose = () => {
-  formRef.value?.resetFields()
-  uploadFileList.value = []
-  formData.id = null
-  formData.patentName = ''
-  formData.patentNo = ''
-  formData.patentType = PATENT_TYPE.INVENT
-  formData.applicantRank = 1
-  formData.applicationDate = ''
-  formData.authorizationDate = ''
-  formData.patentStatus = PATENT_STATUS.APPLYING
-  formData.proofMaterials = ''
-  formData.remark = ''
+function handleFileChange(_file: UploadFile, fileList: UploadFiles) {
+  uploadFileList.value = fileList
 }
 
-const handleSubmit = async () => {
+function handleFileRemove(_file: UploadFile, fileList: UploadFiles) {
+  uploadFileList.value = fileList
+}
+
+function handleExceed() {
+  ElMessage.warning('最多只能上传 3 个文件')
+}
+
+async function handleSubmit() {
+  if (!formRef.value) {
+    return
+  }
+
   try {
     await formRef.value.validate()
 
-    const submitData = {
+    const submitData: Partial<ResearchPatent> = {
+      studentId: formData.studentId || undefined,
       patentName: formData.patentName,
       patentNo: formData.patentNo,
       patentType: formData.patentType,
-      applicantRank: formData.applicantRank,
-      applicationDate: formData.applicationDate,
-      authorizationDate: formData.authorizationDate,
+      applicant: formData.applicant,
+      inventors: formData.inventors,
+      inventorRank: formData.inventorRank || undefined,
+      applicantRank: formData.applicantRank || undefined,
+      applicationDate: formData.applicationDate || undefined,
       patentStatus: formData.patentStatus,
-      proofMaterials: uploadFileList.value.map(f => f.name).join(','),
+      attachmentUrl: uploadFileList.value.map(file => file.name).join(','),
       remark: formData.remark
     }
 
@@ -404,15 +498,15 @@ const handleSubmit = async () => {
       await updatePatent({ id: formData.id, ...submitData })
       ElMessage.success('更新成功')
     } else {
-      await addPatent(submitData)
+      await addPatent(submitData as Omit<ResearchPatent, 'id'>)
       ElMessage.success('新增成功')
     }
 
     dialogVisible.value = false
     fetchData()
-  } catch (error) {
+  } catch (error: any) {
     if (error !== false) {
-      ElMessage.error('操作失败：' + (error.message || '未知错误'))
+      ElMessage.error(`操作失败：${error?.message || '未知错误'}`)
     }
   }
 }
@@ -434,6 +528,10 @@ onMounted(() => {
 .search-form {
   display: flex;
   flex-wrap: wrap;
+}
+
+.table-card {
+  min-height: 400px;
 }
 
 .card-header {

@@ -13,56 +13,70 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 科研专利服务实现类
- *
- * @author Scholarship Development Team
- * @version 1.0.0
- */
 @Slf4j
 @Service
 public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper, ResearchPatent> implements ResearchPatentService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean savePatent(ResearchPatent patent, Long userId) {
-        // 设置学生 ID（如果未设置）
-        if (patent.getStudentId() == null) {
-            patent.setStudentId(userId);
+    public boolean savePatent(ResearchPatent patent, LoginUser loginUser) {
+        if (loginUser == null) {
+            return false;
         }
-        // 初始化审核状态为待审核
+
+        if (patent.getStudentId() == null) {
+            if (Integer.valueOf(1).equals(loginUser.getUserType())) {
+                patent.setStudentId(loginUser.getUserId());
+            } else {
+                return false;
+            }
+        }
+
         if (patent.getAuditStatus() == null) {
             patent.setAuditStatus(0);
         }
-        // 初始化分数
         if (patent.getScore() == null) {
-            patent.setScore(java.math.BigDecimal.ZERO);
+            patent.setScore(BigDecimal.ZERO);
         }
+
         return save(patent);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean updatePatent(ResearchPatent patent, Long userId) {
+    public boolean updatePatent(ResearchPatent patent, LoginUser loginUser) {
+        if (loginUser == null || patent.getId() == null) {
+            return false;
+        }
+
         ResearchPatent existing = getById(patent.getId());
         if (existing == null) {
             return false;
         }
-        // 权限验证：只有专利所有者或管理员可以更新
-        if (!existing.getStudentId().equals(userId)) {
-            log.warn("用户 {} 尝试更新不属于她的专利 {}", userId, patent.getId());
+
+        boolean isAdmin = Integer.valueOf(3).equals(loginUser.getUserType());
+        boolean isOwner = existing.getStudentId().equals(loginUser.getUserId());
+        if (!isAdmin && !isOwner) {
+            log.warn("用户 {} 尝试更新不属于自己的专利 {}", loginUser.getUserId(), patent.getId());
             return false;
         }
-        // 保留审核相关字段（防止用户恶意修改）
+
+        if (!isAdmin) {
+            patent.setStudentId(existing.getStudentId());
+        }
+
         patent.setAuditStatus(existing.getAuditStatus());
         patent.setAuditorId(existing.getAuditorId());
         patent.setAuditTime(existing.getAuditTime());
         patent.setAuditComment(existing.getAuditComment());
         patent.setScore(existing.getScore());
+
         return updateById(patent);
     }
 
@@ -71,13 +85,13 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
         if (loginUser == null) {
             return page(page);
         }
-        // 学生只能查看自己的专利
-        if (loginUser.getUserType() == 1) {
+
+        if (Integer.valueOf(1).equals(loginUser.getUserType())) {
             return lambdaQuery()
                     .eq(ResearchPatent::getStudentId, loginUser.getUserId())
                     .page(page);
         }
-        // 导师和管理员可以查看所有
+
         return page(page);
     }
 
@@ -88,17 +102,16 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
         }
 
         List<ResearchPatent> patents = list(new LambdaQueryWrapper<ResearchPatent>()
-            .in(ResearchPatent::getStudentId, studentIds)
-            .eq(ResearchPatent::getAuditStatus, 1)); // 审核通过
+                .in(ResearchPatent::getStudentId, studentIds)
+                .eq(ResearchPatent::getAuditStatus, 1));
 
-        return patents.stream()
-            .collect(Collectors.groupingBy(ResearchPatent::getStudentId));
+        return patents.stream().collect(Collectors.groupingBy(ResearchPatent::getStudentId));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean audit(Long id, Integer auditStatus, String auditComment) {
-        log.info("审核专利，id={}，auditStatus={}", id, auditStatus);
+        log.info("审核专利，id={}, auditStatus={}", id, auditStatus);
 
         ResearchPatent patent = getById(id);
         if (patent == null) {
@@ -107,7 +120,7 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
 
         patent.setAuditStatus(auditStatus);
         patent.setAuditComment(auditComment);
-        patent.setAuditTime(java.time.LocalDateTime.now());
+        patent.setAuditTime(LocalDateTime.now());
 
         return updateById(patent);
     }

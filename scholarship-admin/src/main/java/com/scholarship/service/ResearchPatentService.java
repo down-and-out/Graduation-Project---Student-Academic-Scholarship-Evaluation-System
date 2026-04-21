@@ -24,7 +24,7 @@ public interface ResearchPatentService extends IService<ResearchPatent> {
      * @param userId 当前用户 ID
      * @return 是否保存成功
      */
-    boolean savePatent(ResearchPatent patent, Long userId);
+    boolean savePatent(ResearchPatent patent, LoginUser loginUser);
 
     /**
      * 更新专利（带用户权限验证）
@@ -33,7 +33,7 @@ public interface ResearchPatentService extends IService<ResearchPatent> {
      * @param userId 当前用户 ID
      * @return 是否更新成功
      */
-    boolean updatePatent(ResearchPatent patent, Long userId);
+    boolean updatePatent(ResearchPatent patent, LoginUser loginUser);
 
     /**
      * 分页查询专利（带权限过滤）
