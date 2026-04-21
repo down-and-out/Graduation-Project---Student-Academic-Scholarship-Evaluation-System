@@ -86,7 +86,7 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="profile">
+                <el-dropdown-item v-if="isStudent" command="profile">
                   <el-icon><User /></el-icon>
                   个人信息
                 </el-dropdown-item>

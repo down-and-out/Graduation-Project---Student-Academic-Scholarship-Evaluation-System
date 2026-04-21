@@ -147,7 +147,7 @@ interface BatchLike {
   status?: number
   quota?: number
   amount?: number
-  totalQuota?: number
+  winnerCount?: number
   totalAmount?: number
   description?: string
 }
@@ -230,7 +230,7 @@ async function loadBatchInfo(): Promise<void> {
     batch.startTime = start
     batch.endTime = end
     batch.status = 1
-    batch.quota = batch.quota ?? batch.totalQuota
+    batch.quota = batch.quota ?? batch.winnerCount
     batch.amount = batch.amount ?? batch.totalAmount
     batchInfo.value = {
       id: batch.id ?? null,
@@ -238,7 +238,7 @@ async function loadBatchInfo(): Promise<void> {
       applyPeriod: `${batch.startTime || ''} 至 ${batch.endTime || ''}`,
       status: 'active',
       statusText: batch.status === 1 ? '可申请' : '已结束',
-      quota: batch.quota ?? batch.totalQuota ?? 0,
+      quota: batch.quota ?? batch.winnerCount ?? 0,
       amount: batch.amount ?? batch.totalAmount ?? 0,
       description: batch.description || ''
     }
