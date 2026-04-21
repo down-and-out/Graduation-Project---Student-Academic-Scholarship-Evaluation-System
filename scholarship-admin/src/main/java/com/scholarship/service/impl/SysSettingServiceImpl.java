@@ -74,13 +74,11 @@ public class SysSettingServiceImpl implements SysSettingService {
     }
 
     @Override
-    @CacheEvict(key = "#key")
+    @CacheEvict(allEntries = true)
     public boolean updateSetting(String key, Object data) {
         String jsonString = JSON.toJSONString(data);
 
-        LambdaQueryWrapper<SysSetting> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysSetting::getSettingKey, key);
-        SysSetting exist = sysSettingMapper.selectOne(wrapper);
+        SysSetting exist = sysSettingMapper.selectActiveByKey(key);
 
         SysSetting setting = new SysSetting();
         setting.setSettingKey(key);
@@ -90,13 +88,14 @@ public class SysSettingServiceImpl implements SysSettingService {
 
         boolean success;
         if (exist == null) {
-            // 不存在则插入
+            // 当前按单生效版本模型运行，缺失时直接新增一条 active 记录。
             log.info("新增系统设置，key={}", key);
             success = sysSettingMapper.insert(setting) > 0;
         } else {
-            // 存在则更新
+            // 当前不启用版本切换，直接覆盖当前生效记录。
             log.info("更新系统设置，key={}，id={}", key, exist.getId());
             setting.setId(exist.getId());
+            setting.setDescription(exist.getDescription());
             success = sysSettingMapper.updateById(setting) > 0;
         }
 
@@ -105,7 +104,8 @@ public class SysSettingServiceImpl implements SysSettingService {
 
     @Override
     public Map<String, String> getAllSettings() {
-        List<SysSetting> list = sysSettingMapper.selectList(null);
+        List<SysSetting> list = sysSettingMapper.selectList(new LambdaQueryWrapper<SysSetting>()
+                .eq(SysSetting::getIsActive, 1));
         Map<String, String> result = new HashMap<>();
         for (SysSetting setting : list) {
             result.put(setting.getSettingKey(), setting.getSettingValue());
@@ -115,9 +115,7 @@ public class SysSettingServiceImpl implements SysSettingService {
 
     @Override
     public SysSetting getByKey(String key) {
-        LambdaQueryWrapper<SysSetting> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysSetting::getSettingKey, key);
-        return sysSettingMapper.selectOne(wrapper);
+        return sysSettingMapper.selectActiveByKey(key);
     }
 
     @Override

@@ -1,47 +1,47 @@
 <template>
   <div class="achievements-page">
     <div class="page-header">
-      <h2 class="page-title">绉戠爺鎴愭灉绠＄悊</h2>
+      <h2 class="page-title">科研成果管理</h2>
       <el-button type="primary" @click="handleAdd">
         <el-icon><Plus /></el-icon>
-        娣诲姞鎴愭灉
+        添加成果
       </el-button>
     </div>
 
     <el-form :inline="true" class="search-form">
-      <el-form-item label="瀹℃牳鐘舵€?">
-        <el-select v-model="queryParams.status" placeholder="璇烽€夋嫨" clearable>
-          <el-option label="鍏ㄩ儴" value="" />
-          <el-option label="寰呭鏍?" :value="0" />
-          <el-option label="宸查€氳繃" :value="1" />
-          <el-option label="鏈€氳繃" :value="3" />
+      <el-form-item label="审核状态">
+        <el-select v-model="queryParams.status" placeholder="请选择" clearable>
+          <el-option label="全部" value="" />
+          <el-option label="待审核" :value="0" />
+          <el-option label="已通过" :value="1" />
+          <el-option label="未通过" :value="3" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleQuery">鏌ヨ</el-button>
-        <el-button @click="handleReset">閲嶇疆</el-button>
+        <el-button type="primary" @click="handleQuery">查询</el-button>
+        <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
 
     <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
-      <el-table-column type="index" label="搴忓彿" width="60" />
-      <el-table-column prop="title" label="鎴愭灉鍚嶇О" min-width="200" />
-      <el-table-column prop="journalName" label="鏈熷垔鍚嶇О" min-width="180" />
-      <el-table-column prop="authorRank" label="浣滆€呮帓鍚?" width="100" />
-      <el-table-column prop="status" label="瀹℃牳鐘舵€?" width="100">
+      <el-table-column type="index" label="序号" width="60" />
+      <el-table-column prop="title" label="成果名称" min-width="200" />
+      <el-table-column prop="journalName" label="期刊名称" min-width="180" />
+      <el-table-column prop="authorRank" label="作者排名" width="100" />
+      <el-table-column prop="status" label="审核状态" width="100">
         <template #default="{ row }">
-          <el-tag v-if="row.status === 0" type="warning">寰呭鏍?</el-tag>
-          <el-tag v-else-if="row.status === 1" type="success">宸查€氳繃</el-tag>
-          <el-tag v-else-if="row.status === 3" type="danger">鏈€氳繃</el-tag>
-          <el-tag v-else type="info">鏈煡</el-tag>
+          <el-tag v-if="row.status === 0" type="warning">待审核</el-tag>
+          <el-tag v-else-if="row.status === 1" type="success">已通过</el-tag>
+          <el-tag v-else-if="row.status === 3" type="danger">未通过</el-tag>
+          <el-tag v-else type="info">未知</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="createTime" label="鍒涘缓鏃堕棿" width="160" />
-      <el-table-column label="鎿嶄綔" width="180" fixed="right">
+      <el-table-column prop="createTime" label="创建时间" width="160" />
+      <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="handleView(row)">鏌ョ湅</el-button>
-          <el-button link type="primary" :disabled="row.status !== 0" @click="handleEdit(row)">缂栬緫</el-button>
-          <el-button link type="danger" :disabled="row.status !== 0" @click="handleDelete(row)">鍒犻櫎</el-button>
+          <el-button link type="primary" @click="handleView(row)">查看</el-button>
+          <el-button link type="primary" :disabled="row.status !== 0" @click="handleEdit(row)">编辑</el-button>
+          <el-button link type="danger" :disabled="row.status !== 0" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -59,48 +59,48 @@
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" @close="handleDialogClose">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
-        <el-form-item label="璁烘枃鏍囬" prop="paperTitle">
-          <el-input v-model="formData.paperTitle" placeholder="璇疯緭鍏ヨ鏂囨爣棰?" />
+        <el-form-item label="论文标题" prop="paperTitle">
+          <el-input v-model="formData.paperTitle" placeholder="请输入论文标题" />
         </el-form-item>
-        <el-form-item label="浣滆€呭垪琛?" prop="authors">
-          <el-input v-model="formData.authors" placeholder="璇疯緭鍏ヤ綔鑰呭垪琛紝浣跨敤閫楀彿鍒嗛殧" />
+        <el-form-item label="作者列表" prop="authors">
+          <el-input v-model="formData.authors" placeholder="请输入作者列表，使用逗号分隔" />
         </el-form-item>
-        <el-form-item label="浣滆€呮帓鍚?" prop="authorRank">
-          <el-select v-model="formData.authorRank" placeholder="璇烽€夋嫨">
-            <el-option label="绗竴浣滆€?" :value="1" />
-            <el-option label="绗簩浣滆€?" :value="2" />
-            <el-option label="閫氳浣滆€?" :value="3" />
+        <el-form-item label="作者排名" prop="authorRank">
+          <el-select v-model="formData.authorRank" placeholder="请选择">
+            <el-option label="第一作者" :value="1" />
+            <el-option label="第二作者" :value="2" />
+            <el-option label="通讯作者" :value="3" />
           </el-select>
         </el-form-item>
-        <el-form-item label="鏈熷垔鍚嶇О" prop="journalName">
-          <el-input v-model="formData.journalName" placeholder="璇疯緭鍏ユ湡鍒婂悕绉?" />
+        <el-form-item label="期刊名称" prop="journalName">
+          <el-input v-model="formData.journalName" placeholder="请输入期刊名称" />
         </el-form-item>
-        <el-form-item label="鏈熷垔绾у埆" prop="journalLevel">
-          <el-select v-model="formData.journalLevel" placeholder="璇烽€夋嫨">
-            <el-option label="SCI 涓€鍖?" :value="1" />
-            <el-option label="SCI 浜屽尯" :value="2" />
-            <el-option label="SCI 涓夊尯" :value="3" />
-            <el-option label="SCI 鍥涘尯" :value="4" />
+        <el-form-item label="期刊级别" prop="journalLevel">
+          <el-select v-model="formData.journalLevel" placeholder="请选择">
+            <el-option label="SCI 一区" :value="1" />
+            <el-option label="SCI 二区" :value="2" />
+            <el-option label="SCI 三区" :value="3" />
+            <el-option label="SCI 四区" :value="4" />
             <el-option label="EI" :value="5" />
-            <el-option label="鏍稿績鏈熷垔" :value="6" />
-            <el-option label="鏅€氭湡鍒?" :value="7" />
+            <el-option label="核心期刊" :value="6" />
+            <el-option label="普通期刊" :value="7" />
           </el-select>
         </el-form-item>
-        <el-form-item label="褰卞搷鍥犲瓙" prop="impactFactor">
+        <el-form-item label="影响因子" prop="impactFactor">
           <el-input-number v-model="formData.impactFactor" :min="0" :max="100" :precision="2" />
         </el-form-item>
-        <el-form-item label="鍙戣〃鏃ユ湡" prop="publicationDate">
+        <el-form-item label="发表日期" prop="publicationDate">
           <el-date-picker
             v-model="formData.publicationDate"
             type="date"
-            placeholder="閫夋嫨鏃ユ湡"
+            placeholder="选择日期"
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">鍙栨秷</el-button>
-        <el-button type="primary" @click="handleSubmit">纭畾</el-button>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -155,13 +155,13 @@ const formData = reactive<PaperForm>({
 })
 
 const formRules: FormRules<PaperForm> = {
-  paperTitle: [{ required: true, message: '璇疯緭鍏ヨ鏂囨爣棰?', trigger: 'blur' }],
-  authors: [{ required: true, message: '璇疯緭鍏ヤ綔鑰呭垪琛?', trigger: 'blur' }],
-  authorRank: [{ required: true, message: '璇烽€夋嫨浣滆€呮帓鍚?', trigger: 'change' }],
-  journalLevel: [{ required: true, message: '璇烽€夋嫨鏈熷垔绾у埆', trigger: 'change' }]
+  paperTitle: [{ required: true, message: '请输入论文标题', trigger: 'blur' }],
+  authors: [{ required: true, message: '请输入作者列表', trigger: 'blur' }],
+  authorRank: [{ required: true, message: '请选择作者排名', trigger: 'change' }],
+  journalLevel: [{ required: true, message: '请选择期刊级别', trigger: 'change' }]
 }
 
-const dialogTitle = computed(() => (isEdit.value ? '缂栬緫鎴愭灉' : '娣诲姞鎴愭灉'))
+const dialogTitle = computed(() => (isEdit.value ? '编辑成果' : '添加成果'))
 
 function extractPageData<T>(payload: unknown): API.PageResponse<T> | null {
   if (!payload || typeof payload !== 'object') return null
@@ -209,7 +209,7 @@ async function handleQuery(): Promise<void> {
     tableData.value = (pageData?.records || []).map(normalizePaper)
     total.value = pageData?.total || 0
   } catch (error) {
-    console.error('鏌ヨ澶辫触:', error)
+    console.error('查询失败:', error)
   } finally {
     loading.value = false
   }
@@ -228,7 +228,7 @@ function handleAdd(): void {
 }
 
 function handleView(_row: PaperRow): void {
-  ElMessage.info('鏌ョ湅璇︽儏鍔熻兘寮€鍙戜腑')
+  ElMessage.info('查看详情功能开发中')
 }
 
 function handleEdit(row: PaperRow): void {
@@ -247,14 +247,14 @@ function handleEdit(row: PaperRow): void {
 }
 
 function handleDelete(row: PaperRow): void {
-  ElMessageBox.confirm('纭畾瑕佸垹闄よ鎴愭灉鍚楋紵', '鎻愮ず', {
-    confirmButtonText: '纭畾',
-    cancelButtonText: '鍙栨秷',
+  ElMessageBox.confirm('确定要删除该成果吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
     type: 'warning'
   })
     .then(async () => {
       await deletePaper(row.id || 0)
-      ElMessage.success('鍒犻櫎鎴愬姛')
+      ElMessage.success('删除成功')
       await handleQuery()
     })
     .catch(() => undefined)
@@ -286,11 +286,11 @@ async function handleSubmit(): Promise<void> {
       await submitPaper(payload)
     }
 
-    ElMessage.success(isEdit.value ? '淇敼鎴愬姛' : '娣诲姞鎴愬姛')
+    ElMessage.success(isEdit.value ? '修改成功' : '添加成功')
     dialogVisible.value = false
     await handleQuery()
   } catch (error) {
-    console.error('鎻愪氦澶辫触:', error)
+    console.error('提交失败:', error)
   }
 }
 

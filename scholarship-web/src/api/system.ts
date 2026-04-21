@@ -86,7 +86,6 @@ export interface AwardRule {
  */
 export interface AwardConfig {
   /** 版本号 */
-  version: string
   /** 配置名称 */
   name: string
   /** 奖项规则列表 */

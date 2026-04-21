@@ -458,7 +458,6 @@ async function handleSaveAwards(): Promise<void> {
     return
   }
   const awardConfig: AwardConfig = {
-    version: '1.0',
     name: `${new Date().getFullYear()}年奖项配置`,
     rules: awards.value,
     allocationStrategy: 'scorePriority'

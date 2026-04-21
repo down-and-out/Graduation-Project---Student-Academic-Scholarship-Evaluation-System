@@ -35,7 +35,7 @@ public class SystemSettingController {
     private final SystemConfig systemConfig;
 
     @GetMapping("/settings")
-    @Operation(summary = "获取所有设置", description = "获取系统所有设置的 key-value 映射")
+    @Operation(summary = "获取所有设置", description = "获取当前生效的系统设置 key-value 映射")
     public Result<Map<String, String>> getAllSettings() {
         return Result.success(sysSettingService.getAllSettings());
     }

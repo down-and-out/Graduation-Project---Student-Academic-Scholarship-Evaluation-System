@@ -14,7 +14,7 @@
         <div class="award-info">
           <h3 class="award-title">{{ getAwardTitle(result.awardLevel || 0) }}</h3>
           <p v-if="showAmount" class="award-amount">
-            奖学金金额：￥{{ result.scholarshipAmount ?? result.totalScore }}
+            奖学金金额：￥{{ result.awardAmount ?? 0 }}
           </p>
         </div>
       </div>
@@ -145,7 +145,6 @@ import type { EvaluationResult } from '@/api/result'
 type TagType = 'info' | 'warning' | 'success' | 'danger'
 
 interface StudentResultView extends EvaluationResult {
-  scholarshipAmount?: number
   rank?: number
   status?: number
   batchName: string
@@ -245,7 +244,6 @@ function normalizeResult(payload: EvaluationResult): StudentResultView {
   return {
     ...payload,
     batchName: payload.batchName || `批次${payload.batchId}`,
-    scholarshipAmount: payload.scholarshipAmount ?? payload.awardAmount,
     rank: payload.rank ?? payload.departmentRank ?? payload.majorRank,
     status: payload.status ?? payload.resultStatus ?? 0,
     publishDate: payload.publishDate || payload.publicityDate
