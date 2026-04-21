@@ -51,6 +51,16 @@ public interface ResearchPaperService extends IService<ResearchPaper> {
     boolean submitPaper(ResearchPaper paper, Long studentId);
 
     /**
+     * 学生更新论文
+     *
+     * @param paperId 论文 ID
+     * @param paper 更新后的论文信息
+     * @param userId 当前登录用户 ID
+     * @return 是否成功
+     */
+    boolean updatePaper(Long paperId, ResearchPaper paper, Long userId);
+
+    /**
      * 审核论文
      *
      * @param paperId       论文ID

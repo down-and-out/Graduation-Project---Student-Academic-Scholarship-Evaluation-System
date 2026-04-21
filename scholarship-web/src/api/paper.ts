@@ -81,6 +81,20 @@ export function submitPaper(data: Omit<Paper, 'id'>): Promise<API.Response<null>
 }
 
 /**
+ * 缂栬緫璁烘枃
+ * @param id - 璁烘枃 ID
+ * @param data - 璁烘枃淇℃伅
+ * @returns Promise
+ */
+export function updatePaper(id: number, data: Omit<Paper, 'id'>): Promise<API.Response<null>> {
+  return request({
+    url: `/paper/${id}`,
+    method: 'put',
+    data
+  })
+}
+
+/**
  * 审核论文参数
  */
 export interface ReviewPaperParams {
@@ -121,6 +135,7 @@ export default {
   getPaperPage,
   getPaperById,
   submitPaper,
+  updatePaper,
   reviewPaper,
   deletePaper
 }

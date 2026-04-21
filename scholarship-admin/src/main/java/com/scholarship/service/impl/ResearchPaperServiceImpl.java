@@ -208,6 +208,45 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public boolean updatePaper(Long paperId, ResearchPaper paper, Long userId) {
+        ResearchPaper existingPaper = researchPaperMapper.selectById(paperId);
+        if (existingPaper == null) {
+            throw new BusinessException("璁烘枃涓嶅瓨鍦?");
+        }
+
+        StudentInfo currentStudent = studentInfoService.getByUserId(userId);
+        if (currentStudent == null) {
+            throw new BusinessException("瀛︾敓淇℃伅涓嶅瓨鍦?");
+        }
+
+        if (!existingPaper.getStudentId().equals(currentStudent.getId())) {
+            throw new BusinessException("鏃犳潈缂栬緫璇ヨ鏂?");
+        }
+
+        if (existingPaper.getStatus() != 0) {
+            throw new BusinessException("褰撳墠璁烘枃鐘舵€佷笉鍏佽缂栬緫");
+        }
+
+        existingPaper.setPaperTitle(paper.getPaperTitle());
+        existingPaper.setAuthors(paper.getAuthors());
+        existingPaper.setAuthorRank(paper.getAuthorRank());
+        existingPaper.setJournalName(paper.getJournalName());
+        existingPaper.setJournalLevel(paper.getJournalLevel());
+        existingPaper.setImpactFactor(paper.getImpactFactor());
+        existingPaper.setPublicationDate(paper.getPublicationDate());
+        existingPaper.setVolume(paper.getVolume());
+        existingPaper.setIssue(paper.getIssue());
+        existingPaper.setPages(paper.getPages());
+        existingPaper.setDoi(paper.getDoi());
+        existingPaper.setIndexing(paper.getIndexing());
+        existingPaper.setAttachmentUrl(paper.getAttachmentUrl());
+        existingPaper.setRemark(paper.getRemark());
+
+        return researchPaperMapper.updateById(existingPaper) > 0;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean reviewPaper(Long paperId, Integer status, String reviewComment, Long reviewerId, boolean isAdmin) {
         ResearchPaper paper = researchPaperMapper.selectById(paperId);
         if (paper == null) {
