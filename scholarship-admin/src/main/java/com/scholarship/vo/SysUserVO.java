@@ -1,5 +1,6 @@
 package com.scholarship.vo;
 
+import com.scholarship.entity.StudentInfo;
 import com.scholarship.entity.SysUser;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -14,7 +15,6 @@ import java.time.LocalDateTime;
  * <p>
  * 返回给前端的用户信息，排除敏感字段：
  * - password（密码）
- * - version（乐观锁版本号）
  * - deleted（逻辑删除标记）
  * </p>
  *
@@ -71,17 +71,42 @@ public class SysUserVO {
      * @return 用户VO
      */
     public static SysUserVO fromEntity(SysUser user) {
+        return fromEntity(user, null);
+    }
+
+    public static SysUserVO fromEntity(SysUser user, StudentInfo studentInfo) {
         if (user == null) {
             return null;
         }
+
+        String realName = user.getRealName();
+        String department = user.getDepartment();
+        String email = user.getEmail();
+        String phone = user.getPhone();
+
+        if (studentInfo != null) {
+            if (studentInfo.getName() != null && !studentInfo.getName().isBlank()) {
+                realName = studentInfo.getName();
+            }
+            if (studentInfo.getDepartment() != null && !studentInfo.getDepartment().isBlank()) {
+                department = studentInfo.getDepartment();
+            }
+            if (studentInfo.getEmail() != null && !studentInfo.getEmail().isBlank()) {
+                email = studentInfo.getEmail();
+            }
+            if (studentInfo.getPhone() != null && !studentInfo.getPhone().isBlank()) {
+                phone = studentInfo.getPhone();
+            }
+        }
+
         return SysUserVO.builder()
                 .id(user.getId())
                 .username(user.getUsername())
-                .realName(user.getRealName())
-                .department(user.getDepartment())
+                .realName(realName)
+                .department(department)
                 .userType(user.getUserType())
-                .email(user.getEmail())
-                .phone(user.getPhone())
+                .email(email)
+                .phone(phone)
                 .avatar(user.getAvatar())
                 .status(user.getStatus())
                 .createTime(user.getCreateTime())

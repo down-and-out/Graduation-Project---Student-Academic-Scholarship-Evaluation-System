@@ -18,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -39,7 +41,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Override
     public IPage<SysUserVO> pageUserVOs(Long current, Long size, String keyword, List<Integer> userTypes, List<Integer> statuses) {
         IPage<SysUser> userPage = pageUsers(current, size, keyword, userTypes, statuses);
-        return userPage.convert(SysUserVO::fromEntity);
+        Map<Long, StudentInfo> studentInfoMap = getStudentInfoMap(userPage.getRecords());
+        return userPage.convert(user -> SysUserVO.fromEntity(user, studentInfoMap.get(user.getId())));
     }
 
     @Override
@@ -73,6 +76,23 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
 
         wrapper.in(column, values);
+    }
+
+    private Map<Long, StudentInfo> getStudentInfoMap(List<SysUser> users) {
+        if (users == null || users.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<Long> studentUserIds = users.stream()
+                .filter(user -> user != null && Integer.valueOf(1).equals(user.getUserType()))
+                .map(SysUser::getId)
+                .collect(Collectors.toList());
+
+        if (studentUserIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return studentInfoService.mapByUserIds(studentUserIds);
     }
 
     @Override

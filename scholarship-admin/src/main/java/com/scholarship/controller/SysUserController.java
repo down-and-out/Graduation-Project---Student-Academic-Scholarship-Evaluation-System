@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.scholarship.common.result.Result;
 import com.scholarship.dto.StudentCreateFields;
 import com.scholarship.dto.UserCreateRequest;
+import com.scholarship.entity.StudentInfo;
 import com.scholarship.entity.SysUser;
+import com.scholarship.service.StudentInfoService;
 import com.scholarship.service.SysUserService;
 import com.scholarship.vo.SysUserVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,6 +33,7 @@ import java.util.List;
 public class SysUserController {
 
     private final SysUserService sysUserService;
+    private final StudentInfoService studentInfoService;
 
     @GetMapping("/page")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
@@ -69,7 +72,11 @@ public class SysUserController {
         if (user == null) {
             return Result.error("用户不存在");
         }
-        return Result.success(SysUserVO.fromEntity(user));
+        StudentInfo studentInfo = null;
+        if (Integer.valueOf(1).equals(user.getUserType())) {
+            studentInfo = studentInfoService.getByUserId(user.getId());
+        }
+        return Result.success(SysUserVO.fromEntity(user, studentInfo));
     }
 
     @PostMapping
