@@ -20,9 +20,9 @@
             {{ batchInfo.statusText }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="总名额">{{ batchInfo.quota }}人</el-descriptions-item>
-        <el-descriptions-item label="奖金金额">{{ batchInfo.amount }}万元</el-descriptions-item>
-        <el-descriptions-item label="说明">{{ batchInfo.description }}</el-descriptions-item>
+        <el-descriptions-item label="总名额">{{ batchInfo.quota }} 人</el-descriptions-item>
+        <el-descriptions-item label="奖学金金额">{{ batchInfo.amount }} 万元</el-descriptions-item>
+        <el-descriptions-item label="说明">{{ batchInfo.description || '暂无说明' }}</el-descriptions-item>
       </el-descriptions>
     </el-card>
 
@@ -34,9 +34,9 @@
       <el-steps :active="getApplicationStep(myApplication.status)" align-center>
         <el-step title="草稿" description="填写申请信息" />
         <el-step title="已提交" description="等待导师审核" />
-        <el-step title="审核中" description="院系评审" />
+        <el-step title="审核中" description="学院评审中" />
         <el-step title="评审完成" description="等待公示" />
-        <el-step title="已完成" description="评定结果" />
+        <el-step title="已完成" description="查看评定结果" />
       </el-steps>
 
       <el-descriptions :column="2" border class="application-info">
@@ -47,7 +47,7 @@
             {{ applicationStatusMapper.getText(myApplication.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="综合评分">{{ myApplication.totalScore }}分</el-descriptions-item>
+        <el-descriptions-item label="综合评分">{{ myApplication.totalScore ?? 0 }} 分</el-descriptions-item>
         <el-descriptions-item label="导师意见" :span="2">
           {{ myApplication.tutorOpinion || '暂无' }}
         </el-descriptions-item>
@@ -58,7 +58,7 @@
       <el-button type="primary" :disabled="!canApply" @click="handleApply">创建申请</el-button>
     </el-empty>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="800px" @close="handleDialogClose">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="960px" @close="handleDialogClose">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="申请批次">
           <el-input v-model="batchInfo.name" disabled />
@@ -76,23 +76,82 @@
           />
         </el-form-item>
 
-        <el-form-item label="成果备注">
+        <el-form-item label="补充说明">
           <el-input
             v-model="formData.remark"
             type="textarea"
             :rows="3"
             maxlength="500"
             show-word-limit
-            placeholder="可补充说明其他事项"
+            placeholder="可补充说明其他情况"
             :disabled="isViewMode"
           />
         </el-form-item>
 
-        <el-form-item v-if="!isViewMode" label="申请声明">
-          <el-checkbox v-model="formData.agreed">
-            本人承诺所填写信息真实有效，如有虚假愿承担相应责任
-          </el-checkbox>
+        <el-form-item label="已选成果">
+          <div class="achievement-panel">
+            <template v-if="selectedAchievements.length > 0">
+              <div class="achievement-list">
+                <div v-for="item in selectedAchievements" :key="`${item.achievementType}-${item.achievementId}`" class="achievement-item">
+                  <div class="achievement-main">
+                    <div class="achievement-header">
+                      <el-tag size="small" effect="plain">{{ getTypeLabel(item.achievementType) }}</el-tag>
+                      <span class="achievement-title">{{ item.title || '未命名成果' }}</span>
+                    </div>
+                    <div class="achievement-meta">
+                      <span>{{ item.subtitle || '暂无副标题' }}</span>
+                      <span>{{ item.authors || '暂无人员信息' }}</span>
+                    </div>
+                    <div v-if="item.scoreComment" class="achievement-comment">{{ item.scoreComment }}</div>
+                  </div>
+                  <div class="achievement-score">分值：{{ item.score ?? 0 }}</div>
+                </div>
+              </div>
+            </template>
+            <el-empty v-else :image-size="80" description="暂未关联成果" />
+          </div>
         </el-form-item>
+
+        <template v-if="!isViewMode">
+          <el-form-item label="选择成果">
+            <div class="achievement-groups">
+              <section v-for="group in achievementGroups" :key="group.type" class="achievement-group">
+                <div class="group-title">{{ group.label }}</div>
+                <div class="achievement-panel">
+                  <el-checkbox-group v-model="selectedIds[group.type]">
+                    <div v-if="group.items.length > 0" class="option-list">
+                      <el-checkbox
+                        v-for="item in group.items"
+                        :key="item.achievementId"
+                        :label="item.achievementId"
+                        class="option-item"
+                      >
+                        <div class="option-body">
+                          <div class="option-title">{{ item.title || '未命名成果' }}</div>
+                          <div class="option-meta">
+                            <span>{{ item.subtitle || '暂无副标题' }}</span>
+                            <span>{{ item.authors || '暂无人员信息' }}</span>
+                          </div>
+                          <div class="option-score">
+                            <span>分值：{{ item.score ?? 0 }}</span>
+                            <span v-if="item.scoreComment">{{ item.scoreComment }}</span>
+                          </div>
+                        </div>
+                      </el-checkbox>
+                    </div>
+                    <el-empty v-else :image-size="70" :description="`暂无可关联的${group.label}`" />
+                  </el-checkbox-group>
+                </div>
+              </section>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="申请声明">
+            <el-checkbox v-model="formData.agreed">
+              本人承诺所填写信息真实有效，如有虚假愿承担相应责任
+            </el-checkbox>
+          </el-form-item>
+        </template>
       </el-form>
 
       <template v-if="!isViewMode" #footer>
@@ -111,12 +170,23 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { DocumentAdd } from '@element-plus/icons-vue'
-import { getApplicationPage, submitApplication } from '@/api/application'
-import type { Application, SubmitApplicationData } from '@/api/application'
+import {
+  getApplicationById,
+  getApplicationPage,
+  getAvailableApplicationAchievements,
+  submitApplication
+} from '@/api/application'
+import type {
+  Application,
+  ApplicationAchievementItem,
+  ApplicationDetail,
+  SubmitApplicationData
+} from '@/api/application'
 import { getAvailableBatches } from '@/api/evaluation'
 import { applicationStatusMapper } from '@/composables/useStatusMapper'
 
 type TagType = 'primary' | 'success' | 'info' | 'warning' | 'danger'
+type AchievementType = 1 | 2 | 3 | 4
 
 interface BatchCardInfo {
   id: number | null
@@ -152,7 +222,19 @@ interface BatchLike {
   description?: string
 }
 
-const APPLICATION_REMARK_SEPARATOR = '\n\n---补充说明---\n'
+interface SelectedAchievementMap {
+  1: number[]
+  2: number[]
+  3: number[]
+  4: number[]
+}
+
+const ACHIEVEMENT_TYPE_LABELS: Record<AchievementType, string> = {
+  1: '论文',
+  2: '专利',
+  3: '项目',
+  4: '竞赛'
+}
 
 const dialogVisible = ref(false)
 const submitting = ref(false)
@@ -160,6 +242,15 @@ const loading = ref(false)
 const isViewMode = ref(false)
 const formRef = ref<FormInstance | null>(null)
 const myApplication = ref<Application | null>(null)
+const applicationDetail = ref<ApplicationDetail | null>(null)
+const availableAchievements = ref<ApplicationAchievementItem[]>([])
+
+const selectedIds = reactive<SelectedAchievementMap>({
+  1: [],
+  2: [],
+  3: [],
+  4: []
+})
 
 const batchInfo = ref<BatchCardInfo>({
   id: null,
@@ -182,13 +273,46 @@ const formData = reactive<ApplicationForm>({
 const formRules: FormRules<ApplicationForm> = {
   selfEvaluation: [
     { required: true, message: '请输入自我评价', trigger: 'blur' },
-    { min: 10, max: 1000, message: '自我评价长度应在 10-1000 个字符之间', trigger: 'blur' }
+    { min: 10, max: 1000, message: '自我评价长度应在 10 到 1000 个字符之间', trigger: 'blur' }
   ]
 }
 
 const canApply = computed(() => batchInfo.value.status === 'active')
 const hasApplied = computed(() => myApplication.value !== null)
-const dialogTitle = computed(() => (isViewMode.value ? '查看申请详情' : hasApplied.value ? '查看申请' : '提交申请'))
+const dialogTitle = computed(() => {
+  if (isViewMode.value) {
+    return '查看申请详情'
+  }
+  return hasApplied.value ? '查看申请' : '提交申请'
+})
+
+const achievementGroups = computed(() =>
+  ([1, 2, 3, 4] as AchievementType[]).map((type) => ({
+    type,
+    label: ACHIEVEMENT_TYPE_LABELS[type],
+    items: availableAchievements.value.filter(item => item.achievementType === type)
+  }))
+)
+
+const selectedAchievements = computed<ApplicationAchievementItem[]>(() => {
+  if (isViewMode.value) {
+    return applicationDetail.value?.achievements || []
+  }
+
+  const selectedKeySet = new Set(
+    ([1, 2, 3, 4] as AchievementType[]).flatMap(type =>
+      selectedIds[type].map(id => `${type}-${id}`)
+    )
+  )
+
+  return availableAchievements.value.filter(item =>
+    selectedKeySet.has(`${item.achievementType}-${item.achievementId}`)
+  )
+})
+
+function getTypeLabel(type: number): string {
+  return ACHIEVEMENT_TYPE_LABELS[type as AchievementType] || '未知类型'
+}
 
 function getApplicationStep(status: number): number {
   const stepMap: Record<number, number> = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 4 }
@@ -227,16 +351,11 @@ async function loadBatchInfo(): Promise<void> {
     const batch = batches[0]
     const start = batch.startTime || batch.startDate || ''
     const end = batch.endTime || batch.endDate || ''
-    batch.startTime = start
-    batch.endTime = end
-    batch.status = 1
-    batch.quota = batch.quota ?? batch.winnerCount
-    batch.amount = batch.amount ?? batch.totalAmount
     batchInfo.value = {
       id: batch.id ?? null,
       name: batch.batchName || batch.name || '',
-      applyPeriod: `${batch.startTime || ''} 至 ${batch.endTime || ''}`,
-      status: 'active',
+      applyPeriod: `${start} 至 ${end}`,
+      status: batch.status === 1 ? 'active' : 'closed',
       statusText: batch.status === 1 ? '可申请' : '已结束',
       quota: batch.quota ?? batch.winnerCount ?? 0,
       amount: batch.amount ?? batch.totalAmount ?? 0,
@@ -260,51 +379,28 @@ async function loadMyApplication(): Promise<void> {
   }
 }
 
-function deserializeApplicationRemark(text?: string): { selfEvaluation: string; remark: string } {
-  if (!text) {
-    return {
-      selfEvaluation: '',
-      remark: ''
-    }
-  }
-
-  const [selfEvaluation, remark] = text.split(APPLICATION_REMARK_SEPARATOR, 2)
-  if (remark !== undefined) {
-    return {
-      selfEvaluation,
-      remark
-    }
-  }
-
-  return {
-    selfEvaluation: text,
-    remark: ''
+async function loadAvailableAchievements(): Promise<void> {
+  try {
+    const response = await getAvailableApplicationAchievements()
+    availableAchievements.value = extractNestedData<ApplicationAchievementItem[]>(response) || []
+  } catch (error) {
+    console.error('加载可选成果失败:', error)
+    availableAchievements.value = []
   }
 }
 
-function serializeApplicationRemark(selfEvaluation: string, remark: string): string | undefined {
-  const trimmedSelfEvaluation = selfEvaluation.trim()
-  const trimmedRemark = remark.trim()
-
-  if (trimmedSelfEvaluation && trimmedRemark) {
-    return `${trimmedSelfEvaluation}${APPLICATION_REMARK_SEPARATOR}${trimmedRemark}`
-  }
-
-  return trimmedSelfEvaluation || trimmedRemark || undefined
+async function loadApplicationDetail(applicationId: number): Promise<void> {
+  const response = await getApplicationById(applicationId)
+  applicationDetail.value = extractNestedData<ApplicationDetail>(response)
 }
 
 async function handleApply(): Promise<void> {
-  if (hasApplied.value) {
+  if (hasApplied.value && myApplication.value?.id) {
     try {
-      const response = await getApplicationPage({ current: 1, size: 1 })
-      const pageData = extractPageData<Application>(response)
-      const app = pageData?.records?.[0]
-      if (!app) return
-
-      const formContent = deserializeApplicationRemark(app.remark)
-      formData.batchId = app.batchId
-      formData.selfEvaluation = app.selfEvaluation || formContent.selfEvaluation
-      formData.remark = formContent.remark
+      await loadApplicationDetail(myApplication.value.id)
+      formData.batchId = applicationDetail.value?.batchId || null
+      formData.selfEvaluation = applicationDetail.value?.selfEvaluation || ''
+      formData.remark = applicationDetail.value?.remark || ''
       isViewMode.value = true
       dialogVisible.value = true
     } catch {
@@ -318,6 +414,7 @@ async function handleApply(): Promise<void> {
     return
   }
 
+  await loadAvailableAchievements()
   isViewMode.value = false
   dialogVisible.value = true
 }
@@ -340,11 +437,20 @@ async function handleSubmit(): Promise<void> {
 
   submitting.value = true
   try {
+    const achievements = ([1, 2, 3, 4] as AchievementType[]).flatMap(type =>
+      selectedIds[type].map(id => ({
+        achievementType: type,
+        achievementId: id
+      }))
+    )
+
     const payload: SubmitApplicationData = {
       batchId,
       selfEvaluation: formData.selfEvaluation,
-      remark: serializeApplicationRemark(formData.selfEvaluation, formData.remark)
+      remark: formData.remark || undefined,
+      achievements
     }
+
     await submitApplication(payload)
     ElMessage.success('申请提交成功')
     dialogVisible.value = false
@@ -356,13 +462,22 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
+function resetSelections(): void {
+  selectedIds[1] = []
+  selectedIds[2] = []
+  selectedIds[3] = []
+  selectedIds[4] = []
+}
+
 function handleDialogClose(): void {
   formRef.value?.resetFields()
   formData.batchId = null
   formData.selfEvaluation = ''
   formData.remark = ''
   formData.agreed = false
+  applicationDetail.value = null
   isViewMode.value = false
+  resetSelections()
 }
 
 onMounted(() => {
@@ -400,5 +515,95 @@ onMounted(() => {
   .application-info {
     margin-top: 30px;
   }
+}
+
+.achievement-panel {
+  width: 100%;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fafafa;
+}
+
+.achievement-groups {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+}
+
+.achievement-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.group-title {
+  font-weight: 600;
+  color: #303133;
+}
+
+.achievement-list,
+.option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.achievement-item,
+.option-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+}
+
+.option-item {
+  margin-right: 0;
+}
+
+.achievement-main,
+.option-item :deep(.el-checkbox__label),
+.option-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  white-space: normal;
+}
+
+.achievement-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.achievement-title,
+.option-title {
+  color: #303133;
+  font-weight: 500;
+}
+
+.achievement-meta,
+.option-meta,
+.option-score {
+  display: flex;
+  gap: 16px;
+  color: #909399;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.achievement-comment {
+  color: #606266;
+  font-size: 13px;
+}
+
+.achievement-score {
+  color: #409eff;
+  white-space: nowrap;
 }
 </style>

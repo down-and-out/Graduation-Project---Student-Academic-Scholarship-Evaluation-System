@@ -64,6 +64,7 @@ public class ApplicationAchievement implements Serializable {
     /**
      * 认定分数
      */
+    @NotNull(message = "认定分数不能为空")
     @Schema(description = "认定分数")
     private BigDecimal score;
 
@@ -74,17 +75,22 @@ public class ApplicationAchievement implements Serializable {
     private String scoreComment;
 
     /**
+     * 规则 ID
+     */
+    @Schema(description = "评分规则 ID")
+    private Long ruleId;
+
+    /**
+     * 版本号
+     */
+    @Version
+    @Schema(description = "版本号")
+    private Integer version;
+
+    /**
      * 创建时间
      */
     @TableField(fill = FieldFill.INSERT)
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
-
-    /**
-     * 逻辑删除：0-未删除 1-已删除
-     */
-    @TableLogic
-    @TableField(fill = FieldFill.INSERT)
-    @Schema(description = "逻辑删除：0-未删除 1-已删除")
-    private Integer deleted;
 }

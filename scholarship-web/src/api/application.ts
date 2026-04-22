@@ -1,11 +1,16 @@
-/**
- * 奖学金申请相关 API 接口
- */
 import request from '@/utils/request'
 
-/**
- * 申请记录
- */
+export interface ApplicationAchievementItem {
+  id?: number
+  achievementType: number
+  achievementId: number
+  title?: string
+  subtitle?: string
+  authors?: string
+  score?: number
+  scoreComment?: string
+}
+
 export interface Application {
   id?: number
   applicationNo: string
@@ -24,20 +29,33 @@ export interface Application {
   completedTime?: string
 }
 
-/**
- * 分页查询申请记录参数
- */
+export interface ApplicationDetail extends Application {
+  achievements?: ApplicationAchievementItem[]
+}
+
 export interface ApplicationPageParams extends API.PageParams {
   batchId?: number
   studentId?: number
   status?: number
 }
 
-/**
- * 分页查询申请记录
- * @param params - 查询参数
- * @returns 分页响应
- */
+export interface SubmitApplicationAchievement {
+  achievementType: number
+  achievementId: number
+}
+
+export interface SubmitApplicationData {
+  batchId: number
+  selfEvaluation: string
+  remark?: string
+  achievements: SubmitApplicationAchievement[]
+}
+
+export interface ReviewApplicationParams {
+  opinion: string
+  passed: boolean
+}
+
 export function getApplicationPage(
   params: ApplicationPageParams
 ): Promise<API.Response<API.PageResponse<Application>>> {
@@ -48,32 +66,20 @@ export function getApplicationPage(
   })
 }
 
-/**
- * 获取申请详情
- * @param id - 申请 ID
- * @returns Promise
- */
-export function getApplicationById(id: number): Promise<API.Response<Application>> {
+export function getApplicationById(id: number): Promise<API.Response<ApplicationDetail>> {
   return request({
     url: `/application/${id}`,
     method: 'get'
   })
 }
 
-/**
- * 提交申请参数
- */
-export interface SubmitApplicationData {
-  batchId: number
-  selfEvaluation: string
-  remark?: string
+export function getAvailableApplicationAchievements(): Promise<API.Response<ApplicationAchievementItem[]>> {
+  return request({
+    url: '/application/available-achievements',
+    method: 'get'
+  })
 }
 
-/**
- * 提交申请
- * @param data - 申请信息
- * @returns Promise
- */
 export function submitApplication(data: SubmitApplicationData): Promise<API.Response<null>> {
   return request({
     url: '/application/submit',
@@ -82,20 +88,6 @@ export function submitApplication(data: SubmitApplicationData): Promise<API.Resp
   })
 }
 
-/**
- * 导师审核申请参数
- */
-export interface ReviewApplicationParams {
-  opinion: string
-  passed: boolean
-}
-
-/**
- * 导师审核申请
- * @param id - 申请 ID
- * @param params - 审核参数
- * @returns Promise
- */
 export function reviewApplication(
   id: number,
   params: ReviewApplicationParams
@@ -103,13 +95,14 @@ export function reviewApplication(
   return request({
     url: `/application/review/${id}`,
     method: 'put',
-    data: params  // 使用 data 传递请求体
+    data: params
   })
 }
 
 export default {
   getApplicationPage,
   getApplicationById,
+  getAvailableApplicationAchievements,
   submitApplication,
   reviewApplication
 }
