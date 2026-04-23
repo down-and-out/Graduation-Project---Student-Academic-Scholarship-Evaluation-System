@@ -23,6 +23,7 @@ import com.scholarship.mapper.ResearchPatentMapper;
 import com.scholarship.mapper.ResearchProjectMapper;
 import com.scholarship.mapper.ScholarshipApplicationMapper;
 import com.scholarship.service.ApplicationAchievementService;
+import com.scholarship.service.ReviewRecordService;
 import com.scholarship.service.ScholarshipApplicationService;
 import com.scholarship.service.StudentInfoService;
 import com.scholarship.vo.ApplicationAchievementVO;
@@ -67,6 +68,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
     private final StringRedisTemplate redisTemplate;
     private final StudentInfoService studentInfoService;
     private final ApplicationAchievementService applicationAchievementService;
+    private final ReviewRecordService reviewRecordService;
     private final ResearchPaperMapper researchPaperMapper;
     private final ResearchPatentMapper researchPatentMapper;
     private final ResearchProjectMapper researchProjectMapper;
@@ -177,7 +179,8 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean tutorReview(Long applicationId, String opinion, Long tutorId) {
+    public boolean reviewApplication(Long applicationId, String opinion, Long reviewerId,
+                                     String reviewerName, Integer reviewerUserType) {
         ScholarshipApplication application = applicationMapper.selectById(applicationId);
         if (application == null) {
             throw new BusinessException("申请不存在");
@@ -188,25 +191,29 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
             throw new BusinessException("学生信息不存在");
         }
 
-        if (student.getTutorId() != null && !student.getTutorId().equals(tutorId)) {
-            log.warn("导师 {} 尝试审核不属于其指导学生的申请 {}", tutorId, applicationId);
+        Integer reviewStage = resolveReviewStage(reviewerUserType);
+        if (reviewStage == 1 && student.getTutorId() != null && !student.getTutorId().equals(reviewerId)) {
+            log.warn("?? {} ??????????????? {}", reviewerId, applicationId);
             throw new BusinessException("无权审核该申请，只能审核自己指导学生的申请");
         }
 
         Boolean passed = ReviewOpinionEnum.isPassed(opinion);
-        if (passed == null) {
-            application.setStatus(ApplicationStatusEnum.TUTOR_REVIEWING.getCode());
-        } else if (passed) {
-            application.setStatus(ApplicationStatusEnum.TUTOR_PASSED.getCode());
-        } else {
-            application.setStatus(ApplicationStatusEnum.TUTOR_REJECTED.getCode());
+        applyReviewResult(application, reviewStage, passed, opinion, reviewerId);
+
+        boolean updated = applicationMapper.updateById(application) > 0;
+        if (!updated) {
+            return false;
         }
 
-        application.setTutorOpinion(opinion);
-        application.setTutorId(tutorId);
-        application.setTutorReviewTime(LocalDateTime.now());
-
-        return applicationMapper.updateById(application) > 0;
+        return reviewRecordService.addReviewRecord(
+                applicationId,
+                reviewStage,
+                reviewerId,
+                reviewerName,
+                resolveReviewResultCode(passed),
+                application.getTotalScore(),
+                opinion
+        );
     }
 
     private String generateApplicationNo() {
@@ -606,6 +613,50 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
             return new ParsedRemark(parts[0], parts[1]);
         }
         return new ParsedRemark(text, "");
+    }
+
+    private Integer resolveReviewStage(Integer reviewerUserType) {
+        return switch (reviewerUserType) {
+            case 2 -> 1;
+            case 3 -> 2;
+            default -> throw new BusinessException("??????????");
+        };
+    }
+
+    private void applyReviewResult(ScholarshipApplication application, Integer reviewStage, Boolean passed,
+                                   String opinion, Long reviewerId) {
+        LocalDateTime now = LocalDateTime.now();
+        if (reviewStage == 1) {
+            if (passed == null) {
+                application.setStatus(ApplicationStatusEnum.TUTOR_REVIEWING.getCode());
+            } else if (passed) {
+                application.setStatus(ApplicationStatusEnum.TUTOR_PASSED.getCode());
+            } else {
+                application.setStatus(ApplicationStatusEnum.TUTOR_REJECTED.getCode());
+            }
+            application.setTutorOpinion(opinion);
+            application.setTutorId(reviewerId);
+            application.setTutorReviewTime(now);
+            return;
+        }
+
+        if (passed == null) {
+            application.setStatus(ApplicationStatusEnum.ADMIN_REVIEWING.getCode());
+        } else if (passed) {
+            application.setStatus(ApplicationStatusEnum.APPROVED.getCode());
+        } else {
+            application.setStatus(ApplicationStatusEnum.ADMIN_REJECTED.getCode());
+        }
+        application.setCollegeOpinion(opinion);
+        application.setCollegeReviewerId(reviewerId);
+        application.setCollegeReviewTime(now);
+    }
+
+    private Integer resolveReviewResultCode(Boolean passed) {
+        if (passed == null) {
+            return 3;
+        }
+        return passed ? 1 : 2;
     }
 
     private record ParsedRemark(String selfEvaluation, String remark) {

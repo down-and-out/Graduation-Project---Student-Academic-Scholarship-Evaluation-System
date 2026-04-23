@@ -2,16 +2,18 @@ package com.scholarship.controller;
 
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ReviewRecord;
+import com.scholarship.entity.ScholarshipApplication;
+import com.scholarship.entity.StudentInfo;
+import com.scholarship.mapper.ScholarshipApplicationMapper;
+import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.ReviewRecordService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import jakarta.validation.constraints.NotNull;
 import org.hibernate.validator.constraints.Length;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,70 +23,56 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * 评审记录控制器
- * <p>
- * 处理评审记录相关的请求，包括评审记录查询、添加等
- * </p>
- *
- * @author Scholarship Development Team
- * @version 1.0.0
+ * 评审记录控制器。
  */
 @Slf4j
 @RestController
 @RequestMapping("/review-record")
 @RequiredArgsConstructor
-@Tag(name = "12-评审记录管理", description = "奖学金申请评审记录的查询和管理接口")
+@Tag(name = "12-评审记录管理", description = "奖学金申请评审记录查询接口")
 public class ReviewRecordController {
 
-    private final ReviewRecordService reviewRecordService;
+    private static final int USER_TYPE_STUDENT = 1;
+    private static final int USER_TYPE_TUTOR = 2;
+    private static final int USER_TYPE_ADMIN = 3;
 
-    /**
-     * 根据申请 ID 查询评审记录
-     *
-     * @param applicationId 申请 ID
-     * @return 评审记录列表
-     */
+    private final ReviewRecordService reviewRecordService;
+    private final ScholarshipApplicationMapper applicationMapper;
+    private final StudentInfoMapper studentInfoMapper;
+
     @GetMapping("/application/{applicationId}")
-    @Operation(summary = "根据申请 ID 查询评审记录", description = "返回该申请的所有评审记录（按阶段排序）")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "查询成功")
-    })
-    public Result<List<ReviewRecord>> listByApplicationId(@PathVariable Long applicationId) {
-        List<ReviewRecord> records = reviewRecordService.listByApplicationId(applicationId);
-        return Result.success(records);
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR', 'ROLE_STUDENT')")
+    @Operation(summary = "根据申请 ID 查询评审记录", description = "学生只能看本人申请，导师只能看本人指导学生申请，管理员可看全部")
+    public Result<List<ReviewRecord>> listByApplicationId(
+            @PathVariable Long applicationId,
+            @AuthenticationPrincipal LoginUser loginUser) {
+        if (!canAccessApplication(applicationId, loginUser)) {
+            return Result.error(403, "无权查看该申请评审记录");
+        }
+        return Result.success(reviewRecordService.listByApplicationId(applicationId));
     }
 
-    /**
-     * 根据评审人 ID 查询评审记录
-     *
-     * @param reviewerId 评审人 ID
-     * @return 评审记录列表
-     */
     @GetMapping("/reviewer/{reviewerId}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
-    @Operation(summary = "根据评审人 ID 查询评审记录", description = "返回该评审人的所有评审记录")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "查询成功"),
-        @ApiResponse(responseCode = "403", description = "无权限")
-    })
-    public Result<List<ReviewRecord>> listByReviewerId(@PathVariable Long reviewerId) {
-        List<ReviewRecord> records = reviewRecordService.listByReviewerId(reviewerId);
-        return Result.success(records);
+    @Operation(summary = "根据评审人 ID 查询评审记录", description = "导师只能查询自己的评审记录")
+    public Result<List<ReviewRecord>> listByReviewerId(
+            @PathVariable Long reviewerId,
+            @AuthenticationPrincipal LoginUser loginUser) {
+        if (!isAdmin(loginUser) && !loginUser.getUserId().equals(reviewerId)) {
+            return Result.error(403, "无权查看其他评审人的记录");
+        }
+        return Result.success(reviewRecordService.listByReviewerId(reviewerId));
     }
 
-    /**
-     * 获取最新评审记录
-     *
-     * @param applicationId 申请 ID
-     * @return 最新评审记录
-     */
     @GetMapping("/latest/{applicationId}")
-    @Operation(summary = "获取最新评审记录", description = "返回该申请的最新一条评审记录")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "查询成功"),
-        @ApiResponse(responseCode = "404", description = "未找到评审记录")
-    })
-    public Result<ReviewRecord> getLatestRecord(@PathVariable Long applicationId) {
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR', 'ROLE_STUDENT')")
+    @Operation(summary = "获取最新评审记录")
+    public Result<ReviewRecord> getLatestRecord(
+            @PathVariable Long applicationId,
+            @AuthenticationPrincipal LoginUser loginUser) {
+        if (!canAccessApplication(applicationId, loginUser)) {
+            return Result.error(403, "无权查看该申请评审记录");
+        }
         ReviewRecord record = reviewRecordService.getLatestRecord(applicationId);
         if (record == null) {
             return Result.error("未找到评审记录");
@@ -92,25 +80,9 @@ public class ReviewRecordController {
         return Result.success(record);
     }
 
-    /**
-     * 添加评审记录
-     *
-     * @param applicationId 申请 ID
-     * @param reviewStage 评审阶段（1-导师审核 2-院系审核 3-学校审核）
-     * @param reviewResult 评审结果（1-通过 2-驳回 3-待定）
-     * @param reviewScore 评审分数
-     * @param reviewComment 评审意见
-     * @param loginUser 当前登录用户
-     * @return 是否成功
-     */
     @PostMapping("/add/{applicationId}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
-    @Operation(summary = "添加评审记录", description = "为申请添加新的评审记录")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "添加成功"),
-        @ApiResponse(responseCode = "403", description = "无权限"),
-        @ApiResponse(responseCode = "400", description = "参数错误")
-    })
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "管理员补录评审记录", description = "正常评审记录应由申请审核主流程自动产生")
     public Result<Void> addReviewRecord(
             @PathVariable @NotNull(message = "申请 ID 不能为空") Long applicationId,
             @Parameter(description = "评审阶段", example = "1")
@@ -123,18 +95,45 @@ public class ReviewRecordController {
             @RequestParam(required = false) @Length(max = 500, message = "评审意见不能超过 500 字") String reviewComment,
             @AuthenticationPrincipal LoginUser loginUser) {
 
-        log.info("添加评审记录，applicationId={}, stage={}, result={}", applicationId, reviewStage, reviewResult);
-
+        log.info("管理员补录评审记录，applicationId={}, stage={}, result={}", applicationId, reviewStage, reviewResult);
         boolean success = reviewRecordService.addReviewRecord(
             applicationId,
             reviewStage,
             loginUser.getUserId(),
-            loginUser.getUsername(),
+            loginUser.getRealName(),
             reviewResult,
             reviewScore,
             reviewComment
         );
 
         return success ? Result.success("评审记录已添加") : Result.error("添加失败");
+    }
+
+    private boolean canAccessApplication(Long applicationId, LoginUser loginUser) {
+        if (loginUser == null || applicationId == null) {
+            return false;
+        }
+        if (isAdmin(loginUser)) {
+            return true;
+        }
+        ScholarshipApplication application = applicationMapper.selectById(applicationId);
+        if (application == null) {
+            return false;
+        }
+        StudentInfo student = studentInfoMapper.selectById(application.getStudentId());
+        if (student == null) {
+            return false;
+        }
+        if (Integer.valueOf(USER_TYPE_STUDENT).equals(loginUser.getUserType())) {
+            return loginUser.getUserId().equals(student.getUserId());
+        }
+        if (Integer.valueOf(USER_TYPE_TUTOR).equals(loginUser.getUserType())) {
+            return loginUser.getUserId().equals(student.getTutorId());
+        }
+        return false;
+    }
+
+    private boolean isAdmin(LoginUser loginUser) {
+        return loginUser != null && Integer.valueOf(USER_TYPE_ADMIN).equals(loginUser.getUserType());
     }
 }

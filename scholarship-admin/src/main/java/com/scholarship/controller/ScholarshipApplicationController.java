@@ -36,7 +36,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/application")
 @RequiredArgsConstructor
-@Tag(name = "10-奖学金申请管理", description = "奖学金申请的提交、查询、审核接口")
+@Tag(name = "奖学金申请管理", description = "奖学金申请提交、查询和审核接口")
 public class ScholarshipApplicationController {
 
     private final ScholarshipApplicationService applicationService;
@@ -87,7 +87,7 @@ public class ScholarshipApplicationController {
 
     @GetMapping("/available-achievements")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
-    @Operation(summary = "获取当前学生可选成果", description = "返回当前登录学生已审核通过、可关联到奖学金申请的论文、专利、项目和竞赛成果")
+    @Operation(summary = "获取当前学生可选成果", description = "返回当前登录学生已审核通过、可关联到奖学金申请的成果")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "获取成功")
     })
@@ -97,7 +97,7 @@ public class ScholarshipApplicationController {
     }
 
     @PostMapping("/submit")
-    @Operation(summary = "提交奖学金申请", description = "研究生提交奖学金申请，系统自动生成申请编号并保存成果关联")
+    @Operation(summary = "提交奖学金申请", description = "研究生提交奖学金申请并保存成果关联")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "提交成功"),
             @ApiResponse(responseCode = "400", description = "参数错误")
@@ -111,7 +111,7 @@ public class ScholarshipApplicationController {
 
     @PutMapping("/review/{id}")
     @PreAuthorize("hasAnyRole('ROLE_TUTOR', 'ROLE_ADMIN')")
-    @Operation(summary = "导师审核申请", description = "导师对奖学金申请进行审核并填写意见")
+    @Operation(summary = "审核申请", description = "导师或管理员审核奖学金申请并记录审核意见")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "审核成功"),
             @ApiResponse(responseCode = "403", description = "无权限"),
@@ -122,8 +122,13 @@ public class ScholarshipApplicationController {
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "审核参数")
             @RequestBody ReviewApplicationRequest request,
             @AuthenticationPrincipal LoginUser loginUser) {
-        Long tutorId = loginUser.getUserId();
-        boolean success = applicationService.tutorReview(id, request.opinion(), tutorId);
+        boolean success = applicationService.reviewApplication(
+                id,
+                request.opinion(),
+                loginUser.getUserId(),
+                loginUser.getUsername(),
+                loginUser.getUserType()
+        );
         return success ? Result.success("审核成功") : Result.error("审核失败");
     }
 
