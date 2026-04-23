@@ -21,19 +21,19 @@ public class SysOperationLogServiceImpl extends ServiceImpl<SysOperationLogMappe
 
     @Override
     public IPage<SysOperationLog> queryPage(OperationLogQuery query) {
-        log.debug("分页查询操作日志，query={}", query);
+        log.debug("分页查询操作日志: query={}", query);
 
         Page<SysOperationLog> page = new Page<>(query.getCurrent(), query.getSize());
         LambdaQueryWrapper<SysOperationLog> wrapper = new LambdaQueryWrapper<>();
 
-        List<String> operationTypes = query.getOperationTypes();
+        List<Integer> operationTypes = query.getOperationTypes();
         if (operationTypes != null && !operationTypes.isEmpty()) {
             if (operationTypes.size() == 1) {
                 wrapper.eq(SysOperationLog::getOperationType, operationTypes.get(0));
             } else {
                 wrapper.in(SysOperationLog::getOperationType, operationTypes);
             }
-        } else if (StringUtils.isNotBlank(query.getOperationType())) {
+        } else if (query.getOperationType() != null) {
             wrapper.eq(SysOperationLog::getOperationType, query.getOperationType());
         }
 

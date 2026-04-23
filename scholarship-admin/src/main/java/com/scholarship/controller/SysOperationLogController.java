@@ -36,7 +36,7 @@ public class SysOperationLogController {
             @RequestParam(defaultValue = "1") Long current,
             @Parameter(description = "每页大小", example = "10")
             @RequestParam(defaultValue = "10") Long size,
-            @Parameter(description = "操作类型，支持单个或多个值", example = "login,user")
+            @Parameter(description = "操作类型，支持单个或多个值", example = "1,2")
             @RequestParam(required = false) List<String> operationType,
             @Parameter(description = "操作人用户名", example = "admin")
             @RequestParam(required = false) String username) {
@@ -44,33 +44,35 @@ public class SysOperationLogController {
         OperationLogQuery query = new OperationLogQuery();
         query.setCurrent(current);
         query.setSize(size);
-        List<String> operationTypes = parseStringParams(operationType);
+
+        List<Integer> operationTypes = parseIntegerParams(operationType);
         if (!operationTypes.isEmpty()) {
             query.setOperationTypes(operationTypes);
             query.setOperationType(operationTypes.size() == 1 ? operationTypes.get(0) : null);
         }
-        query.setKeyword(username);
 
+        query.setKeyword(username);
         IPage<SysOperationLog> result = sysOperationLogService.queryPage(query);
         return Result.success(result);
     }
 
-    private List<String> parseStringParams(List<String> rawValues) {
+    private List<Integer> parseIntegerParams(List<String> rawValues) {
         if (rawValues == null || rawValues.isEmpty()) {
             return List.of();
         }
 
-        Set<String> result = new LinkedHashSet<>();
+        Set<Integer> values = new LinkedHashSet<>();
         for (String rawValue : rawValues) {
             if (rawValue == null || rawValue.isBlank()) {
                 continue;
             }
             for (String value : rawValue.split(",")) {
-                if (!value.isBlank()) {
-                    result.add(value.trim());
+                String trimmed = value.trim();
+                if (!trimmed.isEmpty()) {
+                    values.add(Integer.valueOf(trimmed));
                 }
             }
         }
-        return new ArrayList<>(result);
+        return new ArrayList<>(values);
     }
 }

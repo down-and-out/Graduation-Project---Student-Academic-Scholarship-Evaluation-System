@@ -11,9 +11,9 @@ public class OperationLogQuery extends PageQuery {
 
     private Long userId;
 
-    private String operationType;
+    private Integer operationType;
 
-    private List<String> operationTypes;
+    private List<Integer> operationTypes;
 
     private String module;
 
