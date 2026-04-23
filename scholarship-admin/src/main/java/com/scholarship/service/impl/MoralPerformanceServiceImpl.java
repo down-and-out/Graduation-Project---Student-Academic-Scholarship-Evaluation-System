@@ -7,9 +7,11 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.dto.query.MoralPerformanceQuery;
 import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.entity.MoralPerformance;
+import com.scholarship.entity.StudentInfo;
 import com.scholarship.enums.AuditStatusEnum;
 import com.scholarship.exception.BusinessException;
 import com.scholarship.mapper.MoralPerformanceMapper;
+import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.MoralPerformanceService;
 import lombok.extern.slf4j.Slf4j;
@@ -35,9 +37,24 @@ public class MoralPerformanceServiceImpl extends ServiceImpl<MoralPerformanceMap
         implements MoralPerformanceService {
 
     private final EvaluationBatchService evaluationBatchService;
+    private final StudentInfoMapper studentInfoMapper;
 
-    public MoralPerformanceServiceImpl(EvaluationBatchService evaluationBatchService) {
+    public MoralPerformanceServiceImpl(EvaluationBatchService evaluationBatchService,
+                                       StudentInfoMapper studentInfoMapper) {
         this.evaluationBatchService = evaluationBatchService;
+        this.studentInfoMapper = studentInfoMapper;
+    }
+
+    @Override
+    public boolean save(MoralPerformance entity) {
+        fillStudentSnapshot(entity);
+        return super.save(entity);
+    }
+
+    @Override
+    public boolean updateById(MoralPerformance entity) {
+        fillStudentSnapshot(entity);
+        return super.updateById(entity);
     }
 
     @Override
@@ -168,7 +185,9 @@ public class MoralPerformanceServiceImpl extends ServiceImpl<MoralPerformanceMap
         Page<MoralPerformance> page = new Page<>(query.getCurrent(), query.getSize());
         LambdaQueryWrapper<MoralPerformance> wrapper = new LambdaQueryWrapper<>();
 
-        if (query.getStudentId() != null) {
+        if (query.getStudentIds() != null && !query.getStudentIds().isEmpty()) {
+            wrapper.in(MoralPerformance::getStudentId, query.getStudentIds());
+        } else if (query.getStudentId() != null) {
             wrapper.eq(MoralPerformance::getStudentId, query.getStudentId());
         }
         if (query.getPerformanceType() != null) {
@@ -206,5 +225,17 @@ public class MoralPerformanceServiceImpl extends ServiceImpl<MoralPerformanceMap
         performance.setAuditTime(LocalDateTime.now());
 
         return updateById(performance);
+    }
+
+    private void fillStudentSnapshot(MoralPerformance performance) {
+        if (performance == null || performance.getStudentId() == null) {
+            return;
+        }
+        StudentInfo student = studentInfoMapper.selectById(performance.getStudentId());
+        if (student == null) {
+            return;
+        }
+        performance.setStudentNo(student.getStudentNo());
+        performance.setStudentName(student.getName());
     }
 }

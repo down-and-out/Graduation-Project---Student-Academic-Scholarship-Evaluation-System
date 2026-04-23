@@ -7,7 +7,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.dto.query.CourseScoreQuery;
 import com.scholarship.entity.CourseScore;
 import com.scholarship.entity.EvaluationBatch;
+import com.scholarship.entity.StudentInfo;
 import com.scholarship.mapper.CourseScoreMapper;
+import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.service.CourseScoreService;
 import com.scholarship.service.EvaluationBatchService;
 import lombok.extern.slf4j.Slf4j;
@@ -31,9 +33,24 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         implements CourseScoreService {
 
     private final EvaluationBatchService evaluationBatchService;
+    private final StudentInfoMapper studentInfoMapper;
 
-    public CourseScoreServiceImpl(EvaluationBatchService evaluationBatchService) {
+    public CourseScoreServiceImpl(EvaluationBatchService evaluationBatchService,
+                                  StudentInfoMapper studentInfoMapper) {
         this.evaluationBatchService = evaluationBatchService;
+        this.studentInfoMapper = studentInfoMapper;
+    }
+
+    @Override
+    public boolean save(CourseScore entity) {
+        fillStudentSnapshot(entity);
+        return super.save(entity);
+    }
+
+    @Override
+    public boolean updateById(CourseScore entity) {
+        fillStudentSnapshot(entity);
+        return super.updateById(entity);
     }
 
     @Override
@@ -240,7 +257,9 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
     private LambdaQueryWrapper<CourseScore> buildQueryWrapper(CourseScoreQuery query) {
         LambdaQueryWrapper<CourseScore> wrapper = new LambdaQueryWrapper<>();
 
-        if (query.getStudentId() != null) {
+        if (query.getStudentIds() != null && !query.getStudentIds().isEmpty()) {
+            wrapper.in(CourseScore::getStudentId, query.getStudentIds());
+        } else if (query.getStudentId() != null) {
             wrapper.eq(CourseScore::getStudentId, query.getStudentId());
         }
         if (query.getAcademicYear() != null) {
@@ -254,5 +273,17 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         }
 
         return wrapper;
+    }
+
+    private void fillStudentSnapshot(CourseScore score) {
+        if (score == null || score.getStudentId() == null) {
+            return;
+        }
+        StudentInfo student = studentInfoMapper.selectById(score.getStudentId());
+        if (student == null) {
+            return;
+        }
+        score.setStudentNo(student.getStudentNo());
+        score.setStudentName(student.getName());
     }
 }
