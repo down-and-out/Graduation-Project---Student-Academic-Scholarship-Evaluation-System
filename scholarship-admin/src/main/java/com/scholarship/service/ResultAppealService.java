@@ -2,29 +2,20 @@ package com.scholarship.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.scholarship.entity.ResultAppeal;
+import com.scholarship.security.LoginUser;
 
 /**
- * 结果异议服务接口
- *
- * @author Scholarship Development Team
- * @version 1.0.0
+ * 结果异议服务接口。
  */
 public interface ResultAppealService extends IService<ResultAppeal> {
 
     /**
-     * 提交异议
-     *
-     * @param appeal 异议信息
-     * @return 是否成功
+     * 学生提交异议。
      */
-    boolean submitAppeal(ResultAppeal appeal);
+    boolean submitAppeal(ResultAppeal appeal, LoginUser loginUser);
 
     /**
-     * 处理异议
-     *
-     * @param id 异议 ID
-     * @param handleResult 处理结果
-     * @return 是否成功
+     * 管理员处理异议。
      */
-    boolean handleAppeal(Long id, String handleResult);
+    boolean handleAppeal(Long id, String handleOpinion, LoginUser loginUser);
 }

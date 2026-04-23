@@ -31,6 +31,6 @@ public interface SysSettingMapper extends BaseMapper<SysSetting> {
      * @param settingKey 设置键
      * @return 设置实体
      */
-    @Select("SELECT * FROM sys_setting WHERE setting_key = #{key} AND is_active = 1 LIMIT 1")
+    @Select("SELECT * FROM sys_setting WHERE setting_key = #{key} AND is_active = 1 ORDER BY update_time DESC, id DESC LIMIT 1")
     SysSetting selectActiveByKey(@Param("key") String settingKey);
 }

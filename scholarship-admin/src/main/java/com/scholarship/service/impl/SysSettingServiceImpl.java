@@ -78,7 +78,7 @@ public class SysSettingServiceImpl implements SysSettingService {
     public boolean updateSetting(String key, Object data) {
         String jsonString = JSON.toJSONString(data);
 
-        SysSetting exist = sysSettingMapper.selectActiveByKey(key);
+        SysSetting exist = getLatestActiveByKey(key);
 
         SysSetting setting = new SysSetting();
         setting.setSettingKey(key);
@@ -115,7 +115,7 @@ public class SysSettingServiceImpl implements SysSettingService {
 
     @Override
     public SysSetting getByKey(String key) {
-        return sysSettingMapper.selectActiveByKey(key);
+        return getLatestActiveByKey(key);
     }
 
     @Override
@@ -140,5 +140,28 @@ public class SysSettingServiceImpl implements SysSettingService {
             return List.of();
         }
         return config.getRules();
+    }
+
+    private SysSetting getLatestActiveByKey(String key) {
+        List<SysSetting> activeSettings = sysSettingMapper.selectList(new LambdaQueryWrapper<SysSetting>()
+                .eq(SysSetting::getSettingKey, key)
+                .eq(SysSetting::getIsActive, 1)
+                .orderByDesc(SysSetting::getUpdateTime)
+                .orderByDesc(SysSetting::getId));
+        if (activeSettings.isEmpty()) {
+            return null;
+        }
+        if (activeSettings.size() > 1) {
+            log.warn("检测到重复生效系统设置，key={}，activeCount={}，将使用最新一条", key, activeSettings.size());
+            Long keepId = activeSettings.get(0).getId();
+            for (int i = 1; i < activeSettings.size(); i++) {
+                SysSetting duplicate = new SysSetting();
+                duplicate.setId(activeSettings.get(i).getId());
+                duplicate.setIsActive(0);
+                sysSettingMapper.updateById(duplicate);
+                log.warn("已自动停用重复系统设置，key={}，id={}，keepId={}", key, duplicate.getId(), keepId);
+            }
+        }
+        return activeSettings.get(0);
     }
 }
