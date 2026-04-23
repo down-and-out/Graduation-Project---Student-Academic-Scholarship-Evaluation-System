@@ -96,6 +96,16 @@
       @close="handleDialogClose"
     >
       <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
+        <el-form-item label="规则分类" prop="categoryId">
+          <el-select v-model="formData.categoryId" style="width: 100%" placeholder="请选择真实分类">
+            <el-option
+              v-for="category in categoryOptions"
+              :key="category.id"
+              :label="category.categoryName"
+              :value="category.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="规则类型" prop="ruleType">
           <el-select v-model="formData.ruleType" style="width: 100%">
             <el-option label="论文" :value="RULE_TYPE.PAPER" />
@@ -152,7 +162,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { getRulePage, addRule, updateRule, deleteRule } from '@/api/rule'
+import { getRulePage, addRule, updateRule, deleteRule, getRuleCategoryList } from '@/api/rule'
 
 // 常量定义
 const RULE_TYPE = {
@@ -171,6 +181,7 @@ const AVAILABILITY = {
 
 const loading = ref(false)
 const tableData = ref([])
+const categoryOptions = ref([])
 const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -187,6 +198,7 @@ const queryParams = reactive({
 // 默认表单数据
 const getDefaultFormData = () => ({
   id: null,
+  categoryId: null,
   ruleType: RULE_TYPE.PAPER,
   ruleCode: '',
   ruleName: '',
@@ -201,10 +213,20 @@ const getDefaultFormData = () => ({
 const formData = reactive(getDefaultFormData())
 
 const formRules = {
+  categoryId: [{ required: true, message: '请选择真实规则分类', trigger: 'change' }],
   ruleType: [{ required: true, message: '请选择规则类型', trigger: 'change' }],
   ruleCode: [{ required: true, message: '请输入规则编码', trigger: 'blur' }],
   ruleName: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
   score: [{ required: true, message: '请输入分值', trigger: 'blur' }]
+}
+
+async function loadCategories() {
+  try {
+    const res = await getRuleCategoryList()
+    categoryOptions.value = res.data?.data || []
+  } catch (error) {
+    ElMessage.error('加载规则分类失败：' + (error.message || '未知错误'))
+  }
 }
 
 async function handleQuery() {
@@ -288,6 +310,7 @@ function handleDialogClose() {
 }
 
 onMounted(() => {
+  loadCategories()
   handleQuery()
 })
 </script>

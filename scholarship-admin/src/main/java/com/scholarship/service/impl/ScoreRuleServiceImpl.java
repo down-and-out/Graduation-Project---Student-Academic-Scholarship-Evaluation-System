@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.dto.query.ScoreRuleQuery;
 import com.scholarship.entity.ScoreRule;
+import com.scholarship.exception.BusinessException;
 import com.scholarship.mapper.ScoreRuleMapper;
 import com.scholarship.service.ScoreRuleService;
 import lombok.extern.slf4j.Slf4j;
@@ -67,9 +68,7 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(allEntries = true)
     public boolean save(ScoreRule entity) {
-        if (entity.getCategoryId() == null && entity.getRuleType() != null) {
-            entity.setCategoryId(Long.valueOf(entity.getRuleType()));
-        }
+        requireCategoryId(entity);
         return super.save(entity);
     }
 
@@ -80,9 +79,7 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
         log.debug("批量保存规则，数量：{}", rules != null ? rules.size() : 0);
         if (rules != null) {
             for (ScoreRule rule : rules) {
-                if (rule.getCategoryId() == null && rule.getRuleType() != null) {
-                    rule.setCategoryId(Long.valueOf(rule.getRuleType()));
-                }
+                requireCategoryId(rule);
             }
         }
         return super.saveBatch(rules, rules != null ? rules.size() : 10);
@@ -127,5 +124,14 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
 
         wrapper.orderByAsc(ScoreRule::getSortOrder);
         return page(page, wrapper);
+    }
+
+    private void requireCategoryId(ScoreRule rule) {
+        if (rule == null) {
+            throw new BusinessException("评分规则不能为空");
+        }
+        if (rule.getCategoryId() == null) {
+            throw new BusinessException("评分规则分类不能为空，请选择真实分类");
+        }
     }
 }

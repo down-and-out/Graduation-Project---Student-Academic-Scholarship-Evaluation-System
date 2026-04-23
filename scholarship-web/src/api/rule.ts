@@ -8,6 +8,7 @@ import request from '@/utils/request'
  */
 export interface ScoreRule {
   id?: number
+  categoryId: number
   ruleName: string
   ruleType: number
   description?: string
@@ -19,6 +20,15 @@ export interface ScoreRule {
   status?: number
   createTime?: string
   updateTime?: string
+}
+
+export interface RuleCategory {
+  id: number
+  categoryCode: string
+  categoryName: string
+  description?: string
+  sortOrder?: number
+  status?: number
 }
 
 /**
@@ -120,10 +130,18 @@ export function deleteRule(id: number): Promise<API.Response<null>> {
   })
 }
 
+export function getRuleCategoryList(): Promise<API.Response<RuleCategory[]>> {
+  return request({
+    url: '/rule-category/tree',
+    method: 'get'
+  })
+}
+
 export default {
   getRulePage,
   getRuleById,
   addRule,
   updateRule,
-  deleteRule
+  deleteRule,
+  getRuleCategoryList
 }

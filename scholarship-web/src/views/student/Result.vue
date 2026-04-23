@@ -304,9 +304,8 @@ async function handleSubmitAppeal(): Promise<void> {
   try {
     await submitAppeal({
       resultId: result.value.id,
-      studentId: result.value.studentId,
-      reason: appealForm.reason,
-      evidence: appealForm.content
+      appealReason: appealForm.reason,
+      appealContent: appealForm.content
     })
     ElMessage.success('异议已提交，请等待处理结果')
     appealDialogVisible.value = false
