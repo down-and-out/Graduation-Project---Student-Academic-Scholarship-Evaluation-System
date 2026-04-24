@@ -65,7 +65,9 @@ export function addBatch(data: Omit<EvaluationBatch, 'id'>): Promise<API.Respons
     startDate: data.startDate,
     endDate: data.endDate,
     status: data.status,
-    remark: data.remark
+    remark: data.remark,
+    awardConfigs: data.awardConfigs ?? [],
+    selectedRuleIds: data.selectedRuleIds ?? []
   })
 }
 

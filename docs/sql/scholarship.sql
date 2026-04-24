@@ -323,6 +323,8 @@ CREATE TABLE `evaluation_batch` (
     `publicity_end_date` DATE DEFAULT NULL COMMENT '公示结束日期',
     `winner_count` INT DEFAULT NULL COMMENT '获奖人数',
     `total_amount` DECIMAL(10,2) DEFAULT NULL COMMENT '奖学金总额（元）',
+    `award_configs` JSON DEFAULT NULL COMMENT '批次奖项配置JSON',
+    `selected_rule_ids` VARCHAR(1000) DEFAULT NULL COMMENT '批次参与评定的规则ID列表，逗号分隔',
     `description` VARCHAR(500) DEFAULT NULL COMMENT '批次说明',
     `batch_status` TINYINT NOT NULL DEFAULT 1 COMMENT '批次状态：1-未开始 2-申请中 3-评审中 4-公示中 5-已完成',
     `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-未删除 1-已删除',

@@ -1,15 +1,23 @@
 package com.scholarship.entity;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.TypeReference;
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.scholarship.dto.BatchAwardConfig;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.DecimalMin;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import jakarta.validation.constraints.DecimalMin;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 评定批次实体类
@@ -161,4 +169,126 @@ public class EvaluationBatch implements Serializable {
      */
     @Schema(description = "备注")
     private String remark;
+
+    @JsonIgnore
+    @TableField("award_configs")
+    private String awardConfigsJson;
+
+    @JsonIgnore
+    @TableField("selected_rule_ids")
+    private String selectedRuleIdsJson;
+
+    @TableField(exist = false)
+    @JsonProperty("awardConfigs")
+    @Schema(description = "批次奖项配置")
+    private List<BatchAwardConfig> awardConfigs;
+
+    @TableField(exist = false)
+    @JsonProperty("selectedRuleIds")
+    @Schema(description = "批次参与评定的规则ID列表")
+    private List<Long> selectedRuleIds;
+
+    public List<BatchAwardConfig> getAwardConfigs() {
+        if (awardConfigs != null) {
+            return awardConfigs;
+        }
+        if (awardConfigsJson == null || awardConfigsJson.isBlank()) {
+            awardConfigs = defaultAwardConfigs();
+            return awardConfigs;
+        }
+        try {
+            awardConfigs = JSON.parseObject(awardConfigsJson, new TypeReference<List<BatchAwardConfig>>() {
+            });
+        } catch (Exception ignored) {
+            awardConfigs = defaultAwardConfigs();
+        }
+        if (awardConfigs == null || awardConfigs.isEmpty()) {
+            awardConfigs = defaultAwardConfigs();
+        }
+        awardConfigs = normalizeAwardConfigs(awardConfigs);
+        return awardConfigs;
+    }
+
+    public void setAwardConfigs(List<BatchAwardConfig> awardConfigs) {
+        this.awardConfigs = normalizeAwardConfigs(awardConfigs);
+        this.awardConfigsJson = this.awardConfigs == null || this.awardConfigs.isEmpty()
+                ? null
+                : JSON.toJSONString(this.awardConfigs);
+    }
+
+    public void setAwardConfigsJson(String awardConfigsJson) {
+        this.awardConfigsJson = awardConfigsJson;
+        this.awardConfigs = null;
+    }
+
+    public List<Long> getSelectedRuleIds() {
+        if (selectedRuleIds != null) {
+            return selectedRuleIds;
+        }
+        if (selectedRuleIdsJson == null || selectedRuleIdsJson.isBlank()) {
+            selectedRuleIds = new ArrayList<>();
+            return selectedRuleIds;
+        }
+        selectedRuleIds = parseRuleIds(selectedRuleIdsJson);
+        return selectedRuleIds;
+    }
+
+    public void setSelectedRuleIds(List<Long> selectedRuleIds) {
+        this.selectedRuleIds = normalizeRuleIds(selectedRuleIds);
+        this.selectedRuleIdsJson = this.selectedRuleIds.isEmpty()
+                ? ""
+                : this.selectedRuleIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+    }
+
+    public void setSelectedRuleIdsJson(String selectedRuleIdsJson) {
+        this.selectedRuleIdsJson = selectedRuleIdsJson;
+        this.selectedRuleIds = null;
+    }
+
+    private List<BatchAwardConfig> normalizeAwardConfigs(List<BatchAwardConfig> configs) {
+        if (configs == null || configs.isEmpty()) {
+            return defaultAwardConfigs();
+        }
+        return configs.stream()
+                .filter(item -> item != null && item.getAwardLevel() != null)
+                .sorted(Comparator.comparing(BatchAwardConfig::getAwardLevel))
+                .collect(Collectors.toList());
+    }
+
+    private List<Long> normalizeRuleIds(List<Long> ruleIds) {
+        if (ruleIds == null || ruleIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return ruleIds.stream()
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    private List<Long> parseRuleIds(String rawIds) {
+        List<Long> ruleIds = new ArrayList<>();
+        for (String value : rawIds.split(",")) {
+            if (!value.isBlank()) {
+                ruleIds.add(Long.parseLong(value.trim()));
+            }
+        }
+        return normalizeRuleIds(ruleIds);
+    }
+
+    private List<BatchAwardConfig> defaultAwardConfigs() {
+        List<BatchAwardConfig> defaults = new ArrayList<>();
+        defaults.add(buildDefaultAwardConfig(1, "5", "10000"));
+        defaults.add(buildDefaultAwardConfig(2, "10", "5000"));
+        defaults.add(buildDefaultAwardConfig(3, "20", "3000"));
+        defaults.add(buildDefaultAwardConfig(4, "30", "1000"));
+        return defaults;
+    }
+
+    private BatchAwardConfig buildDefaultAwardConfig(Integer awardLevel, String ratio, String amount) {
+        BatchAwardConfig config = new BatchAwardConfig();
+        config.setAwardLevel(awardLevel);
+        config.setRatio(new BigDecimal(ratio));
+        config.setAmount(new BigDecimal(amount));
+        return config;
+    }
 }

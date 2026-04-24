@@ -163,7 +163,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
 
         LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(EvaluationResult::getBatchId, batchId)
-            .orderByAsc(EvaluationResult::getTotalScore);
+            .orderByDesc(EvaluationResult::getTotalScore);
 
         if ("department".equals(type)) {
             wrapper.orderByAsc(EvaluationResult::getDepartmentRank);

@@ -17,8 +17,16 @@ export interface EvaluationBatch {
   status?: number
   description?: string
   remark?: string
+  awardConfigs?: BatchAwardConfig[]
+  selectedRuleIds?: number[]
   createTime?: string
   updateTime?: string
+}
+
+export interface BatchAwardConfig {
+  awardLevel: number
+  ratio: number
+  amount: number
 }
 
 export interface EvaluationPageParams extends API.PageParams {
@@ -37,6 +45,8 @@ export interface CreateEvaluationData {
   endDate: string
   status?: number
   remark?: string
+  awardConfigs: BatchAwardConfig[]
+  selectedRuleIds: number[]
 }
 
 function buildParamsSerializer() {

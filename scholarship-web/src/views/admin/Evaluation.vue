@@ -135,49 +135,118 @@
       @size-change="handleQuery"
     />
 
-    <el-dialog v-model="dialogVisible" title="发起评定" width="600px" @close="handleDialogClose">
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <el-form-item label="评定名称" prop="name">
-          <el-input v-model="formData.name" placeholder="如：2024-2025学年第一学期学业奖学金评定" />
+    <el-dialog v-model="dialogVisible" title="发起评定" width="900px" @close="handleDialogClose">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="评定名称" prop="name">
+              <el-input v-model="formData.name" placeholder="如：2024-2025学年第一学期奖学金评定" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="学年" prop="academicYear">
+              <el-select v-model="formData.academicYear" placeholder="请选择" style="width: 100%">
+                <el-option
+                  v-for="option in academicYearOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="学期" prop="semester">
+              <el-select v-model="formData.semester" placeholder="请选择" style="width: 100%">
+                <el-option
+                  v-for="option in semesterFormOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="申请开始" prop="startDate">
+              <el-date-picker
+                v-model="formData.startDate"
+                type="date"
+                placeholder="选择开始日期"
+                style="width: 100%"
+                value-format="YYYY-MM-DD"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="申请结束" prop="endDate">
+              <el-date-picker
+                v-model="formData.endDate"
+                type="date"
+                placeholder="选择结束日期"
+                style="width: 100%"
+                value-format="YYYY-MM-DD"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="奖项配置">
+          <div class="config-block">
+            <el-table :data="formData.awardConfigs" border size="small">
+              <el-table-column label="奖项等级" width="140">
+                <template #default="{ row }">
+                  {{ getAwardLevelName(row.awardLevel) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="比例(%)" width="180">
+                <template #default="{ row }">
+                  <el-input-number v-model="row.ratio" :min="0" :precision="2" :step="1" />
+                </template>
+              </el-table-column>
+              <el-table-column label="金额(元)" width="220">
+                <template #default="{ row }">
+                  <el-input-number v-model="row.amount" :min="0" :precision="2" :step="100" />
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="config-tip" :class="{ invalid: totalAwardRatio > 100 }">
+              当前比例总和：{{ totalAwardRatio }}%
+            </div>
+          </div>
         </el-form-item>
-        <el-form-item label="学年" prop="academicYear">
-          <el-select v-model="formData.academicYear" placeholder="请选择学年" style="width: 100%">
-            <el-option
-              v-for="option in academicYearOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
+
+        <el-form-item label="参与评定规则集">
+          <div class="config-block">
+            <el-row :gutter="16">
+              <el-col v-for="group in ruleGroups" :key="group.type" :span="12">
+                <div class="rule-group">
+                  <div class="rule-group-title">{{ group.label }}</div>
+                  <el-select
+                    v-model="formData.selectedRuleIdsByType[group.type]"
+                    multiple
+                    collapse-tags
+                    collapse-tags-tooltip
+                    clearable
+                    placeholder="请选择规则"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="rule in group.rules"
+                      :key="rule.id"
+                      :label="buildRuleLabel(rule)"
+                      :value="rule.id!"
+                    />
+                  </el-select>
+                </div>
+              </el-col>
+            </el-row>
+          </div>
         </el-form-item>
-        <el-form-item label="学期" prop="semester">
-          <el-select v-model="formData.semester" placeholder="请选择学期" style="width: 100%">
-            <el-option
-              v-for="option in semesterFormOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="申请开始" prop="startDate">
-          <el-date-picker
-            v-model="formData.startDate"
-            type="date"
-            placeholder="选择开始日期"
-            style="width: 100%"
-            value-format="YYYY-MM-DD"
-          />
-        </el-form-item>
-        <el-form-item label="申请结束" prop="endDate">
-          <el-date-picker
-            v-model="formData.endDate"
-            type="date"
-            placeholder="选择结束日期"
-            style="width: 100%"
-            value-format="YYYY-MM-DD"
-          />
-        </el-form-item>
+
         <el-form-item label="备注" prop="remark">
           <el-input v-model="formData.remark" type="textarea" :rows="3" placeholder="请输入备注说明" />
         </el-form-item>
@@ -204,8 +273,10 @@ import {
   startEvaluationApplication,
   startEvaluationPublicity,
   startEvaluationReview,
+  type BatchAwardConfig as ApiBatchAwardConfig,
   type EvaluationBatch as ApiEvaluationBatch
 } from '@/api/evaluation'
+import { getAvailableRulesByType, getRuleById, getRulePage, type ScoreRule } from '@/api/rule'
 
 type BatchStatus = 1 | 2 | 3 | 4 | 5
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
@@ -217,6 +288,8 @@ interface EvaluationForm {
   startDate: string
   endDate: string
   remark: string
+  awardConfigs: ApiBatchAwardConfig[]
+  selectedRuleIdsByType: Record<number, number[]>
 }
 
 interface QueryParams {
@@ -232,6 +305,12 @@ interface OptionItem<T extends string | number> {
   value: T
 }
 
+interface RuleGroup {
+  type: number
+  label: string
+  rules: ScoreRule[]
+}
+
 const BATCH_STATUS = {
   NOT_STARTED: 1,
   APPLYING: 2,
@@ -239,6 +318,15 @@ const BATCH_STATUS = {
   PUBLICITY: 4,
   COMPLETED: 5
 } as const
+
+const RULE_TYPE_LABELS: Record<number, string> = {
+  1: '论文',
+  2: '专利',
+  3: '项目',
+  4: '竞赛',
+  5: '课程',
+  6: '德育'
+}
 
 const ACADEMIC_YEAR_OPTIONS: OptionItem<string>[] = [
   { label: '2025-2026学年', value: '2025' },
@@ -271,6 +359,8 @@ const total = ref(0)
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance | null>(null)
 const tableData = ref<ApiEvaluationBatch[]>([])
+const availableRulesByType = ref<Record<number, ScoreRule[]>>({})
+const allRules = ref<ScoreRule[]>([])
 
 const queryParams = reactive<QueryParams>({
   current: 1,
@@ -280,13 +370,35 @@ const queryParams = reactive<QueryParams>({
   statuses: []
 })
 
+function createDefaultAwardConfigs(): ApiBatchAwardConfig[] {
+  return [
+    { awardLevel: 1, ratio: 5, amount: 10000 },
+    { awardLevel: 2, ratio: 10, amount: 5000 },
+    { awardLevel: 3, ratio: 20, amount: 3000 },
+    { awardLevel: 4, ratio: 30, amount: 1000 }
+  ]
+}
+
+function createDefaultSelectedRuleIdsByType(): Record<number, number[]> {
+  return {
+    1: [],
+    2: [],
+    3: [],
+    4: [],
+    5: [],
+    6: []
+  }
+}
+
 const formData = reactive<EvaluationForm>({
   name: '',
   academicYear: '',
   semester: 1,
   startDate: '',
   endDate: '',
-  remark: ''
+  remark: '',
+  awardConfigs: createDefaultAwardConfigs(),
+  selectedRuleIdsByType: createDefaultSelectedRuleIdsByType()
 })
 
 const formRules: FormRules<EvaluationForm> = {
@@ -296,6 +408,25 @@ const formRules: FormRules<EvaluationForm> = {
   startDate: [{ required: true, message: '请选择申请开始日期', trigger: 'change' }],
   endDate: [{ required: true, message: '请选择申请结束日期', trigger: 'change' }]
 }
+
+const totalAwardRatio = computed(() =>
+  Number(formData.awardConfigs.reduce((sum, item) => sum + Number(item.ratio || 0), 0).toFixed(2))
+)
+
+const ruleGroups = computed<RuleGroup[]>(() =>
+  Object.entries(RULE_TYPE_LABELS).map(([type, label]) => ({
+    type: Number(type),
+    label,
+    rules: availableRulesByType.value[Number(type)] || []
+  }))
+)
+
+const ruleNameMap = computed(() => {
+  const entries = allRules.value
+    .filter(rule => rule.id !== undefined)
+    .map(rule => [rule.id as number, buildRuleLabel(rule)] as const)
+  return new Map<number, string>(entries)
+})
 
 function extractNestedData<T>(payload: unknown): T | null {
   if (!payload || typeof payload !== 'object') return null
@@ -336,11 +467,29 @@ function formatSemester(semester: number | null | undefined): string {
 }
 
 function formatAcademicYearSemester(academicYear: string | null | undefined, semester: number | null | undefined): string {
-  if (!academicYear) {
-    return formatSemester(semester)
-  }
+  if (!academicYear) return formatSemester(semester)
   const nextYear = Number.parseInt(academicYear, 10) + 1
   return `${academicYear}-${nextYear}学年${formatSemester(semester)}`
+}
+
+function getAwardLevelName(level: number): string {
+  return (
+    {
+      1: '特等奖',
+      2: '一等奖',
+      3: '二等奖',
+      4: '三等奖'
+    }[level] || `第${level}档`
+  )
+}
+
+function buildRuleLabel(rule: ScoreRule): string {
+  const extras = [rule.level, rule.ruleCode].filter(Boolean).join(' / ')
+  return extras ? `${rule.ruleName}（${extras}）` : rule.ruleName
+}
+
+function flattenSelectedRuleIds(selectedRuleIdsByType: Record<number, number[]>): number[] {
+  return Object.values(selectedRuleIdsByType).flat().filter((id, index, arr) => arr.indexOf(id) === index)
 }
 
 function resetForm(): void {
@@ -350,8 +499,61 @@ function resetForm(): void {
     semester: 1,
     startDate: '',
     endDate: '',
-    remark: ''
+    remark: '',
+    awardConfigs: createDefaultAwardConfigs(),
+    selectedRuleIdsByType: createDefaultSelectedRuleIdsByType()
   })
+}
+
+async function loadRules(): Promise<void> {
+  const [allRuleRes, ...availableRuleResponses] = await Promise.all([
+    getRulePage({ current: 1, size: 500 }),
+    ...Object.keys(RULE_TYPE_LABELS).map(type => getAvailableRulesByType(Number(type)))
+  ])
+
+  const allRulePage = extractNestedData<API.PageResponse<ScoreRule>>(allRuleRes)
+  allRules.value = allRulePage?.records || []
+
+  const nextRulesByType: Record<number, ScoreRule[]> = {}
+  Object.keys(RULE_TYPE_LABELS).forEach((type, index) => {
+    nextRulesByType[Number(type)] = extractNestedData<ScoreRule[]>(availableRuleResponses[index]) || []
+  })
+  availableRulesByType.value = nextRulesByType
+}
+
+async function ensureRulesLoaded(ruleIds: number[]): Promise<void> {
+  const missingRuleIds = ruleIds.filter(id => !ruleNameMap.value.has(id))
+  if (missingRuleIds.length === 0) {
+    return
+  }
+
+  const fetchedRules = await Promise.all(
+    missingRuleIds.map(async id => {
+      try {
+        const response = await getRuleById(id)
+        return extractNestedData<ScoreRule>(response)
+      } catch (error) {
+        console.error(`加载规则 ${id} 失败:`, error)
+        return null
+      }
+    })
+  )
+
+  const appendedRules = fetchedRules.filter((rule): rule is ScoreRule => Boolean(rule?.id))
+  if (appendedRules.length === 0) {
+    return
+  }
+
+  const mergedRuleMap = new Map<number, ScoreRule>()
+  allRules.value.forEach(rule => {
+    if (rule.id !== undefined) {
+      mergedRuleMap.set(rule.id, rule)
+    }
+  })
+  appendedRules.forEach(rule => {
+    mergedRuleMap.set(rule.id as number, rule)
+  })
+  allRules.value = Array.from(mergedRuleMap.values())
 }
 
 async function handleQuery(): Promise<void> {
@@ -390,6 +592,22 @@ async function handleView(row: ApiEvaluationBatch): Promise<void> {
     const response = await getEvaluationDetail(row.id)
     const detail = extractNestedData<ApiEvaluationBatch>(response)
     if (!detail) return
+    await ensureRulesLoaded(detail.selectedRuleIds || [])
+
+    const awardConfigText = (detail.awardConfigs || [])
+      .map(item => `${getAwardLevelName(item.awardLevel)}：${item.ratio}% / ${item.amount}元`)
+      .join('<br/>')
+
+    const groupedRuleText = Object.entries(RULE_TYPE_LABELS)
+      .map(([type, label]) => {
+        const selectedIds = (detail.selectedRuleIds || []).filter(id => {
+          const rule = allRules.value.find(item => item.id === id)
+          return rule?.ruleType === Number(type)
+        })
+        const names = selectedIds.map(id => ruleNameMap.value.get(id) || `规则#${id}`)
+        return `${label}：${names.length > 0 ? names.join('、') : '未配置'}`
+      })
+      .join('<br/>')
 
     await ElMessageBox.alert(
       [
@@ -400,8 +618,10 @@ async function handleView(row: ApiEvaluationBatch): Promise<void> {
         `获奖人数：${detail.winnerCount ?? 0}`,
         `奖学金总额：${detail.totalAmount ?? 0}`,
         `状态：${getStatusText(detail.status)}`,
+        `奖项配置：<br/>${awardConfigText || '-'}`,
+        `参与评定规则：<br/>${groupedRuleText || '-'}`,
         detail.remark ? `备注：${detail.remark}` : ''
-      ].filter(Boolean).join('<br/>'),
+      ].filter(Boolean).join('<br/><br/>'),
       '评定详情',
       {
         dangerouslyUseHTMLString: true,
@@ -441,7 +661,7 @@ async function handleStartApplication(row: ApiEvaluationBatch): Promise<void> {
 async function handleStartReview(row: ApiEvaluationBatch): Promise<void> {
   if (!row.id) return
   try {
-    await ElMessageBox.confirm('确定开始评审吗？开始后批次将进入评审中。', '提示', {
+    await ElMessageBox.confirm('确定开始评审吗？批次将进入评审中。', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
@@ -460,7 +680,7 @@ async function handleStartReview(row: ApiEvaluationBatch): Promise<void> {
 async function handleStartPublicity(row: ApiEvaluationBatch): Promise<void> {
   if (!row.id) return
   try {
-    await ElMessageBox.confirm('确定开始公示吗？开始后批次将进入公示中。', '提示', {
+    await ElMessageBox.confirm('确定开始公示吗？批次将进入公示中。', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
@@ -479,7 +699,7 @@ async function handleStartPublicity(row: ApiEvaluationBatch): Promise<void> {
 async function handleComplete(row: ApiEvaluationBatch): Promise<void> {
   if (!row.id) return
   try {
-    await ElMessageBox.confirm('确定完成该批次评定吗？完成后状态将不可逆。', '提示', {
+    await ElMessageBox.confirm('确定完成该批次评定吗？完成后状态不可逆。', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
@@ -524,6 +744,16 @@ async function handleSubmit(): Promise<void> {
     return
   }
 
+  if (totalAwardRatio.value > 100) {
+    ElMessage.error('奖项比例总和不能超过 100%')
+    return
+  }
+
+  if (formData.awardConfigs.some(item => Number(item.amount) < 0 || Number(item.ratio) <= 0)) {
+    ElMessage.error('奖项比例必须大于 0，金额不能为负数')
+    return
+  }
+
   submitting.value = true
   try {
     await createEvaluation({
@@ -533,7 +763,13 @@ async function handleSubmit(): Promise<void> {
       startDate: formData.startDate,
       endDate: formData.endDate,
       status: BATCH_STATUS.NOT_STARTED,
-      remark: formData.remark
+      remark: formData.remark,
+      awardConfigs: formData.awardConfigs.map(item => ({
+        awardLevel: item.awardLevel,
+        ratio: Number(item.ratio),
+        amount: Number(item.amount)
+      })),
+      selectedRuleIds: flattenSelectedRuleIds(formData.selectedRuleIdsByType)
     })
     ElMessage.success('评定创建成功')
     dialogVisible.value = false
@@ -551,8 +787,9 @@ function handleDialogClose(): void {
   resetForm()
 }
 
-onMounted(() => {
-  handleQuery()
+onMounted(async () => {
+  await loadRules()
+  await handleQuery()
 })
 </script>
 
@@ -588,5 +825,34 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 20px;
+}
+
+.config-block {
+  width: 100%;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 16px;
+  background: #fafafa;
+}
+
+.config-tip {
+  margin-top: 12px;
+  color: #606266;
+  font-size: 13px;
+
+  &.invalid {
+    color: #f56c6c;
+    font-weight: 600;
+  }
+}
+
+.rule-group {
+  margin-bottom: 16px;
+}
+
+.rule-group-title {
+  margin-bottom: 8px;
+  color: #303133;
+  font-weight: 600;
 }
 </style>

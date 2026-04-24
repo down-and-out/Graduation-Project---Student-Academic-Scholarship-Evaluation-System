@@ -9,15 +9,15 @@ import request from '@/utils/request'
 export interface ScoreRule {
   id?: number
   categoryId: number
+  ruleCode?: string
   ruleName: string
   ruleType: number
-  description?: string
+  level?: string
+  condition?: string
   score: number
-  minScore?: number
   maxScore?: number
-  required?: boolean
-  proofRequired?: boolean
-  status?: number
+  isAvailable?: number
+  sortOrder?: number
   createTime?: string
   updateTime?: string
 }
@@ -92,6 +92,14 @@ export function getRuleById(id: number): Promise<API.Response<ScoreRule>> {
   })
 }
 
+export function getAvailableRulesByType(ruleType: number): Promise<API.Response<ScoreRule[]>> {
+  return request({
+    url: '/score-rule/available',
+    method: 'get',
+    params: { ruleType }
+  })
+}
+
 /**
  * 新增规则
  * @param data - 规则信息
@@ -140,6 +148,7 @@ export function getRuleCategoryList(): Promise<API.Response<RuleCategory[]>> {
 export default {
   getRulePage,
   getRuleById,
+  getAvailableRulesByType,
   addRule,
   updateRule,
   deleteRule,

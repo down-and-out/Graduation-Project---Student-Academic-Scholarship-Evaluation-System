@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
+import com.scholarship.dto.BatchAwardConfig;
 import com.scholarship.entity.EvaluationBatch;
+import com.scholarship.exception.BusinessException;
 import com.scholarship.service.EvaluationBatchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -25,10 +27,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -130,6 +136,7 @@ public class EvaluationBatchController {
             @ApiResponse(responseCode = "403", description = "无权限")
     })
     public Result<Void> add(@Valid @RequestBody EvaluationBatch batch) {
+        validateBatchConfig(batch);
         boolean success = evaluationBatchService.save(batch);
         return success ? Result.success("新增成功") : Result.error("新增失败");
     }
@@ -143,6 +150,12 @@ public class EvaluationBatchController {
             @ApiResponse(responseCode = "404", description = "批次不存在")
     })
     public Result<Void> update(@Valid @RequestBody EvaluationBatch batch) {
+        EvaluationBatch existingBatch = evaluationBatchService.getById(batch.getId());
+        if (existingBatch == null) {
+            return Result.error("批次不存在");
+        }
+        mergeBatchConfigForUpdate(existingBatch, batch);
+        validateBatchConfig(batch);
         boolean success = evaluationBatchService.updateById(batch);
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
@@ -282,6 +295,51 @@ public class EvaluationBatchController {
             }
         }
         return new ArrayList<>(result);
+    }
+
+    private void validateBatchConfig(EvaluationBatch batch) {
+        List<BatchAwardConfig> awardConfigs = batch.getAwardConfigs();
+        if (awardConfigs == null || awardConfigs.isEmpty()) {
+            throw new BusinessException("请配置四档奖项信息");
+        }
+        if (awardConfigs.size() != 4) {
+            throw new BusinessException("奖项配置必须固定为四档");
+        }
+
+        Map<Integer, BatchAwardConfig> configByLevel = awardConfigs.stream()
+                .collect(Collectors.toMap(BatchAwardConfig::getAwardLevel, Function.identity(), (left, right) -> right));
+        for (int level = 1; level <= 4; level++) {
+            BatchAwardConfig config = configByLevel.get(level);
+            if (config == null) {
+                throw new BusinessException("奖项配置缺少第 " + level + " 档");
+            }
+            if (config.getRatio() == null || config.getRatio().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BusinessException("奖项比例必须大于 0");
+            }
+            if (config.getAmount() == null || config.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                throw new BusinessException("奖项金额不能为负数");
+            }
+        }
+
+        BigDecimal totalRatio = awardConfigs.stream()
+                .map(BatchAwardConfig::getRatio)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalRatio.compareTo(new BigDecimal("100")) > 0) {
+            throw new BusinessException("奖项比例总和不能超过 100");
+        }
+    }
+
+    private void mergeBatchConfigForUpdate(EvaluationBatch existingBatch, EvaluationBatch incomingBatch) {
+        if (incomingBatch.getAwardConfigsJson() == null) {
+            incomingBatch.setAwardConfigs(existingBatch.getAwardConfigs());
+        }
+        if (incomingBatch.getSelectedRuleIdsJson() == null) {
+            if (existingBatch.getSelectedRuleIdsJson() == null) {
+                incomingBatch.setSelectedRuleIdsJson(null);
+            } else {
+                incomingBatch.setSelectedRuleIds(existingBatch.getSelectedRuleIds());
+            }
+        }
     }
 
     private record LegacySemesterPair(String academicYear, Integer semester) {
