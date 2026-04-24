@@ -13,7 +13,8 @@
         <el-select v-model="queryParams.status" placeholder="请选择" clearable>
           <el-option label="全部" value="" />
           <el-option label="待审核" :value="0" />
-          <el-option label="已通过" :value="1" />
+          <el-option label="导师通过" :value="1" />
+          <el-option label="院系通过" :value="2" />
           <el-option label="未通过" :value="3" />
         </el-select>
       </el-form-item>
@@ -28,10 +29,11 @@
       <el-table-column prop="title" label="成果名称" min-width="200" />
       <el-table-column prop="journalName" label="期刊名称" min-width="180" />
       <el-table-column prop="authorRank" label="作者排名" width="100" />
-      <el-table-column prop="status" label="审核状态" width="100">
+      <el-table-column prop="status" label="审核状态" width="110">
         <template #default="{ row }">
           <el-tag v-if="row.status === 0" type="warning">待审核</el-tag>
-          <el-tag v-else-if="row.status === 1" type="success">已通过</el-tag>
+          <el-tag v-else-if="row.status === 1" type="success">导师通过</el-tag>
+          <el-tag v-else-if="row.status === 2" type="success">院系通过</el-tag>
           <el-tag v-else-if="row.status === 3" type="danger">未通过</el-tag>
           <el-tag v-else type="info">未知</el-tag>
         </template>
@@ -63,7 +65,7 @@
           <el-input v-model="formData.paperTitle" placeholder="请输入论文标题" />
         </el-form-item>
         <el-form-item label="作者列表" prop="authors">
-          <el-input v-model="formData.authors" placeholder="请输入作者列表，使用逗号分隔" />
+          <el-input v-model="formData.authors" placeholder="请输入作者列表，多个作者用逗号分隔" />
         </el-form-item>
         <el-form-item label="作者排名" prop="authorRank">
           <el-select v-model="formData.authorRank" placeholder="请选择">
@@ -103,6 +105,16 @@
         <el-button type="primary" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="detailVisible" title="成果详情" width="560px">
+      <el-descriptions v-if="currentRow" :column="1" border>
+        <el-descriptions-item label="论文标题">{{ currentRow.title || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="作者">{{ currentRow.authors || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="期刊">{{ currentRow.journalName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="发表日期">{{ currentRow.publicationDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="审核意见">{{ currentRow.reviewComment || '-' }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
@@ -133,9 +145,11 @@ interface PaperRow extends Paper {
 const loading = ref(false)
 const total = ref(0)
 const dialogVisible = ref(false)
+const detailVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref<FormInstance | null>(null)
 const tableData = ref<PaperRow[]>([])
+const currentRow = ref<PaperRow | null>(null)
 
 const queryParams = reactive<PaperPageParams>({
   current: 1,
@@ -227,8 +241,9 @@ function handleAdd(): void {
   dialogVisible.value = true
 }
 
-function handleView(_row: PaperRow): void {
-  ElMessage.info('查看详情功能开发中')
+function handleView(row: PaperRow): void {
+  currentRow.value = row
+  detailVisible.value = true
 }
 
 function handleEdit(row: PaperRow): void {
