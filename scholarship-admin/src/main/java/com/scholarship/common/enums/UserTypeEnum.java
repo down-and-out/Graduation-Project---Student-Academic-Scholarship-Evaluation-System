@@ -44,4 +44,34 @@ public enum UserTypeEnum {
         }
         return null;
     }
+
+    /**
+     * 判断是否为学生
+     *
+     * @param userType 用户类型码
+     * @return 是否为学生
+     */
+    public static boolean isStudent(Integer userType) {
+        return STUDENT.getCode().equals(userType);
+    }
+
+    /**
+     * 判断是否为导师
+     *
+     * @param userType 用户类型码
+     * @return 是否为导师
+     */
+    public static boolean isTutor(Integer userType) {
+        return TUTOR.getCode().equals(userType);
+    }
+
+    /**
+     * 判断是否为管理员
+     *
+     * @param userType 用户类型码
+     * @return 是否为管理员
+     */
+    public static boolean isAdmin(Integer userType) {
+        return ADMIN.getCode().equals(userType);
+    }
 }

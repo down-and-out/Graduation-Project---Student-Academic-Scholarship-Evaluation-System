@@ -20,10 +20,10 @@ public class ResearchPatent implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.AUTO)
-    @Schema(description = "专利ID")
+    @Schema(description = "专利 ID")
     private Long id;
 
-    @Schema(description = "学生ID")
+    @Schema(description = "学生档案 ID")
     private Long studentId;
 
     @Schema(description = "专利名称")
@@ -59,7 +59,7 @@ public class ResearchPatent implements Serializable {
     @Schema(description = "审核状态")
     private Integer auditStatus;
 
-    @Schema(description = "审核人ID")
+    @Schema(description = "审核人 ID")
     private Long auditorId;
 
     @Schema(description = "审核时间")
@@ -72,7 +72,7 @@ public class ResearchPatent implements Serializable {
     private BigDecimal score;
 
     @TableLogic
-    @Schema(description = "逻辑删除")
+    @Schema(description = "逻辑删除标记")
     private Integer deleted;
 
     @Schema(description = "创建时间")

@@ -20,10 +20,10 @@ public class CompetitionAward implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.AUTO)
-    @Schema(description = "获奖ID")
+    @Schema(description = "获奖记录 ID")
     private Long id;
 
-    @Schema(description = "学生ID")
+    @Schema(description = "学生档案 ID")
     private Long studentId;
 
     @Schema(description = "竞赛名称")
@@ -32,10 +32,10 @@ public class CompetitionAward implements Serializable {
     @Schema(description = "竞赛级别")
     private Integer competitionLevel;
 
-    @Schema(description = "获奖等级")
+    @Schema(description = "获奖级别")
     private Integer awardLevel;
 
-    @Schema(description = "获奖名次")
+    @Schema(description = "获奖等级")
     private Integer awardRank;
 
     @Schema(description = "获奖类型")
@@ -68,13 +68,13 @@ public class CompetitionAward implements Serializable {
     @Schema(description = "审核意见")
     private String auditComment;
 
-    @Schema(description = "审核人ID")
+    @Schema(description = "审核人 ID")
     private Long auditorId;
 
     @Schema(description = "审核时间")
     private LocalDateTime auditTime;
 
-    @Schema(description = "证明材料")
+    @Schema(description = "历史证明材料字段")
     private String proofMaterials;
 
     @Schema(description = "附件地址")
@@ -84,7 +84,7 @@ public class CompetitionAward implements Serializable {
     private String remark;
 
     @TableLogic
-    @Schema(description = "逻辑删除")
+    @Schema(description = "逻辑删除标记")
     private Integer deleted;
 
     @Schema(description = "创建时间")

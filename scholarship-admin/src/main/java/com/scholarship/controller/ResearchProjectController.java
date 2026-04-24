@@ -1,6 +1,5 @@
 package com.scholarship.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
@@ -9,8 +8,6 @@ import com.scholarship.security.LoginUser;
 import com.scholarship.service.ResearchProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -19,22 +16,27 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
 @RequestMapping("/research-project")
 @RequiredArgsConstructor
-@Tag(name = "05-科研项目管理", description = "科研项目的登记、查询、审核接口")
+@Tag(name = "05-科研项目管理", description = "科研项目的登记、查询和审核接口")
 public class ResearchProjectController {
 
     private final ResearchProjectService researchProjectService;
 
     @GetMapping("/page")
-    @Operation(summary = "分页查询项目", description = "支持按学生、审核状态和关键字筛选")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "查询成功")
-    })
+    @Operation(summary = "分页查询项目", description = "支持按学生、审核状态和关键词筛选，并按当前角色限制数据范围")
     public Result<IPage<ResearchProject>> page(
             @Parameter(description = "当前页", example = "1")
             @Min(value = 1, message = "页码不能小于 1")
@@ -43,62 +45,45 @@ public class ResearchProjectController {
             @Min(value = 1, message = "每页大小不能小于 1")
             @Max(value = 100, message = "每页大小不能大于 100")
             @RequestParam(defaultValue = "10") Long size,
-            @Parameter(description = "学生ID", example = "1") @RequestParam(required = false) Long studentId,
-            @Parameter(description = "审核状态", example = "1") @RequestParam(required = false) Integer auditStatus,
-            @Parameter(description = "关键字", example = "项目") @RequestParam(required = false) String keyword) {
-        Page<ResearchProject> page = new Page<>(current, size);
-        LambdaQueryWrapper<ResearchProject> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(studentId != null, ResearchProject::getStudentId, studentId)
-                .eq(auditStatus != null, ResearchProject::getAuditStatus, auditStatus)
-                .and(keyword != null && !keyword.isBlank(), w -> w
-                        .like(ResearchProject::getProjectName, keyword)
-                        .or().like(ResearchProject::getProjectNo, keyword)
-                        .or().like(ResearchProject::getProjectSource, keyword)
-                        .or().like(ResearchProject::getLeaderName, keyword))
-                .orderByDesc(ResearchProject::getCreateTime);
-        return Result.success(researchProjectService.page(page, wrapper));
+            @Parameter(description = "学生档案 ID", example = "1") @RequestParam(required = false) Long studentId,
+            @Parameter(description = "审核状态：0-待审核，1-通过，2-驳回", example = "1") @RequestParam(required = false) Integer auditStatus,
+            @Parameter(description = "关键词", example = "项目") @RequestParam(required = false) String keyword,
+            @AuthenticationPrincipal LoginUser loginUser) {
+        return Result.success(researchProjectService.pageProjects(
+                new Page<>(current, size), studentId, auditStatus, keyword, loginUser));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "获取项目详情")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "获取成功"),
-            @ApiResponse(responseCode = "404", description = "项目不存在")
-    })
     public Result<ResearchProject> getById(
-            @Parameter(description = "项目ID")
-            @PathVariable @Min(value = 1, message = "项目 ID 无效") Long id) {
-        ResearchProject project = researchProjectService.getById(id);
-        if (project == null) {
-            return Result.error("项目不存在");
-        }
-        return Result.success(project);
+            @Parameter(description = "项目 ID") @PathVariable @Min(value = 1, message = "项目 ID 无效") Long id,
+            @AuthenticationPrincipal LoginUser loginUser) {
+        ResearchProject project = researchProjectService.getProjectById(id, loginUser);
+        return project == null ? Result.error("项目不存在") : Result.success(project);
     }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ROLE_STUDENT', 'ROLE_ADMIN')")
-    @Operation(summary = "新增项目", description = "登记科研项目信息")
+    @Operation(summary = "新增项目", description = "学生新增时自动绑定自己的学生档案 ID")
     public Result<Void> add(@Valid @RequestBody ResearchProject project,
                             @AuthenticationPrincipal LoginUser loginUser) {
-        boolean success = researchProjectService.saveProject(project, loginUser.getUserId());
+        boolean success = researchProjectService.saveProject(project, loginUser);
         return success ? Result.success("新增成功") : Result.error("新增失败");
     }
 
     @PutMapping
     @PreAuthorize("hasAnyRole('ROLE_STUDENT', 'ROLE_ADMIN')")
-    @Operation(summary = "更新项目", description = "更新科研项目信息")
+    @Operation(summary = "更新项目", description = "学生只能更新自己的项目成果")
     public Result<Void> update(@Valid @RequestBody ResearchProject project,
                                @AuthenticationPrincipal LoginUser loginUser) {
-        boolean success = researchProjectService.updateProject(project, loginUser.getUserId());
+        boolean success = researchProjectService.updateProject(project, loginUser);
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除项目", description = "仅管理员可操作")
-    public Result<Void> delete(
-            @Parameter(description = "项目ID")
-            @PathVariable @Min(value = 1, message = "项目 ID 无效") Long id) {
+    public Result<Void> delete(@PathVariable @Min(value = 1, message = "项目 ID 无效") Long id) {
         boolean success = researchProjectService.removeById(id);
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }

@@ -1,42 +1,42 @@
 package com.scholarship.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.scholarship.entity.CompetitionAward;
+import com.scholarship.security.LoginUser;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * 学科竞赛获奖服务接口
- *
- * @author Scholarship Development Team
- * @version 1.0.0
+ * 学科竞赛获奖服务接口。
  */
 public interface CompetitionAwardService extends IService<CompetitionAward> {
 
     /**
-     * 保存竞赛获奖（带用户权限验证）
-     *
-     * @param award  获奖信息
-     * @param userId 当前用户 ID
-     * @return 是否保存成功
+     * 保存竞赛获奖，并根据当前登录用户补齐学生档案 ID。
      */
-    boolean saveAward(CompetitionAward award, Long userId);
+    boolean saveAward(CompetitionAward award, LoginUser loginUser);
 
     /**
-     * 更新竞赛获奖（带用户权限验证）
-     *
-     * @param award  获奖信息
-     * @param userId 当前用户 ID
-     * @return 是否更新成功
+     * 更新竞赛获奖，并校验当前用户是否有权操作该学生成果。
      */
-    boolean updateAward(CompetitionAward award, Long userId);
+    boolean updateAward(CompetitionAward award, LoginUser loginUser);
 
     /**
-     * 批量查询学生的审核通过获奖记录
-     *
-     * @param studentIds 学生 ID 列表
-     * @return 按学生 ID 分组的获奖列表
+     * 分页查询竞赛获奖，并按角色应用数据边界。
+     */
+    IPage<CompetitionAward> pageAwards(Page<CompetitionAward> page, Long studentId, Integer auditStatus,
+                                       String keyword, LoginUser loginUser);
+
+    /**
+     * 按角色数据边界获取竞赛获奖详情。
+     */
+    CompetitionAward getAwardById(Long id, LoginUser loginUser);
+
+    /**
+     * 批量查询学生的审核通过获奖记录。
      */
     Map<Long, List<CompetitionAward>> mapByStudentIds(List<Long> studentIds);
 }

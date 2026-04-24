@@ -20,10 +20,10 @@ public class ResearchProject implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.AUTO)
-    @Schema(description = "项目ID")
+    @Schema(description = "项目 ID")
     private Long id;
 
-    @Schema(description = "学生ID")
+    @Schema(description = "学生档案 ID")
     private Long studentId;
 
     @Schema(description = "项目名称")
@@ -41,7 +41,7 @@ public class ResearchProject implements Serializable {
     @Schema(description = "项目来源")
     private String projectSource;
 
-    @Schema(description = "负责人ID")
+    @Schema(description = "负责人 ID")
     private Long leaderId;
 
     @Schema(description = "负责人姓名")
@@ -77,7 +77,7 @@ public class ResearchProject implements Serializable {
     @Schema(description = "审核意见")
     private String auditComment;
 
-    @Schema(description = "审核人ID")
+    @Schema(description = "审核人 ID")
     private Long auditorId;
 
     @Schema(description = "审核时间")
@@ -90,7 +90,7 @@ public class ResearchProject implements Serializable {
     private String remark;
 
     @TableLogic
-    @Schema(description = "逻辑删除")
+    @Schema(description = "逻辑删除标记")
     private Integer deleted;
 
     @Schema(description = "创建时间")
