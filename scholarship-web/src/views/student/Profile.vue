@@ -41,10 +41,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="性别">
-              <el-select v-model="formData.gender" disabled style="width: 100%">
-                <el-option label="男" :value="1" />
-                <el-option label="女" :value="0" />
-              </el-select>
+              <el-input :model-value="GENDER_TEXT[formData.gender] ?? '未知'" disabled />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -62,10 +59,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="学历层次">
-              <el-select v-model="formData.educationLevel" disabled style="width: 100%">
-                <el-option label="硕士" :value="1" />
-                <el-option label="博士" :value="2" />
-              </el-select>
+              <el-input :model-value="EDUCATION_LEVEL_TEXT[formData.educationLevel] ?? '未知'" disabled />
             </el-form-item>
           </el-col>
         </el-row>
@@ -141,6 +135,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { getMyInfo, updateMyInfo } from '@/api/student'
 import type { Student } from '@/api/student'
 import { SUCCESS } from '@/constants/resultCode'
+import { GENDER_TEXT, EDUCATION_LEVEL_TEXT } from '@/constants'
 
 const isEdit = ref(false)
 const formRef = ref<FormInstance | null>(null)
@@ -278,12 +273,6 @@ onMounted(() => {
 <style scoped lang="scss">
 .profile-page {
   padding: 20px;
-
-  .el-select.is-disabled {
-    .el-select__wrapper {
-      background-color: #f5f7fa !important;
-    }
-  }
 }
 
 .page-header {
