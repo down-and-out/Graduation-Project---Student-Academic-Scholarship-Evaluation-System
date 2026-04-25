@@ -12,6 +12,7 @@ import com.scholarship.entity.StudentInfo;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.CourseScoreService;
 import com.scholarship.service.StudentInfoService;
+import com.scholarship.vo.CourseScoreExportVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -206,14 +207,16 @@ public class CourseScoreController {
             query.setStudentIds(List.of(-1L));
         }
 
-        List<CourseScore> list = courseScoreService.queryForExport(query);
+        List<CourseScoreExportVO> list = courseScoreService.queryForExport(query).stream()
+                .map(CourseScoreExportVO::from)
+                .toList();
 
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setCharacterEncoding("utf-8");
         String fileName = java.net.URLEncoder.encode("成绩列表", "UTF-8");
         response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".xlsx");
 
-        EasyExcel.write(response.getOutputStream(), CourseScore.class)
+        EasyExcel.write(response.getOutputStream(), CourseScoreExportVO.class)
             .sheet("成绩列表")
             .doWrite(list);
     }

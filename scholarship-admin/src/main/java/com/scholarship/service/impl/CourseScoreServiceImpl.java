@@ -83,6 +83,27 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         return super.updateById(entity);
     }
 
+    private boolean updateImportedScore(CourseScore entity, boolean hasGpaColumn) {
+        fillStudentSnapshot(entity);
+        var update = lambdaUpdate()
+                .eq(CourseScore::getId, entity.getId())
+                .set(CourseScore::getStudentNo, entity.getStudentNo())
+                .set(CourseScore::getStudentName, entity.getStudentName())
+                .set(CourseScore::getCourseName, entity.getCourseName())
+                .set(CourseScore::getCourseCode, entity.getCourseCode())
+                .set(CourseScore::getAcademicYear, entity.getAcademicYear())
+                .set(CourseScore::getSemester, entity.getSemester())
+                .set(CourseScore::getCredit, entity.getCredit())
+                .set(CourseScore::getCourseType, entity.getCourseType())
+                .set(CourseScore::getScore, entity.getScore())
+                .set(CourseScore::getScoreText, entity.getScoreText())
+                .set(CourseScore::getRemark, entity.getRemark());
+        if (hasGpaColumn) {
+            update.set(CourseScore::getGpa, entity.getGpa());
+        }
+        return update.update();
+    }
+
     @Override
     public List<CourseScore> listByStudentId(Long studentId, Long batchId) {
         log.debug("查询学生成绩，studentId={}, batchId={}", studentId, batchId);
@@ -98,7 +119,7 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
             }
         }
 
-        wrapper.orderByDesc(CourseScore::getExamDate);
+        applyDefaultSort(wrapper);
         return list(wrapper);
     }
 
@@ -263,7 +284,7 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
 
         Page<CourseScore> page = new Page<>(query.getCurrent(), query.getSize());
         LambdaQueryWrapper<CourseScore> wrapper = buildQueryWrapper(query);
-        wrapper.orderByDesc(CourseScore::getExamDate);
+        applyDefaultSort(wrapper);
 
         return page(page, wrapper);
     }
@@ -273,7 +294,7 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         log.debug("查询成绩列表用于导出，query={}", query);
 
         LambdaQueryWrapper<CourseScore> wrapper = buildQueryWrapper(query);
-        wrapper.orderByDesc(CourseScore::getExamDate);
+        applyDefaultSort(wrapper);
 
         return list(wrapper);
     }
@@ -308,6 +329,7 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
             Integer examStatusIndex = findHeaderIndex(headerIndexes, EXAM_STATUS_HEADERS);
             Integer invalidScoreIndex = findHeaderIndex(headerIndexes, INVALID_SCORE_HEADERS);
             Integer gpaIndex = findHeaderIndex(headerIndexes, GPA_HEADERS);
+            boolean hasGpaColumn = gpaIndex != null;
             Integer earnedCreditIndex = findHeaderIndex(headerIndexes, EARNED_CREDIT_HEADERS);
             if (termIndex == null) {
                 throw new IllegalArgumentException("成绩表缺少必要列：学期");
@@ -363,6 +385,7 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 String invalidScore = getCellText(row, invalidScoreIndex, formatter);
                 BigDecimal earnedCredit = parseDecimal(getCellText(row, earnedCreditIndex, formatter));
                 BigDecimal numericScore = parseEffectiveScore(effectiveScoreText);
+                String scoreText = buildScoreText(effectiveScoreText, numericScore);
 
                 score.setCourseName(courseName.trim());
                 score.setCourseCode(courseCode);
@@ -371,11 +394,12 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 score.setCredit(credit);
                 score.setCourseType(parseCourseType(getCellText(row, courseTypeIndex, formatter)));
                 score.setScore(numericScore);
-                score.setGpa(parseDecimal(getCellText(row, gpaIndex, formatter)));
+                score.setScoreText(scoreText);
+                score.setGpa(hasGpaColumn ? parseDecimal(getCellText(row, gpaIndex, formatter)) : null);
                 score.setRemark(buildRemark(currentTerm, examType, examStatus, invalidScore, earnedCredit, originalFilename));
 
                 if (exists) {
-                    updateById(score);
+                    updateImportedScore(score, hasGpaColumn);
                     updatedCount++;
                 } else {
                     save(score);
@@ -581,6 +605,23 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         return new BigDecimal(matcher.group());
     }
 
+    private String buildScoreText(String rawText, BigDecimal numericScore) {
+        if (rawText != null && !rawText.isBlank()) {
+            return rawText.trim();
+        }
+        if (numericScore != null) {
+            return numericScore.stripTrailingZeros().toPlainString();
+        }
+        return null;
+    }
+
+    private void applyDefaultSort(LambdaQueryWrapper<CourseScore> wrapper) {
+        wrapper.orderByDesc(CourseScore::getUpdateTime)
+                .orderByDesc(CourseScore::getAcademicYear)
+                .orderByDesc(CourseScore::getSemester)
+                .orderByDesc(CourseScore::getId);
+    }
+
     private String buildRemark(String termText, String examType, String examStatus, String invalidScore,
                                BigDecimal earnedCredit, String originalFilename) {
         List<String> parts = new ArrayList<>();
@@ -606,18 +647,53 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
     }
 
     private CourseScore findExistingScore(Long studentId, String courseName, String courseCode, AcademicTerm term) {
-        LambdaQueryWrapper<CourseScore> wrapper = new LambdaQueryWrapper<CourseScore>()
+        CourseScore codeMatched = findScoreByCourseCode(studentId, courseCode, term);
+        CourseScore nameMatched = findScoreByCourseName(studentId, courseName, term);
+
+        if (codeMatched != null && nameMatched != null && !Objects.equals(codeMatched.getId(), nameMatched.getId())) {
+            mergeDuplicateScore(codeMatched, nameMatched);
+            return codeMatched;
+        }
+        if (codeMatched != null) {
+            return codeMatched;
+        }
+        return nameMatched;
+    }
+
+    private CourseScore findScoreByCourseCode(Long studentId, String courseCode, AcademicTerm term) {
+        if (courseCode == null || courseCode.isBlank()) {
+            return null;
+        }
+        return getOne(baseTermWrapper(studentId, term)
+                .eq(CourseScore::getCourseCode, courseCode.trim())
+                .orderByDesc(CourseScore::getUpdateTime)
+                .last("LIMIT 1"), false);
+    }
+
+    private CourseScore findScoreByCourseName(Long studentId, String courseName, AcademicTerm term) {
+        if (courseName == null || courseName.isBlank()) {
+            return null;
+        }
+        return getOne(baseTermWrapper(studentId, term)
+                .eq(CourseScore::getCourseName, courseName)
+                .orderByDesc(CourseScore::getUpdateTime)
+                .last("LIMIT 1"), false);
+    }
+
+    private LambdaQueryWrapper<CourseScore> baseTermWrapper(Long studentId, AcademicTerm term) {
+        return new LambdaQueryWrapper<CourseScore>()
                 .eq(CourseScore::getStudentId, studentId)
                 .eq(CourseScore::getAcademicYear, term.academicYear())
                 .eq(CourseScore::getSemester, term.semester());
-        if (courseCode != null && !courseCode.isBlank()) {
-            wrapper.eq(CourseScore::getCourseCode, courseCode.trim());
-        } else {
-            wrapper.eq(CourseScore::getCourseName, courseName);
+    }
+
+    private void mergeDuplicateScore(CourseScore codeMatched, CourseScore nameMatched) {
+        String normalizedCode = codeMatched.getCourseCode() == null ? null : codeMatched.getCourseCode().trim();
+        String duplicateCode = nameMatched.getCourseCode() == null ? null : nameMatched.getCourseCode().trim();
+        boolean removableLegacy = duplicateCode == null || duplicateCode.isBlank() || Objects.equals(duplicateCode, normalizedCode);
+        if (removableLegacy) {
+            removeById(nameMatched.getId());
         }
-        wrapper.orderByDesc(CourseScore::getUpdateTime)
-                .last("LIMIT 1");
-        return getOne(wrapper, false);
     }
 
     @AllArgsConstructor

@@ -89,6 +89,13 @@ public class CourseScore implements Serializable {
     private BigDecimal score;
 
     /**
+     * 成绩文本
+     */
+    @TableField("score_text")
+    @Schema(description = "成绩文本")
+    private String scoreText;
+
+    /**
      * 绩点
      */
     @Schema(description = "绩点")
