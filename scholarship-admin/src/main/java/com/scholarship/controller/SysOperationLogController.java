@@ -1,10 +1,12 @@
 package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.scholarship.common.enums.OperationLogTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.dto.query.OperationLogQuery;
 import com.scholarship.entity.SysOperationLog;
 import com.scholarship.service.SysOperationLogService;
+import com.scholarship.vo.OperationLogVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,7 +33,7 @@ public class SysOperationLogController {
 
     @GetMapping("/page")
     @Operation(summary = "分页查询操作日志", description = "支持按操作类型和操作人筛选，操作类型兼容单个或多个值")
-    public Result<IPage<SysOperationLog>> page(
+    public Result<IPage<OperationLogVO>> page(
             @Parameter(description = "当前页", example = "1")
             @RequestParam(defaultValue = "1") Long current,
             @Parameter(description = "每页大小", example = "10")
@@ -53,7 +55,7 @@ public class SysOperationLogController {
 
         query.setKeyword(username);
         IPage<SysOperationLog> result = sysOperationLogService.queryPage(query);
-        return Result.success(result);
+        return Result.success(result.convert(this::toOperationLogVO));
     }
 
     private List<Integer> parseIntegerParams(List<String> rawValues) {
@@ -74,5 +76,26 @@ public class SysOperationLogController {
             }
         }
         return new ArrayList<>(values);
+    }
+
+    private OperationLogVO toOperationLogVO(SysOperationLog logRecord) {
+        OperationLogVO view = new OperationLogVO();
+        view.setId(logRecord.getId());
+        view.setOperatorId(logRecord.getOperatorId());
+        view.setOperatorName(logRecord.getOperatorName());
+        view.setOperationType(logRecord.getOperationType());
+        view.setOperationTypeLabel(resolveOperationTypeLabel(logRecord.getOperationType()));
+        view.setDescription(logRecord.getDescription());
+        view.setOperatorIp(logRecord.getOperatorIp());
+        view.setCreateTime(logRecord.getCreateTime());
+        return view;
+    }
+
+    private String resolveOperationTypeLabel(Integer operationType) {
+        String label = OperationLogTypeEnum.getLabelByCode(operationType);
+        if (label != null) {
+            return label;
+        }
+        return operationType == null ? "" : String.valueOf(operationType);
     }
 }

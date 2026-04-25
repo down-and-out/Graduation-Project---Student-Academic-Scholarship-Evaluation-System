@@ -208,3 +208,87 @@ export function deepClone<T>(obj: T): T {
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
+
+/**
+ * 从 API 响应中提取分页数据
+ * @param payload - API 响应数据
+ * @returns 分页数据或 null
+ */
+export function extractPageData<T>(payload: unknown): API.PageResponse<T> | null {
+  if (!payload || typeof payload !== 'object') return null
+  const raw = payload as Record<string, unknown>
+  if (raw.data && typeof raw.data === 'object') {
+    const inner = raw.data as Record<string, unknown>
+    if (inner.data && typeof inner.data === 'object') {
+      return inner.data as API.PageResponse<T>
+    }
+    return raw.data as API.PageResponse<T>
+  }
+  return raw as unknown as API.PageResponse<T>
+}
+
+// ============ 审核状态常量 ============
+
+/** 审核状态枚举 */
+export const AUDIT_STATUS = {
+  PENDING: 0,             // 待审核
+  TUTOR_APPROVED: 1,      // 导师通过
+  DEPARTMENT_APPROVED: 2, // 院系通过
+  REJECTED: 3             // 未通过
+} as const
+
+/** 审核状态映射 (状态值 => 标签) */
+export const AUDIT_STATUS_LABELS: Record<number, string> = {
+  [AUDIT_STATUS.PENDING]: '待审核',
+  [AUDIT_STATUS.TUTOR_APPROVED]: '导师通过',
+  [AUDIT_STATUS.DEPARTMENT_APPROVED]: '院系通过',
+  [AUDIT_STATUS.REJECTED]: '未通过'
+}
+
+/** 审核状态 Tag 类型映射 */
+export const AUDIT_STATUS_TYPES: Record<number, 'warning' | 'success' | 'danger' | 'info' | 'primary'> = {
+  [AUDIT_STATUS.PENDING]: 'warning',
+  [AUDIT_STATUS.TUTOR_APPROVED]: 'success',
+  [AUDIT_STATUS.DEPARTMENT_APPROVED]: 'success',
+  [AUDIT_STATUS.REJECTED]: 'danger'
+}
+
+// ============ 期刊级别常量 ============
+
+/** 期刊级别枚举 */
+export const JOURNAL_LEVEL = {
+  SCI_Q1: 1,
+  SCI_Q2: 2,
+  SCI_Q3: 3,
+  SCI_Q4: 4,
+  EI: 5,
+  CORE: 6,
+  REGULAR: 7
+} as const
+
+/** 期刊级别标签映射 */
+export const JOURNAL_LEVEL_LABELS: Record<number, string> = {
+  [JOURNAL_LEVEL.SCI_Q1]: 'SCI 一区',
+  [JOURNAL_LEVEL.SCI_Q2]: 'SCI 二区',
+  [JOURNAL_LEVEL.SCI_Q3]: 'SCI 三区',
+  [JOURNAL_LEVEL.SCI_Q4]: 'SCI 四区',
+  [JOURNAL_LEVEL.EI]: 'EI',
+  [JOURNAL_LEVEL.CORE]: '核心期刊',
+  [JOURNAL_LEVEL.REGULAR]: '普通期刊'
+}
+
+// ============ 作者排名常量 ============
+
+/** 作者排名枚举 */
+export const AUTHOR_RANK = {
+  FIRST: 1,          // 第一作者
+  SECOND: 2,         // 第二作者
+  CORRESPONDING: 3   // 通讯作者
+} as const
+
+/** 作者排名标签映射 */
+export const AUTHOR_RANK_LABELS: Record<number, string> = {
+  [AUTHOR_RANK.FIRST]: '第一作者',
+  [AUTHOR_RANK.SECOND]: '第二作者',
+  [AUTHOR_RANK.CORRESPONDING]: '通讯作者'
+}

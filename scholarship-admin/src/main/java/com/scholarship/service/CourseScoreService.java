@@ -2,9 +2,13 @@ package com.scholarship.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.scholarship.dto.CourseScoreImportResult;
 import com.scholarship.dto.query.CourseScoreQuery;
 import com.scholarship.entity.CourseScore;
+import com.scholarship.entity.StudentInfo;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -75,4 +79,14 @@ public interface CourseScoreService extends IService<CourseScore> {
      * @return 成绩列表
      */
     List<CourseScore> queryForExport(CourseScoreQuery query);
+
+    /**
+     * 导入学生课程成绩。
+     *
+     * @param inputStream Excel 输入流
+     * @param originalFilename 原始文件名
+     * @param studentInfo 学生信息
+     * @return 导入条数
+     */
+    CourseScoreImportResult importScores(InputStream inputStream, String originalFilename, StudentInfo studentInfo) throws IOException;
 }

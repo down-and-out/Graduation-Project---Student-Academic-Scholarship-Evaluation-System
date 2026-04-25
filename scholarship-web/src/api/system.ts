@@ -99,13 +99,12 @@ export interface AwardConfig {
  */
 export interface OperationLog {
   id: number
-  userId?: number
-  username: string
-  operationType: string
-  operationDesc: string
-  requestUri?: string
-  requestMethod?: string
-  ipAddress: string
+  operatorId?: number
+  operatorName: string
+  operationType: number
+  operationTypeLabel?: string
+  description: string
+  operatorIp: string
   createTime: string
 }
 
@@ -115,7 +114,7 @@ export interface OperationLog {
 export interface LogQueryParams {
   current: number
   size: number
-  operationType?: string[] | string
+  operationType?: number[] | number
   username?: string
 }
 

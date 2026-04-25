@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
+import com.scholarship.dto.CourseScoreImportResult;
 import com.scholarship.dto.query.CourseScoreQuery;
 import com.scholarship.entity.CourseScore;
 import com.scholarship.entity.StudentInfo;
@@ -38,6 +39,7 @@ import java.util.List;
 @Tag(name = "03-课程成绩管理", description = "课程成绩的查询和录入接口")
 public class CourseScoreController {
 
+    private static final int USER_TYPE_STUDENT = 1;
     private static final int USER_TYPE_TUTOR = 2;
     private static final int USER_TYPE_ADMIN = 3;
 
@@ -70,6 +72,31 @@ public class CourseScoreController {
             return Result.success(new Page<>(current, size, 0));
         }
 
+        return Result.success(courseScoreService.queryPage(query));
+    }
+
+    @GetMapping("/my/page")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
+    @Operation(summary = "分页查询我的成绩", description = "当前登录学生查看自己已导入的课程成绩")
+    public Result<IPage<CourseScore>> myPage(
+            @RequestParam(defaultValue = "1") Long current,
+            @RequestParam(defaultValue = "10") Long size,
+            @RequestParam(required = false) String academicYear,
+            @RequestParam(required = false) Integer semester,
+            @RequestParam(required = false) String courseName,
+            @AuthenticationPrincipal LoginUser loginUser) {
+        StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
+        if (studentInfo == null) {
+            return Result.error("未找到学生信息");
+        }
+
+        CourseScoreQuery query = new CourseScoreQuery();
+        query.setCurrent(current);
+        query.setSize(size);
+        query.setStudentId(studentInfo.getId());
+        query.setAcademicYear(academicYear);
+        query.setSemester(semester);
+        query.setCourseName(courseName);
         return Result.success(courseScoreService.queryPage(query));
     }
 
@@ -194,9 +221,36 @@ public class CourseScoreController {
     @PostMapping("/import")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "批量导入成绩", description = "从 Excel 文件批量导入成绩")
-    public Result<Void> importScores(@RequestParam("file") MultipartFile file) {
-        log.warn("成绩导入暂未实现，fileName={}", file.getOriginalFilename());
-        return Result.error("成绩导入暂未实现，请先使用单条录入或补齐真实导入逻辑");
+    public Result<CourseScoreImportResult> importScores(@RequestParam("file") MultipartFile file,
+                                                        @RequestParam Long studentId) throws IOException {
+        StudentInfo studentInfo = studentInfoService.getById(studentId);
+        if (studentInfo == null) {
+            return Result.error("学生信息不存在");
+        }
+        CourseScoreImportResult result = courseScoreService.importScores(file.getInputStream(), file.getOriginalFilename(), studentInfo);
+        return Result.success(result.getMessage(), result);
+    }
+
+    @PostMapping("/my/import")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
+    @Operation(summary = "学生导入自己的成绩", description = "当前登录学生上传主修成绩 Excel，系统自动导入课程成绩")
+    public Result<CourseScoreImportResult> importMyScores(@RequestParam("file") MultipartFile file,
+                                                          @AuthenticationPrincipal LoginUser loginUser) throws IOException {
+        if (file == null || file.isEmpty()) {
+            return Result.error("请上传 Excel 文件");
+        }
+        String filename = file.getOriginalFilename();
+        if (filename == null || (!filename.endsWith(".xlsx") && !filename.endsWith(".xls"))) {
+            return Result.error("请上传 Excel 文件（.xlsx 或 .xls）");
+        }
+
+        StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
+        if (studentInfo == null) {
+            return Result.error("未找到学生信息");
+        }
+
+        CourseScoreImportResult result = courseScoreService.importScores(file.getInputStream(), filename, studentInfo);
+        return Result.success(result.getMessage(), result);
     }
 
     private boolean applyTutorScope(CourseScoreQuery query, LoginUser loginUser) {

@@ -278,6 +278,12 @@ onMounted(() => {
 <style scoped lang="scss">
 .profile-page {
   padding: 20px;
+
+  .el-select.is-disabled {
+    .el-select__wrapper {
+      background-color: #f5f7fa !important;
+    }
+  }
 }
 
 .page-header {

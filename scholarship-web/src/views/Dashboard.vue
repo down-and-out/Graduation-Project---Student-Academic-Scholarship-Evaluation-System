@@ -97,10 +97,11 @@
         <el-timeline-item
           v-for="notice in notices"
           :key="notice.id"
-          :timestamp="notice.date"
+          :timestamp="notice.createTime"
           placement="top"
         >
           <el-link type="primary" :underline="false">{{ notice.title }}</el-link>
+          <p class="notice-content">{{ notice.content }}</p>
         </el-timeline-item>
       </el-timeline>
       <el-empty v-else description="暂无通知公告" :image-size="80" />
@@ -118,6 +119,8 @@ import type { UserInfo } from '@/utils/secureStorage'
 import { getPaperPage } from '@/api/paper'
 import { getPatentPage } from '@/api/patent'
 import { getProjectPage } from '@/api/project'
+import { getLatestNotifications } from '@/api/notification'
+import { extractPageData } from '@/utils/helpers'
 import type { PaperPageParams } from '@/api/paper'
 import type { PatentPageParams } from '@/api/patent'
 import type { ProjectPageParams } from '@/api/project'
@@ -138,7 +141,8 @@ interface Stats {
 interface Notice {
   id: number
   title: string
-  date: string
+  content: string
+  createTime: string
 }
 
 // ========== 路由 ==========
@@ -207,7 +211,8 @@ async function loadStats(): Promise<void> {
    */
   const extractTotal = (result: PromiseSettledResult<any>): number => {
     if (result.status === 'fulfilled') {
-      return result.value.data?.total || 0
+      const pageData = extractPageData<any>(result.value)
+      return pageData?.total || 0
     }
     return 0
   }
@@ -222,11 +227,16 @@ async function loadStats(): Promise<void> {
 
 /**
  * 加载通知公告
- * TODO: 调用 API 获取公告数据
  */
 async function loadNotices(): Promise<void> {
-  // const res = await getNotices()
-  // notices.value = res.data
+  const res = await getLatestNotifications()
+  const noticeList = Array.isArray(res.data?.data) ? res.data.data : []
+  notices.value = noticeList.map(item => ({
+    id: item.id,
+    title: item.title,
+    content: item.content,
+    createTime: item.createTime
+  }))
 }
 
 // ========== 生命周期 ==========
@@ -311,6 +321,13 @@ onMounted(() => {
 .notice-card {
   :deep(.el-timeline-item__timestamp) {
     color: #909399;
+  }
+
+  .notice-content {
+    margin: 8px 0 0;
+    color: #606266;
+    line-height: 1.6;
+    white-space: pre-wrap;
   }
 }
 </style>

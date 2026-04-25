@@ -126,6 +126,12 @@ const routes: RouteRecordRaw[] = [
             meta: { title: '科研成果管理' }
           },
           {
+            path: 'course-scores',
+            name: 'StudentCourseScores',
+            component: () => import('@/views/student/CourseScores.vue'),
+            meta: { title: '课程成绩' }
+          },
+          {
             path: 'application',
             name: 'StudentApplication',
             component: () => import('@/views/student/Application.vue'),

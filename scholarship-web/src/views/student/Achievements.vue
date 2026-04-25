@@ -12,10 +12,10 @@
       <el-form-item label="审核状态">
         <el-select v-model="queryParams.status" placeholder="请选择" clearable>
           <el-option label="全部" value="" />
-          <el-option label="待审核" :value="0" />
-          <el-option label="导师通过" :value="1" />
-          <el-option label="院系通过" :value="2" />
-          <el-option label="未通过" :value="3" />
+          <el-option label="待审核" :value="AUDIT_STATUS.PENDING" />
+          <el-option label="导师通过" :value="AUDIT_STATUS.TUTOR_APPROVED" />
+          <el-option label="院系通过" :value="AUDIT_STATUS.DEPARTMENT_APPROVED" />
+          <el-option label="未通过" :value="AUDIT_STATUS.REJECTED" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -31,19 +31,17 @@
       <el-table-column prop="authorRank" label="作者排名" width="100" />
       <el-table-column prop="status" label="审核状态" width="110">
         <template #default="{ row }">
-          <el-tag v-if="row.status === 0" type="warning">待审核</el-tag>
-          <el-tag v-else-if="row.status === 1" type="success">导师通过</el-tag>
-          <el-tag v-else-if="row.status === 2" type="success">院系通过</el-tag>
-          <el-tag v-else-if="row.status === 3" type="danger">未通过</el-tag>
-          <el-tag v-else type="info">未知</el-tag>
+          <el-tag :type="AUDIT_STATUS_TYPES[row.status] || 'info'">
+            {{ AUDIT_STATUS_LABELS[row.status] || '未知' }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="createTime" label="创建时间" width="160" />
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handleView(row)">查看</el-button>
-          <el-button link type="primary" :disabled="row.status !== 0" @click="handleEdit(row)">编辑</el-button>
-          <el-button link type="danger" :disabled="row.status !== 0" @click="handleDelete(row)">删除</el-button>
+          <el-button link type="primary" :disabled="row.status !== AUDIT_STATUS.PENDING" @click="handleEdit(row)">编辑</el-button>
+          <el-button link type="danger" :disabled="row.status !== AUDIT_STATUS.PENDING" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -55,7 +53,7 @@
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next, jumper"
       class="pagination"
-      @size-change="handleQuery"
+      @size-change="handleSizeChange"
       @current-change="handleQuery"
     />
 
@@ -69,9 +67,9 @@
         </el-form-item>
         <el-form-item label="作者排名" prop="authorRank">
           <el-select v-model="formData.authorRank" placeholder="请选择">
-            <el-option label="第一作者" :value="1" />
-            <el-option label="第二作者" :value="2" />
-            <el-option label="通讯作者" :value="3" />
+            <el-option label="第一作者" :value="AUTHOR_RANK.FIRST" />
+            <el-option label="第二作者" :value="AUTHOR_RANK.SECOND" />
+            <el-option label="通讯作者" :value="AUTHOR_RANK.CORRESPONDING" />
           </el-select>
         </el-form-item>
         <el-form-item label="期刊名称" prop="journalName">
@@ -79,13 +77,13 @@
         </el-form-item>
         <el-form-item label="期刊级别" prop="journalLevel">
           <el-select v-model="formData.journalLevel" placeholder="请选择">
-            <el-option label="SCI 一区" :value="1" />
-            <el-option label="SCI 二区" :value="2" />
-            <el-option label="SCI 三区" :value="3" />
-            <el-option label="SCI 四区" :value="4" />
-            <el-option label="EI" :value="5" />
-            <el-option label="核心期刊" :value="6" />
-            <el-option label="普通期刊" :value="7" />
+            <el-option label="SCI 一区" :value="JOURNAL_LEVEL.SCI_Q1" />
+            <el-option label="SCI 二区" :value="JOURNAL_LEVEL.SCI_Q2" />
+            <el-option label="SCI 三区" :value="JOURNAL_LEVEL.SCI_Q3" />
+            <el-option label="SCI 四区" :value="JOURNAL_LEVEL.SCI_Q4" />
+            <el-option label="EI" :value="JOURNAL_LEVEL.EI" />
+            <el-option label="核心期刊" :value="JOURNAL_LEVEL.CORE" />
+            <el-option label="普通期刊" :value="JOURNAL_LEVEL.REGULAR" />
           </el-select>
         </el-form-item>
         <el-form-item label="影响因子" prop="impactFactor">
@@ -125,6 +123,16 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { deletePaper, getPaperPage, submitPaper, updatePaper } from '@/api/paper'
 import type { Paper, PaperPageParams } from '@/api/paper'
+import {
+  AUDIT_STATUS,
+  AUDIT_STATUS_LABELS,
+  AUDIT_STATUS_TYPES,
+  AUTHOR_RANK,
+  AUTHOR_RANK_LABELS,
+  extractPageData,
+  JOURNAL_LEVEL,
+  JOURNAL_LEVEL_LABELS
+} from '@/utils/helpers'
 
 interface PaperForm {
   id: number | null
@@ -177,19 +185,6 @@ const formRules: FormRules<PaperForm> = {
 
 const dialogTitle = computed(() => (isEdit.value ? '编辑成果' : '添加成果'))
 
-function extractPageData<T>(payload: unknown): API.PageResponse<T> | null {
-  if (!payload || typeof payload !== 'object') return null
-  const raw = payload as Record<string, unknown>
-  if (raw.data && typeof raw.data === 'object') {
-    const inner = raw.data as Record<string, unknown>
-    if (inner.data && typeof inner.data === 'object') {
-      return inner.data as API.PageResponse<T>
-    }
-    return raw.data as API.PageResponse<T>
-  }
-  return raw as unknown as API.PageResponse<T>
-}
-
 function normalizePaper(row: Paper): PaperRow {
   return {
     ...row,
@@ -231,6 +226,11 @@ async function handleQuery(): Promise<void> {
 
 function handleReset(): void {
   queryParams.status = undefined
+  queryParams.current = 1
+  handleQuery()
+}
+
+function handleSizeChange(): void {
   queryParams.current = 1
   handleQuery()
 }

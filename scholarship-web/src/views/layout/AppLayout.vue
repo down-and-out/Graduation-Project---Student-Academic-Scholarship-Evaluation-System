@@ -34,6 +34,7 @@
           </template>
           <el-menu-item index="/app/student/profile">个人信息</el-menu-item>
           <el-menu-item index="/app/student/achievements">科研成果</el-menu-item>
+          <el-menu-item index="/app/student/course-scores">课程成绩</el-menu-item>
           <el-menu-item index="/app/student/application">奖学金申请</el-menu-item>
           <el-menu-item index="/app/student/result">评定结果</el-menu-item>
         </el-sub-menu>

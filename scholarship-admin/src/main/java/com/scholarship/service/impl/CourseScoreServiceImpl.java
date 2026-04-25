@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.dto.CourseScoreImportResult;
 import com.scholarship.dto.query.CourseScoreQuery;
 import com.scholarship.entity.CourseScore;
 import com.scholarship.entity.EvaluationBatch;
@@ -12,14 +13,29 @@ import com.scholarship.mapper.CourseScoreMapper;
 import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.service.CourseScoreService;
 import com.scholarship.service.EvaluationBatchService;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 课程成绩服务实现类
@@ -31,6 +47,20 @@ import java.util.Map;
 @Service
 public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, CourseScore>
         implements CourseScoreService {
+
+    private static final List<String> TERM_HEADERS = List.of("学期", "开课学期", "学年学期", "课程学期");
+    private static final List<String> COURSE_NAME_HEADERS = List.of("课程名称");
+    private static final List<String> COURSE_CODE_HEADERS = List.of("课程代码", "课程编号");
+    private static final List<String> CREDIT_HEADERS = List.of("学分");
+    private static final List<String> EFFECTIVE_SCORE_HEADERS = List.of("有效成绩", "成绩", "总评成绩", "课程成绩", "最终成绩");
+    private static final List<String> COURSE_TYPE_HEADERS = List.of("课程性质", "课程类别");
+    private static final List<String> EXAM_TYPE_HEADERS = List.of("考试类型", "考核类型");
+    private static final List<String> EXAM_STATUS_HEADERS = List.of("考试情况", "考核情况");
+    private static final List<String> INVALID_SCORE_HEADERS = List.of("无效成绩");
+    private static final List<String> GPA_HEADERS = List.of("绩点");
+    private static final List<String> EARNED_CREDIT_HEADERS = List.of("已获取学分", "获得学分");
+    private static final Pattern DECIMAL_PATTERN = Pattern.compile("-?\\d+(?:\\.\\d+)?");
+    private static final Pattern TERM_PATTERN = Pattern.compile("(20\\d{2})\\s*([秋春夏冬上下])");
 
     private final EvaluationBatchService evaluationBatchService;
     private final StudentInfoMapper studentInfoMapper;
@@ -248,6 +278,123 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         return list(wrapper);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CourseScoreImportResult importScores(InputStream inputStream, String originalFilename, StudentInfo studentInfo) throws IOException {
+        log.info("导入课程成绩开始, studentId={}, studentNo={}, fileName={}",
+                studentInfo.getId(), studentInfo.getStudentNo(), originalFilename);
+
+        try (Workbook workbook = WorkbookFactory.create(inputStream)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            DataFormatter formatter = new DataFormatter();
+            int headerRowIndex = findHeaderRowIndex(sheet, formatter);
+            if (headerRowIndex < 0) {
+                throw new IllegalArgumentException("未识别到成绩表头，请确认文件为主修成绩导出模板");
+            }
+
+            Row headerRow = sheet.getRow(headerRowIndex);
+            Map<String, Integer> headerIndexes = buildHeaderIndexes(headerRow, formatter);
+            Integer courseNameIndex = findHeaderIndex(headerIndexes, COURSE_NAME_HEADERS);
+            Integer courseCodeIndex = findHeaderIndex(headerIndexes, COURSE_CODE_HEADERS);
+            Integer creditIndex = findHeaderIndex(headerIndexes, CREDIT_HEADERS);
+            Integer effectiveScoreIndex = findHeaderIndex(headerIndexes, EFFECTIVE_SCORE_HEADERS);
+            if (courseNameIndex == null || creditIndex == null || effectiveScoreIndex == null) {
+                throw new IllegalArgumentException("成绩表缺少必要列：课程名称、学分或有效成绩");
+            }
+
+            Integer termIndex = findHeaderIndex(headerIndexes, TERM_HEADERS);
+            Integer courseTypeIndex = findHeaderIndex(headerIndexes, COURSE_TYPE_HEADERS);
+            Integer examTypeIndex = findHeaderIndex(headerIndexes, EXAM_TYPE_HEADERS);
+            Integer examStatusIndex = findHeaderIndex(headerIndexes, EXAM_STATUS_HEADERS);
+            Integer invalidScoreIndex = findHeaderIndex(headerIndexes, INVALID_SCORE_HEADERS);
+            Integer gpaIndex = findHeaderIndex(headerIndexes, GPA_HEADERS);
+            Integer earnedCreditIndex = findHeaderIndex(headerIndexes, EARNED_CREDIT_HEADERS);
+            if (termIndex == null) {
+                throw new IllegalArgumentException("成绩表缺少必要列：学期");
+            }
+
+            String currentTerm = null;
+            int importedCount = 0;
+            int updatedCount = 0;
+            int skippedCount = 0;
+            for (int rowIndex = headerRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                Row row = sheet.getRow(rowIndex);
+                if (row == null || isBlankRow(row, formatter)) {
+                    continue;
+                }
+
+                String courseName = getCellText(row, courseNameIndex, formatter);
+                if (isSummaryRow(courseName)) {
+                    continue;
+                }
+                if (courseName == null || courseName.isBlank()) {
+                    skippedCount++;
+                    continue;
+                }
+
+                String termText = getCellText(row, termIndex, formatter);
+                if (termText != null && !termText.isBlank()) {
+                    currentTerm = termText.trim();
+                }
+                AcademicTerm academicTerm = parseAcademicTerm(currentTerm);
+                if (academicTerm == null) {
+                    skippedCount++;
+                    continue;
+                }
+
+                String courseCode = getCellText(row, courseCodeIndex, formatter);
+                String effectiveScoreText = getCellText(row, effectiveScoreIndex, formatter);
+                BigDecimal credit = parseDecimal(getCellText(row, creditIndex, formatter));
+                if ((credit == null || credit.compareTo(BigDecimal.ZERO) == 0)
+                        && (effectiveScoreText == null || effectiveScoreText.isBlank())) {
+                    skippedCount++;
+                    continue;
+                }
+
+                CourseScore score = findExistingScore(studentInfo.getId(), courseName.trim(), courseCode, academicTerm);
+                boolean exists = score != null && score.getId() != null;
+                if (score == null) {
+                    score = new CourseScore();
+                    score.setStudentId(studentInfo.getId());
+                }
+
+                String examStatus = getCellText(row, examStatusIndex, formatter);
+                String examType = getCellText(row, examTypeIndex, formatter);
+                String invalidScore = getCellText(row, invalidScoreIndex, formatter);
+                BigDecimal earnedCredit = parseDecimal(getCellText(row, earnedCreditIndex, formatter));
+                BigDecimal numericScore = parseEffectiveScore(effectiveScoreText);
+
+                score.setCourseName(courseName.trim());
+                score.setCourseCode(courseCode);
+                score.setAcademicYear(academicTerm.academicYear());
+                score.setSemester(academicTerm.semester());
+                score.setCredit(credit);
+                score.setCourseType(parseCourseType(getCellText(row, courseTypeIndex, formatter)));
+                score.setScore(numericScore);
+                score.setGpa(parseDecimal(getCellText(row, gpaIndex, formatter)));
+                score.setRemark(buildRemark(currentTerm, examType, examStatus, invalidScore, earnedCredit, originalFilename));
+
+                if (exists) {
+                    updateById(score);
+                    updatedCount++;
+                } else {
+                    save(score);
+                    importedCount++;
+                }
+            }
+
+            CourseScoreImportResult result = new CourseScoreImportResult();
+            result.setImported(importedCount);
+            result.setUpdated(updatedCount);
+            result.setSkipped(skippedCount);
+            result.setMessage(String.format("导入完成，新增 %d 条，更新 %d 条，跳过 %d 条", importedCount, updatedCount, skippedCount));
+
+            log.info("导入课程成绩完成, studentId={}, importedCount={}, updatedCount={}, skippedCount={}",
+                    studentInfo.getId(), importedCount, updatedCount, skippedCount);
+            return result;
+        }
+    }
+
     /**
      * 构建查询条件
      *
@@ -285,5 +432,205 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         }
         score.setStudentNo(student.getStudentNo());
         score.setStudentName(student.getName());
+    }
+
+    private int findHeaderRowIndex(Sheet sheet, DataFormatter formatter) {
+        int lastRow = Math.min(sheet.getLastRowNum(), 20);
+        for (int rowIndex = 0; rowIndex <= lastRow; rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+            Map<String, Integer> headerIndexes = buildHeaderIndexes(row, formatter);
+            if (findHeaderIndex(headerIndexes, COURSE_NAME_HEADERS) != null
+                    && findHeaderIndex(headerIndexes, CREDIT_HEADERS) != null) {
+                return rowIndex;
+            }
+        }
+        return -1;
+    }
+
+    private Map<String, Integer> buildHeaderIndexes(Row row, DataFormatter formatter) {
+        Map<String, Integer> headers = new LinkedHashMap<>();
+        short lastCellNum = row.getLastCellNum();
+        for (int cellIndex = 0; cellIndex < lastCellNum; cellIndex++) {
+            String header = normalizeHeader(getCellText(row, cellIndex, formatter));
+            if (!header.isBlank()) {
+                headers.putIfAbsent(header, cellIndex);
+            }
+        }
+        return headers;
+    }
+
+    private Integer findHeaderIndex(Map<String, Integer> headers, List<String> aliases) {
+        for (String alias : aliases) {
+            Integer index = headers.get(normalizeHeader(alias));
+            if (index != null) {
+                return index;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeHeader(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replace("：", "")
+                .replace(":", "")
+                .replace("（", "(")
+                .replace("）", ")")
+                .replace(" ", "")
+                .trim();
+    }
+
+    private String getCellText(Row row, Integer cellIndex, DataFormatter formatter) {
+        if (row == null || cellIndex == null || cellIndex < 0) {
+            return null;
+        }
+        Cell cell = row.getCell(cellIndex);
+        if (cell == null) {
+            return null;
+        }
+        String value = formatter.formatCellValue(cell);
+        return value == null ? null : value.trim();
+    }
+
+    private boolean isBlankRow(Row row, DataFormatter formatter) {
+        short lastCellNum = row.getLastCellNum();
+        for (int cellIndex = 0; cellIndex < lastCellNum; cellIndex++) {
+            String value = getCellText(row, cellIndex, formatter);
+            if (value != null && !value.isBlank()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isSummaryRow(String courseName) {
+        if (courseName == null || courseName.isBlank()) {
+            return false;
+        }
+        return courseName.contains("加权平均分")
+                || courseName.contains("专业排名")
+                || courseName.contains("班级排名");
+    }
+
+    private AcademicTerm parseAcademicTerm(String termText) {
+        if (termText == null || termText.isBlank()) {
+            return null;
+        }
+        String normalized = termText.replace(" ", "").trim();
+        Matcher matcher = TERM_PATTERN.matcher(normalized);
+        if (!matcher.find()) {
+            return null;
+        }
+
+        int year = Integer.parseInt(matcher.group(1));
+        String label = matcher.group(2);
+        if ("秋".equals(label) || "上".equals(label)) {
+            return new AcademicTerm(String.valueOf(year), 1);
+        }
+        if ("春".equals(label) || "下".equals(label)) {
+            return new AcademicTerm(String.valueOf(year - 1), 2);
+        }
+        if ("夏".equals(label)) {
+            return new AcademicTerm(String.valueOf(year - 1), 3);
+        }
+        if ("冬".equals(label)) {
+            return new AcademicTerm(String.valueOf(year), 1);
+        }
+        return null;
+    }
+
+    private Integer parseCourseType(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        if (text.contains("必修")) {
+            return 1;
+        }
+        if (text.contains("选修")) {
+            return 2;
+        }
+        if (text.contains("任选")) {
+            return 3;
+        }
+        return null;
+    }
+
+    private BigDecimal parseEffectiveScore(String rawText) {
+        if (rawText == null || rawText.isBlank()) {
+            return null;
+        }
+        String normalized = rawText.trim();
+        if (normalized.contains("合格") || normalized.contains("通过")) {
+            return null;
+        }
+        return parseDecimal(normalized);
+    }
+
+    private BigDecimal parseDecimal(String rawText) {
+        if (rawText == null || rawText.isBlank()) {
+            return null;
+        }
+        Matcher matcher = DECIMAL_PATTERN.matcher(rawText.replace(",", ""));
+        if (!matcher.find()) {
+            return null;
+        }
+        return new BigDecimal(matcher.group());
+    }
+
+    private String buildRemark(String termText, String examType, String examStatus, String invalidScore,
+                               BigDecimal earnedCredit, String originalFilename) {
+        List<String> parts = new ArrayList<>();
+        if (termText != null && !termText.isBlank()) {
+            parts.add("导入学期：" + termText.trim());
+        }
+        if (examType != null && !examType.isBlank()) {
+            parts.add("考试类型：" + examType.trim());
+        }
+        if (examStatus != null && !examStatus.isBlank()) {
+            parts.add("考试情况：" + examStatus.trim());
+        }
+        if (invalidScore != null && !invalidScore.isBlank()) {
+            parts.add("无效成绩：" + invalidScore.trim());
+        }
+        if (earnedCredit != null) {
+            parts.add("已获取学分：" + earnedCredit.stripTrailingZeros().toPlainString());
+        }
+        if (originalFilename != null && !originalFilename.isBlank()) {
+            parts.add("来源文件：" + originalFilename);
+        }
+        return String.join("；", parts);
+    }
+
+    private CourseScore findExistingScore(Long studentId, String courseName, String courseCode, AcademicTerm term) {
+        LambdaQueryWrapper<CourseScore> wrapper = new LambdaQueryWrapper<CourseScore>()
+                .eq(CourseScore::getStudentId, studentId)
+                .eq(CourseScore::getAcademicYear, term.academicYear())
+                .eq(CourseScore::getSemester, term.semester());
+        if (courseCode != null && !courseCode.isBlank()) {
+            wrapper.eq(CourseScore::getCourseCode, courseCode.trim());
+        } else {
+            wrapper.eq(CourseScore::getCourseName, courseName);
+        }
+        wrapper.orderByDesc(CourseScore::getUpdateTime)
+                .last("LIMIT 1");
+        return getOne(wrapper, false);
+    }
+
+    @AllArgsConstructor
+    private static class AcademicTerm {
+        private final String academicYear;
+        private final Integer semester;
+
+        public String academicYear() {
+            return academicYear;
+        }
+
+        public Integer semester() {
+            return semester;
+        }
     }
 }

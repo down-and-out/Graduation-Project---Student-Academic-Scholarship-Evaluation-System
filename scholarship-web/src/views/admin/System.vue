@@ -70,85 +70,17 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane label="奖项设置" name="award">
-        <el-card shadow="never">
-          <div v-if="awards.length > 0" class="award-summary">
-            <el-card shadow="hover" :body-style="{ padding: '16px' }">
-              <div class="summary-header">
-                <span class="summary-title">奖项比例分配</span>
-                <el-tag :type="awardRatioTagType" size="small">
-                  {{ awardRatioText }}
-                </el-tag>
-              </div>
-              <el-progress
-                :percentage="Math.min(totalAwardRatio, 100)"
-                :status="progressStatus"
-                :color="totalAwardRatio < 100 ? '#e6a23c' : undefined"
-                :stroke-width="18"
-                style="margin: 12px 0"
-              />
-              <div v-if="totalAwardRatio > 100" class="overflow-hint">已超出 {{ totalAwardRatio - 100 }}%</div>
-              <div class="summary-stats">
-                <div class="stat-item">
-                  <span class="stat-label">当前总比例：</span>
-                  <span class="stat-value" :class="awardRatioClass">{{ totalAwardRatio }}%</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">目标比例：</span>
-                  <span class="stat-value">100%</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">剩余比例：</span>
-                  <span class="stat-value" :class="awardRemainClass">{{ 100 - totalAwardRatio }}%</span>
-                </div>
-              </div>
-            </el-card>
-          </div>
-
-          <div class="award-list">
-            <div v-for="(award, index) in awards" :key="award.id" class="award-item">
-              <el-row :gutter="20" align="middle">
-                <el-col :span="6">
-                  <el-tag :type="getAwardTagType(index)">{{ award.name }}</el-tag>
-                </el-col>
-                <el-col :span="6">
-                  <span>名额比例：{{ award.ratio }}%</span>
-                </el-col>
-                <el-col :span="6">
-                  <span>金额：￥{{ award.amount }}</span>
-                </el-col>
-                <el-col :span="6">
-                  <el-button size="small" @click="handleEditAward(award, index)">编辑</el-button>
-                </el-col>
-              </el-row>
-            </div>
-          </div>
-
-          <el-empty v-if="awards.length === 0" description="暂无奖项配置" :image-size="120">
-            <template #default>
-              <p class="empty-hint">请配置奖项，名额比例总和必须等于 100%</p>
-            </template>
-          </el-empty>
-
-          <el-alert
-            v-if="awards.length > 0 && totalAwardRatio !== 100"
-            :title="ratioAlertText"
-            :type="totalAwardRatio < 100 ? 'warning' : 'error'"
-            :closable="false"
-            show-icon
-            style="margin: 20px 0"
-          />
-          <el-divider v-if="awards.length > 0" />
-          <el-button v-if="awards.length > 0" type="primary" @click="handleSaveAwards">保存奖项设置</el-button>
-        </el-card>
-      </el-tab-pane>
-
       <el-tab-pane label="操作日志" name="log">
         <el-card shadow="never">
           <el-form :inline="true" class="search-form">
             <el-form-item label="操作类型">
               <el-select v-model="logQuery.type" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
-                <el-option v-for="(label, value) in LOG_TYPE_TEXT" :key="value" :label="label" :value="value" />
+                <el-option
+                  v-for="option in LOG_TYPE_OPTIONS"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
               </el-select>
             </el-form-item>
             <el-form-item label="操作人">
@@ -164,7 +96,7 @@
             <el-table-column prop="operator" label="操作人" width="120" />
             <el-table-column prop="type" label="操作类型" width="120">
               <template #default="{ row }">
-                <el-tag size="small">{{ getLogTypeText(row.type) }}</el-tag>
+                <el-tag size="small">{{ getLogTypeText(row.type, row.typeLabel) }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="description" label="操作描述" min-width="200" />
@@ -184,35 +116,6 @@
         </el-card>
       </el-tab-pane>
     </el-tabs>
-
-    <el-dialog v-model="awardDialogVisible" title="编辑奖项" width="500px">
-      <el-form ref="awardFormRef" :model="awardForm" :rules="awardRules" label-width="100px">
-        <el-form-item label="奖项名称" prop="name">
-          <el-input v-model="awardForm.name" disabled />
-        </el-form-item>
-        <el-form-item label="名额比例" prop="ratio">
-          <el-input-number v-model="awardForm.ratio" :min="1" :max="100" :step="1" />
-          <span style="margin-left: 10px">%</span>
-        </el-form-item>
-        <el-form-item label="奖励金额" prop="amount">
-          <el-input-number v-model="awardForm.amount" :min="0" :step="100" />
-          <span style="margin-left: 10px">元</span>
-        </el-form-item>
-        <el-form-item label="分数范围">
-          <el-input-number v-model="awardForm.scoreRange.min" :min="0" :max="100" :precision="2" placeholder="最低分" />
-          <span style="margin: 0 10px">-</span>
-          <el-input-number v-model="awardForm.scoreRange.max" :min="0" :max="100" :precision="2" placeholder="最高分" />
-        </el-form-item>
-        <el-form-item label="优先级">
-          <el-input-number v-model="awardForm.priority" :min="1" :max="10" :step="1" />
-          <span style="margin-left: 10px; color: #909399; font-size: 12px">数字越小优先级越高</span>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="handleCloseAwardDialog">取消</el-button>
-        <el-button type="primary" @click="handleSaveAward">确定</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -221,31 +124,27 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { getOperationLogPage, getSetting, updateSetting } from '@/api/system'
-import type { AwardConfig, AwardRule, BasicSetting, OperationLog, WeightSetting } from '@/api/system'
+import type { BasicSetting, OperationLog, WeightSetting } from '@/api/system'
 
-type TagType = 'primary' | 'success' | 'info' | 'warning' | 'danger'
 type AlertType = 'success' | 'warning' | 'info' | 'error'
-type LogTypeKey = 'login' | 'user' | 'evaluation' | 'system'
-type ProgressStatus = '' | 'success' | 'exception'
-
-interface AwardFormState extends AwardRule {}
+type LogTypeValue = 1 | 2 | 3 | 4
 
 interface LogRow {
   operator: string
-  type: string
+  type: number | null
+  typeLabel: string
   description: string
   ip: string
   createTime: string
 }
 
-const LOG_TYPE_TEXT: Record<LogTypeKey, string> = {
-  login: '登录',
-  user: '用户管理',
-  evaluation: '评定管理',
-  system: '系统设置'
-}
+const LOG_TYPE_OPTIONS: Array<{ value: LogTypeValue; label: string }> = [
+  { value: 1, label: '登录' },
+  { value: 2, label: '用户管理' },
+  { value: 3, label: '评定管理' },
+  { value: 4, label: '系统设置' }
+]
 
-const AWARD_TAG_TYPES: TagType[] = ['danger', 'warning', 'success']
 const CURRENT_YEAR = new Date().getFullYear()
 
 const semesterOptions = computed(() => {
@@ -262,9 +161,6 @@ const semesterOptions = computed(() => {
 const activeTab = ref('basic')
 const basicFormRef = ref<FormInstance | null>(null)
 const weightFormRef = ref<FormInstance | null>(null)
-const awardFormRef = ref<FormInstance | null>(null)
-const awardDialogVisible = ref(false)
-const currentAwardIndex = ref(-1)
 const logLoading = ref(false)
 
 const basicForm = reactive<BasicSetting>({
@@ -312,72 +208,17 @@ const weightRules: FormRules<WeightSetting> = {
   ]
 }
 
-const awards = ref<AwardRule[]>([])
-
-const awardForm = reactive<AwardFormState>({
-  id: '',
-  name: '',
-  ratio: 0,
-  amount: 0,
-  scoreRange: { min: 0, max: 100 },
-  conditions: [],
-  priority: 1
-})
-
-const awardRules: FormRules<AwardFormState> = {
-  ratio: [
-    { required: true, message: '请设置名额比例', trigger: 'change' },
-    { type: 'number', message: '比例必须为数字', trigger: 'change' }
-  ],
-  amount: [
-    { required: true, message: '请设置奖励金额', trigger: 'change' },
-    { type: 'number', message: '金额必须为数字', trigger: 'change' }
-  ]
-}
-
 const logData = ref<LogRow[]>([])
 const logTotal = ref(0)
 const logQuery = reactive({
   current: 1,
   size: 10,
-  type: [] as string[],
+  type: [] as number[],
   operator: ''
 })
 
 const totalWeight = computed(() => weightForm.courseWeight + weightForm.researchWeight + weightForm.comprehensiveWeight)
-const totalAwardRatio = computed(() => awards.value.reduce((sum, award) => sum + award.ratio, 0))
-
 const totalWeightAlertType = computed<AlertType>(() => (totalWeight.value === 100 ? 'success' : 'warning'))
-const awardRatioTagType = computed<TagType>(() => {
-  if (totalAwardRatio.value === 100) return 'success'
-  if (totalAwardRatio.value < 100) return 'warning'
-  return 'danger'
-})
-const awardRatioText = computed(() => {
-  if (totalAwardRatio.value === 100) return '已配满'
-  if (totalAwardRatio.value < 100) return '未配满'
-  return '超出'
-})
-const progressStatus = computed<ProgressStatus>(() => {
-  if (totalAwardRatio.value === 100) return 'success'
-  if (totalAwardRatio.value > 100) return 'exception'
-  return ''
-})
-const awardRatioClass = computed(() => ({
-  'text-success': totalAwardRatio.value === 100,
-  'text-warning': totalAwardRatio.value < 100,
-  'text-danger': totalAwardRatio.value > 100
-}))
-const awardRemainClass = computed(() => ({
-  'text-success': 100 - totalAwardRatio.value === 0,
-  'text-warning': 100 - totalAwardRatio.value > 0,
-  'text-danger': 100 - totalAwardRatio.value < 0
-}))
-const ratioAlertText = computed(() => (
-  totalAwardRatio.value < 100
-    ? `名额比例总和为 ${totalAwardRatio.value}%，还差 ${100 - totalAwardRatio.value}% 未分配`
-    : `名额比例总和为 ${totalAwardRatio.value}%，已超出 ${totalAwardRatio.value - 100}%`
-))
 
 function extractNestedData<T>(payload: unknown): T | null {
   if (!payload || typeof payload !== 'object') return null
@@ -410,64 +251,15 @@ async function handleSaveWeight(): Promise<void> {
   ElMessage.success('保存成功')
 }
 
-function getAwardTagType(index: number): TagType {
-  return AWARD_TAG_TYPES[index % AWARD_TAG_TYPES.length] || 'info'
-}
-
-function handleEditAward(award: AwardRule, index: number): void {
-  currentAwardIndex.value = index
-  Object.assign(awardForm, {
-    id: award.id,
-    name: award.name,
-    ratio: award.ratio,
-    amount: award.amount,
-    scoreRange: award.scoreRange || { min: 0, max: 100 },
-    conditions: award.conditions || [],
-    priority: award.priority || index + 1
-  })
-  awardDialogVisible.value = true
-}
-
-function handleCloseAwardDialog(): void {
-  awardDialogVisible.value = false
-  awardFormRef.value?.resetFields()
-}
-
-async function handleSaveAward(): Promise<void> {
-  const valid = await awardFormRef.value?.validate().catch(() => false)
-  if (!valid) return
-  if (currentAwardIndex.value < 0 || currentAwardIndex.value >= awards.value.length) return
-
-  awards.value[currentAwardIndex.value] = {
-    ...awards.value[currentAwardIndex.value],
-    id: awardForm.id,
-    name: awardForm.name,
-    ratio: awardForm.ratio,
-    amount: awardForm.amount,
-    scoreRange: awardForm.scoreRange,
-    conditions: awardForm.conditions,
-    priority: awardForm.priority
+function getLogTypeText(type: number | null, typeLabel?: string): string {
+  if (typeLabel) {
+    return typeLabel
   }
-  awardDialogVisible.value = false
-  ElMessage.success('保存成功')
-}
-
-async function handleSaveAwards(): Promise<void> {
-  if (totalAwardRatio.value !== 100) {
-    ElMessage.warning(ratioAlertText.value)
-    return
+  const option = LOG_TYPE_OPTIONS.find(item => item.value === type)
+  if (option) {
+    return option.label
   }
-  const awardConfig: AwardConfig = {
-    name: `${new Date().getFullYear()}年奖项配置`,
-    rules: awards.value,
-    allocationStrategy: 'scorePriority'
-  }
-  await updateSetting<AwardConfig>('awards', awardConfig)
-  ElMessage.success('奖项设置保存成功')
-}
-
-function getLogTypeText(type: string): string {
-  return LOG_TYPE_TEXT[type as LogTypeKey] || type
+  return type == null ? '-' : String(type)
 }
 
 async function handleQueryLog(): Promise<void> {
@@ -482,10 +274,11 @@ async function handleQueryLog(): Promise<void> {
     const pageData = extractNestedData<API.PageResponse<OperationLog>>(response)
     const records = pageData?.records || []
     logData.value = records.map((item) => ({
-      operator: item.username,
+      operator: item.operatorName,
       type: item.operationType,
-      description: item.operationDesc,
-      ip: item.ipAddress,
+      typeLabel: item.operationTypeLabel || '',
+      description: item.description,
+      ip: item.operatorIp,
       createTime: item.createTime
     }))
     logTotal.value = pageData?.total || 0
@@ -501,19 +294,16 @@ async function handleQueryLog(): Promise<void> {
 
 async function loadSettings(): Promise<void> {
   try {
-    const [basicRes, weightRes, awardsRes] = await Promise.all([
+    const [basicRes, weightRes] = await Promise.all([
       getSetting<BasicSetting>('basic'),
-      getSetting<WeightSetting>('weight'),
-      getSetting<AwardConfig>('awards')
+      getSetting<WeightSetting>('weight')
     ])
 
     const basicData = extractNestedData<BasicSetting>(basicRes)
     const weightData = extractNestedData<WeightSetting>(weightRes)
-    const awardsData = extractNestedData<AwardConfig>(awardsRes)
 
     if (basicData) Object.assign(basicForm, basicData)
     if (weightData) Object.assign(weightForm, weightData)
-    if (awardsData?.rules) awards.value = awardsData.rules
   } catch (error) {
     console.error('加载设置失败:', error)
     ElMessage.error('加载系统设置失败')
@@ -559,80 +349,5 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   margin-top: 20px;
-}
-
-.award-item {
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.award-item:last-child {
-  border-bottom: none;
-}
-
-.award-summary {
-  margin-bottom: 20px;
-}
-
-.summary-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.summary-title {
-  color: #303133;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.summary-stats {
-  display: flex;
-  gap: 24px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #ebeef5;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-}
-
-.stat-label {
-  color: #606266;
-  font-size: 14px;
-}
-
-.stat-value {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.text-success {
-  color: #67c23a;
-}
-
-.text-warning {
-  color: #e6a23c;
-}
-
-.text-danger {
-  color: #f56c6c;
-}
-
-.overflow-hint {
-  color: #f56c6c;
-  font-size: 12px;
-  text-align: center;
-  margin-top: -8px;
-  margin-bottom: 8px;
-}
-
-.empty-hint {
-  margin-top: 8px;
-  color: #909399;
-  font-size: 14px;
 }
 </style>
