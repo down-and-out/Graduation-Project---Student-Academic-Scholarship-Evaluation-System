@@ -19,6 +19,7 @@ export interface CourseScore {
   courseType?: number
   credit?: number
   score?: number
+  scoreText?: string
   gpa?: number
   academicYear?: string
   semester?: number

@@ -25,7 +25,7 @@
     </div>
 
     <el-alert
-      title="请使用包含 学期、课程名称、课程代码、学分、有效成绩、课程性质 的主修成绩表。合格/通过类课程会导入记录，但不参与均分计算。"
+      title="请使用包含 学期、课程名称、课程代码、学分、有效成绩、课程性质 的主修成绩表。合格、不合格、通过类课程会导入记录并显示原始成绩文本，但不参与均分计算。"
       type="info"
       :closable="false"
       class="import-tip"
@@ -69,7 +69,7 @@
       </el-table-column>
       <el-table-column prop="score" label="成绩" width="100">
         <template #default="{ row }">
-          {{ row.score ?? '-' }}
+          {{ formatScoreDisplay(row) }}
         </template>
       </el-table-column>
       <el-table-column prop="gpa" label="绩点" width="100">
@@ -127,6 +127,12 @@ function formatCourseType(value?: number): string {
   if (value === 1) return '必修'
   if (value === 2) return '选修'
   if (value === 3) return '任选'
+  return '-'
+}
+
+function formatScoreDisplay(row: CourseScore): string {
+  if (row.scoreText) return row.scoreText
+  if (row.score !== undefined && row.score !== null) return String(row.score)
   return '-'
 }
 
