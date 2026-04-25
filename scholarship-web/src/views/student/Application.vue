@@ -2,7 +2,7 @@
   <div class="application-page">
     <div class="page-header">
       <h2 class="page-title">奖学金申请</h2>
-      <el-button type="primary" :disabled="!canApply" @click="handleApply">
+      <el-button type="primary" :disabled="!canApply && !hasApplied" @click="handleApply">
         <el-icon><DocumentAdd /></el-icon>
         {{ hasApplied ? '查看申请' : '提交申请' }}
       </el-button>
@@ -28,7 +28,12 @@
 
     <el-card v-if="myApplication" class="application-card">
       <template #header>
-        <span>我的申请</span>
+        <div class="card-header">
+          <span>我的申请记录</span>
+          <el-button type="primary" link @click="handleViewApplication">
+            查看详情
+          </el-button>
+        </div>
       </template>
 
       <el-steps :active="getApplicationStep(myApplication.status)" align-center>
@@ -55,7 +60,7 @@
     </el-card>
 
     <el-empty v-else description="暂无申请记录" :image-size="120">
-      <el-button type="primary" :disabled="!canApply" @click="handleApply">创建申请</el-button>
+      <el-button type="primary" :disabled="!canApply" @click="handleApply">提交申请</el-button>
     </el-empty>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="960px" @close="handleDialogClose">
@@ -279,12 +284,7 @@ const formRules: FormRules<ApplicationForm> = {
 
 const canApply = computed(() => batchInfo.value.status === 'active')
 const hasApplied = computed(() => myApplication.value !== null)
-const dialogTitle = computed(() => {
-  if (isViewMode.value) {
-    return '查看申请详情'
-  }
-  return hasApplied.value ? '查看申请' : '提交申请'
-})
+const dialogTitle = computed(() => isViewMode.value ? '查看申请详情' : '提交申请')
 
 const achievementGroups = computed(() =>
   ([1, 2, 3, 4] as AchievementType[]).map((type) => ({
@@ -355,8 +355,8 @@ async function loadBatchInfo(): Promise<void> {
       id: batch.id ?? null,
       name: batch.batchName || batch.name || '',
       applyPeriod: `${start} 至 ${end}`,
-      status: batch.status === 1 ? 'active' : 'closed',
-      statusText: batch.status === 1 ? '可申请' : '已结束',
+      status: batch.status === 2 ? 'active' : 'closed',
+      statusText: batch.status === 2 ? '可申请' : '已结束',
       quota: batch.quota ?? batch.winnerCount ?? 0,
       amount: batch.amount ?? batch.totalAmount ?? 0,
       description: batch.description || ''
@@ -396,16 +396,7 @@ async function loadApplicationDetail(applicationId: number): Promise<void> {
 
 async function handleApply(): Promise<void> {
   if (hasApplied.value && myApplication.value?.id) {
-    try {
-      await loadApplicationDetail(myApplication.value.id)
-      formData.batchId = applicationDetail.value?.batchId || null
-      formData.selfEvaluation = applicationDetail.value?.selfEvaluation || ''
-      formData.remark = applicationDetail.value?.remark || ''
-      isViewMode.value = true
-      dialogVisible.value = true
-    } catch {
-      ElMessage.error('获取申请详情失败')
-    }
+    await handleViewApplication()
     return
   }
 
@@ -413,10 +404,22 @@ async function handleApply(): Promise<void> {
     ElMessage.warning('当前不在申请时间内')
     return
   }
-
   await loadAvailableAchievements()
   isViewMode.value = false
   dialogVisible.value = true
+}
+
+async function handleViewApplication(): Promise<void> {
+  if (!myApplication.value?.id) return
+  try {
+    await loadApplicationDetail(myApplication.value.id)
+    formData.selfEvaluation = applicationDetail.value?.selfEvaluation || ''
+    formData.remark = applicationDetail.value?.remark || ''
+    isViewMode.value = true
+    dialogVisible.value = true
+  } catch {
+    ElMessage.error('获取申请详情失败')
+  }
 }
 
 async function handleSubmit(): Promise<void> {
@@ -512,6 +515,12 @@ onMounted(() => {
 }
 
 .application-card {
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
   .application-info {
     margin-top: 30px;
   }

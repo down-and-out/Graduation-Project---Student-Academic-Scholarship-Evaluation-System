@@ -112,6 +112,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import type { Ref } from 'vue'
 import { Document, Medal, Briefcase, Trophy, Plus, DocumentAdd } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
@@ -183,9 +184,13 @@ function getWelcomeMessage(): string {
 function handleAction(action: string): void {
   switch (action) {
     case 'addPaper':
+      router.push({ path: '/app/student/achievements', query: { type: 'paper', action: 'add' } })
+      break
     case 'addPatent':
+      router.push({ path: '/app/student/achievements', query: { type: 'patent', action: 'add' } })
+      break
     case 'addProject':
-      router.push('/app/student/achievements')
+      ElMessage.info('项目成果录入入口暂未开放')
       break
     case 'apply':
       router.push('/app/student/application')
