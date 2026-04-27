@@ -5,7 +5,7 @@ import com.scholarship.entity.EvaluationResult;
 import com.scholarship.entity.ResultAppeal;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.enums.AppealStatusEnum;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.mapper.ResultAppealMapper;
 import com.scholarship.mapper.StudentInfoMapper;
