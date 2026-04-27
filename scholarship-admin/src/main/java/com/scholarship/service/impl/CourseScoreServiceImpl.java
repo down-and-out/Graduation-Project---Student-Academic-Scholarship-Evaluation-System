@@ -14,6 +14,7 @@ import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.service.CourseScoreService;
 import com.scholarship.service.EvaluationBatchService;
 import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -45,6 +46,7 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, CourseScore>
         implements CourseScoreService {
 
@@ -65,12 +67,6 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
     private final EvaluationBatchService evaluationBatchService;
     private final StudentInfoMapper studentInfoMapper;
 
-    public CourseScoreServiceImpl(EvaluationBatchService evaluationBatchService,
-                                  StudentInfoMapper studentInfoMapper) {
-        this.evaluationBatchService = evaluationBatchService;
-        this.studentInfoMapper = studentInfoMapper;
-    }
-
     @Override
     public boolean save(CourseScore entity) {
         fillStudentSnapshot(entity);
@@ -84,7 +80,11 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
     }
 
     private boolean updateImportedScore(CourseScore entity, boolean hasGpaColumn) {
-        fillStudentSnapshot(entity);
+        return updateImportedScore(entity, hasGpaColumn, null);
+    }
+
+    private boolean updateImportedScore(CourseScore entity, boolean hasGpaColumn, Map<Long, StudentInfo> studentCache) {
+        fillStudentSnapshot(entity, studentCache);
         var update = lambdaUpdate()
                 .eq(CourseScore::getId, entity.getId())
                 .set(CourseScore::getStudentNo, entity.getStudentNo())
@@ -110,6 +110,7 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
 
         LambdaQueryWrapper<CourseScore> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(CourseScore::getStudentId, studentId);
+        wrapper.eq(CourseScore::getDeleted, 0);
 
         // 如果指定了批次 ID，根据批次的学年筛选成绩
         if (batchId != null) {
@@ -339,6 +340,9 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
             int importedCount = 0;
             int updatedCount = 0;
             int skippedCount = 0;
+            Map<Long, StudentInfo> studentSnapshotCache = new HashMap<>();
+            studentSnapshotCache.put(studentInfo.getId(), studentInfo);
+            Map<String, TermScoreCache> termScoreCache = new HashMap<>();
             for (int rowIndex = headerRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
                 if (row == null || isBlankRow(row, formatter)) {
@@ -373,7 +377,12 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                     continue;
                 }
 
-                CourseScore score = findExistingScore(studentInfo.getId(), courseName.trim(), courseCode, academicTerm);
+                String normalizedCourseName = courseName.trim();
+                TermScoreCache cachedTermScores = termScoreCache.computeIfAbsent(
+                        buildTermCacheKey(studentInfo.getId(), academicTerm),
+                        key -> loadTermScoreCache(studentInfo.getId(), academicTerm)
+                );
+                CourseScore score = findExistingScore(normalizedCourseName, courseCode, cachedTermScores);
                 boolean exists = score != null && score.getId() != null;
                 if (score == null) {
                     score = new CourseScore();
@@ -387,7 +396,7 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 BigDecimal numericScore = parseEffectiveScore(effectiveScoreText);
                 String scoreText = buildScoreText(effectiveScoreText, numericScore);
 
-                score.setCourseName(courseName.trim());
+                score.setCourseName(normalizedCourseName);
                 score.setCourseCode(courseCode);
                 score.setAcademicYear(academicTerm.academicYear());
                 score.setSemester(academicTerm.semester());
@@ -397,14 +406,16 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 score.setScoreText(scoreText);
                 score.setGpa(hasGpaColumn ? parseDecimal(getCellText(row, gpaIndex, formatter)) : null);
                 score.setRemark(buildRemark(currentTerm, examType, examStatus, invalidScore, earnedCredit, originalFilename));
+                fillStudentSnapshot(score, studentSnapshotCache);
 
                 if (exists) {
-                    updateImportedScore(score, hasGpaColumn);
+                    updateImportedScore(score, hasGpaColumn, studentSnapshotCache);
                     updatedCount++;
                 } else {
-                    save(score);
+                    super.save(score);
                     importedCount++;
                 }
+                cachedTermScores.put(score);
             }
 
             CourseScoreImportResult result = new CourseScoreImportResult();
@@ -447,15 +458,34 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
     }
 
     private void fillStudentSnapshot(CourseScore score) {
+        fillStudentSnapshot(score, null);
+    }
+
+    private void fillStudentSnapshot(CourseScore score, Map<Long, StudentInfo> studentCache) {
         if (score == null || score.getStudentId() == null) {
             return;
         }
-        StudentInfo student = studentInfoMapper.selectById(score.getStudentId());
+        StudentInfo student = getStudentSnapshot(score.getStudentId(), studentCache);
         if (student == null) {
             return;
         }
         score.setStudentNo(student.getStudentNo());
         score.setStudentName(student.getName());
+    }
+
+    private StudentInfo getStudentSnapshot(Long studentId, Map<Long, StudentInfo> studentCache) {
+        if (studentId == null) {
+            return null;
+        }
+        if (studentCache != null) {
+            StudentInfo cached = studentCache.get(studentId);
+            if (cached != null) return cached;
+        }
+        StudentInfo student = studentInfoMapper.selectById(studentId);
+        if (studentCache != null) {
+            studentCache.put(studentId, student);
+        }
+        return student;
     }
 
     private int findHeaderRowIndex(Sheet sheet, DataFormatter formatter) {
@@ -646,38 +676,28 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         return String.join("；", parts);
     }
 
-    private CourseScore findExistingScore(Long studentId, String courseName, String courseCode, AcademicTerm term) {
-        CourseScore codeMatched = findScoreByCourseCode(studentId, courseCode, term);
-        CourseScore nameMatched = findScoreByCourseName(studentId, courseName, term);
+    private String buildTermCacheKey(Long studentId, AcademicTerm term) {
+        return studentId + "_" + term.academicYear() + "_" + term.semester();
+    }
+
+    private TermScoreCache loadTermScoreCache(Long studentId, AcademicTerm term) {
+        LambdaQueryWrapper<CourseScore> wrapper = baseTermWrapper(studentId, term);
+        applyDefaultSort(wrapper);
+        return new TermScoreCache(list(wrapper));
+    }
+
+    private CourseScore findExistingScore(String courseName, String courseCode, TermScoreCache termScoreCache) {
+        CourseScore codeMatched = termScoreCache.findByCourseCode(courseCode);
+        CourseScore nameMatched = termScoreCache.findByCourseName(courseName);
 
         if (codeMatched != null && nameMatched != null && !Objects.equals(codeMatched.getId(), nameMatched.getId())) {
-            mergeDuplicateScore(codeMatched, nameMatched);
+            mergeDuplicateScore(codeMatched, nameMatched, termScoreCache);
             return codeMatched;
         }
         if (codeMatched != null) {
             return codeMatched;
         }
         return nameMatched;
-    }
-
-    private CourseScore findScoreByCourseCode(Long studentId, String courseCode, AcademicTerm term) {
-        if (courseCode == null || courseCode.isBlank()) {
-            return null;
-        }
-        return getOne(baseTermWrapper(studentId, term)
-                .eq(CourseScore::getCourseCode, courseCode.trim())
-                .orderByDesc(CourseScore::getUpdateTime)
-                .last("LIMIT 1"), false);
-    }
-
-    private CourseScore findScoreByCourseName(Long studentId, String courseName, AcademicTerm term) {
-        if (courseName == null || courseName.isBlank()) {
-            return null;
-        }
-        return getOne(baseTermWrapper(studentId, term)
-                .eq(CourseScore::getCourseName, courseName)
-                .orderByDesc(CourseScore::getUpdateTime)
-                .last("LIMIT 1"), false);
     }
 
     private LambdaQueryWrapper<CourseScore> baseTermWrapper(Long studentId, AcademicTerm term) {
@@ -687,12 +707,66 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 .eq(CourseScore::getSemester, term.semester());
     }
 
-    private void mergeDuplicateScore(CourseScore codeMatched, CourseScore nameMatched) {
+    private void mergeDuplicateScore(CourseScore codeMatched, CourseScore nameMatched, TermScoreCache termScoreCache) {
         String normalizedCode = codeMatched.getCourseCode() == null ? null : codeMatched.getCourseCode().trim();
         String duplicateCode = nameMatched.getCourseCode() == null ? null : nameMatched.getCourseCode().trim();
         boolean removableLegacy = duplicateCode == null || duplicateCode.isBlank() || Objects.equals(duplicateCode, normalizedCode);
         if (removableLegacy) {
             removeById(nameMatched.getId());
+            termScoreCache.remove(nameMatched);
+        }
+    }
+
+    private static class TermScoreCache {
+        private final Map<String, CourseScore> byCourseCode = new HashMap<>();
+        private final Map<String, CourseScore> byCourseName = new HashMap<>();
+
+        private TermScoreCache(List<CourseScore> scores) {
+            for (CourseScore score : scores) {
+                put(score);
+            }
+        }
+
+        private CourseScore findByCourseCode(String courseCode) {
+            if (courseCode == null || courseCode.isBlank()) {
+                return null;
+            }
+            return byCourseCode.get(courseCode.trim());
+        }
+
+        private CourseScore findByCourseName(String courseName) {
+            if (courseName == null || courseName.isBlank()) {
+                return null;
+            }
+            return byCourseName.get(courseName);
+        }
+
+        private void put(CourseScore score) {
+            if (score == null) {
+                return;
+            }
+            String courseCode = score.getCourseCode();
+            if (courseCode != null && !courseCode.isBlank()) {
+                byCourseCode.putIfAbsent(courseCode.trim(), score);
+            }
+            String courseName = score.getCourseName();
+            if (courseName != null && !courseName.isBlank()) {
+                byCourseName.putIfAbsent(courseName, score);
+            }
+        }
+
+        private void remove(CourseScore score) {
+            if (score == null) {
+                return;
+            }
+            String courseCode = score.getCourseCode();
+            if (courseCode != null && !courseCode.isBlank()) {
+                byCourseCode.remove(courseCode.trim(), score);
+            }
+            String courseName = score.getCourseName();
+            if (courseName != null && !courseName.isBlank()) {
+                byCourseName.remove(courseName, score);
+            }
         }
     }
 

@@ -2,6 +2,9 @@ package com.scholarship.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -36,6 +39,7 @@ public class CourseScore implements Serializable {
     /**
      * 学生 ID
      */
+    @NotNull(message = "学生不能为空")
     @Schema(description = "学生 ID")
     private Long studentId;
 
@@ -60,12 +64,14 @@ public class CourseScore implements Serializable {
     /**
      * 课程名称
      */
+    @NotBlank(message = "课程名称不能为空")
     @Schema(description = "课程名称")
     private String courseName;
 
     /**
      * 课程代码
      */
+    @NotBlank(message = "课程代码不能为空")
     @Schema(description = "课程代码")
     private String courseCode;
 
@@ -79,12 +85,15 @@ public class CourseScore implements Serializable {
     /**
      * 学分
      */
+    @NotNull(message = "学分不能为空")
+    @Positive(message = "学分必须大于0")
     @Schema(description = "学分")
     private BigDecimal credit;
 
     /**
      * 成绩
      */
+    @NotNull(message = "成绩不能为空")
     @Schema(description = "成绩")
     private BigDecimal score;
 
@@ -104,6 +113,7 @@ public class CourseScore implements Serializable {
     /**
      * 学年
      */
+    @NotBlank(message = "学年不能为空")
     @Schema(description = "学年")
     private String academicYear;
 
@@ -111,6 +121,7 @@ public class CourseScore implements Serializable {
      * 学期
      * 1-第一学期 2-第二学期 3-夏季学期
      */
+    @NotNull(message = "学期不能为空")
     @Schema(description = "学期：1-第一学期 2-第二学期 3-夏季学期")
     private Integer semester;
 

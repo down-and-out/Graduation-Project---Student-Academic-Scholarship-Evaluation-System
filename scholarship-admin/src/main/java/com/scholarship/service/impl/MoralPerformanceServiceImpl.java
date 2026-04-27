@@ -9,11 +9,12 @@ import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.entity.MoralPerformance;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.enums.AuditStatusEnum;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.MoralPerformanceMapper;
 import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.MoralPerformanceService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,17 +34,12 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class MoralPerformanceServiceImpl extends ServiceImpl<MoralPerformanceMapper, MoralPerformance>
         implements MoralPerformanceService {
 
     private final EvaluationBatchService evaluationBatchService;
     private final StudentInfoMapper studentInfoMapper;
-
-    public MoralPerformanceServiceImpl(EvaluationBatchService evaluationBatchService,
-                                       StudentInfoMapper studentInfoMapper) {
-        this.evaluationBatchService = evaluationBatchService;
-        this.studentInfoMapper = studentInfoMapper;
-    }
 
     @Override
     public boolean save(MoralPerformance entity) {

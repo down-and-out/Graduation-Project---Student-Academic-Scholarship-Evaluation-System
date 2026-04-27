@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -118,7 +119,7 @@ public class CourseScoreController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "录入成绩", description = "录入学生课程成绩，并自动补齐学生学号和姓名快照")
-    public Result<Void> add(@RequestBody CourseScore score, @AuthenticationPrincipal LoginUser loginUser) {
+    public Result<Void> add(@Valid @RequestBody CourseScore score, @AuthenticationPrincipal LoginUser loginUser) {
         if (!canAccessStudent(loginUser, score.getStudentId())) {
             return Result.error(403, "无权操作该学生数据");
         }
@@ -129,7 +130,7 @@ public class CourseScoreController {
     @PutMapping
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "更新成绩", description = "修改课程成绩，并自动补齐学生学号和姓名快照")
-    public Result<Void> update(@RequestBody CourseScore score, @AuthenticationPrincipal LoginUser loginUser) {
+    public Result<Void> update(@Valid @RequestBody CourseScore score, @AuthenticationPrincipal LoginUser loginUser) {
         CourseScore oldScore = courseScoreService.getById(score.getId());
         if (oldScore == null) {
             return Result.error("成绩不存在");
