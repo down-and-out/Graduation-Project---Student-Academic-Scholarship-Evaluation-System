@@ -2,6 +2,7 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.scholarship.common.result.Result;
+import com.scholarship.common.util.ParamParserUtil;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.entity.SysUser;
 import com.scholarship.mapper.SysUserMapper;
@@ -28,10 +29,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 @Slf4j
 @RestController
@@ -44,7 +42,7 @@ public class StudentInfoController {
     private final SysUserMapper sysUserMapper;
 
     @GetMapping("/page")
-    @Operation(summary = "分页查询研究生信息", description = "支持按关键字、院系、学籍状态筛选，院系和状态支持单个或多个值")
+    @Operation(summary = "分页查询研究生信息", description = "支持按关键字、院系、入学年份、学籍状态筛选")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "查询成功")
     })
@@ -53,10 +51,11 @@ public class StudentInfoController {
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Long size,
             @Parameter(description = "搜索关键字（姓名/学号）", example = "张三") @RequestParam(required = false) String keyword,
             @Parameter(description = "院系，支持单个或多个值", example = "计算机学院,软件学院") @RequestParam(required = false) List<String> department,
+            @Parameter(description = "入学年份，按学号前4位筛选", example = "2024") @RequestParam(required = false) String enrollmentYear,
             @Parameter(description = "学籍状态，支持单个或多个值", example = "1,2") @RequestParam(required = false) List<String> status) {
-        List<String> departments = parseStringParams(department);
-        List<Integer> statuses = parseIntegerParams(status);
-        IPage<StudentInfo> page = studentInfoService.pageStudents(current, size, keyword, departments, statuses);
+        List<String> departments = ParamParserUtil.parseStringParams(department);
+        List<Integer> statuses = ParamParserUtil.parseIntegerParams(status);
+        IPage<StudentInfo> page = studentInfoService.pageStudents(current, size, keyword, departments, enrollmentYear, statuses);
         return Result.success(page);
     }
 
@@ -179,44 +178,5 @@ public class StudentInfoController {
                 studentInfo.getAddress()
         );
         return success ? Result.success("更新成功") : Result.error("更新失败");
-    }
-
-    private List<String> parseStringParams(List<String> rawValues) {
-        if (rawValues == null || rawValues.isEmpty()) {
-            return List.of();
-        }
-
-        Set<String> result = new LinkedHashSet<>();
-        for (String rawValue : rawValues) {
-            if (rawValue == null || rawValue.isBlank()) {
-                continue;
-            }
-            for (String value : rawValue.split(",")) {
-                if (!value.isBlank()) {
-                    result.add(value.trim());
-                }
-            }
-        }
-        return new ArrayList<>(result);
-    }
-
-    private List<Integer> parseIntegerParams(List<String> rawValues) {
-        if (rawValues == null || rawValues.isEmpty()) {
-            return List.of();
-        }
-
-        List<Integer> result = new ArrayList<>();
-        for (String rawValue : rawValues) {
-            if (rawValue == null || rawValue.isBlank()) {
-                continue;
-            }
-            for (String value : rawValue.split(",")) {
-                if (value == null || value.isBlank()) {
-                    continue;
-                }
-                result.add(Integer.parseInt(value.trim()));
-            }
-        }
-        return result.stream().distinct().toList();
     }
 }

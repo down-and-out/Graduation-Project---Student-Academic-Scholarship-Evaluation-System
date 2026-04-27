@@ -13,7 +13,7 @@ import java.util.Map;
  */
 public interface StudentInfoService extends IService<StudentInfo> {
 
-    IPage<StudentInfo> pageStudents(Long current, Long size, String keyword, List<String> departments, List<Integer> statuses);
+    IPage<StudentInfo> pageStudents(Long current, Long size, String keyword, List<String> departments, String enrollmentYear, List<Integer> statuses);
 
     IPage<TutorStudentVO> pageTutorStudents(Long tutorUserId, Long current, Long size, String keyword, String grade);
 

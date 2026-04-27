@@ -49,7 +49,7 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
     }
 
     @Override
-    public IPage<StudentInfo> pageStudents(Long current, Long size, String keyword, List<String> departments, List<Integer> statuses) {
+    public IPage<StudentInfo> pageStudents(Long current, Long size, String keyword, List<String> departments, String enrollmentYear, List<Integer> statuses) {
         Page<StudentInfo> page = new Page<>(current, size);
         LambdaQueryWrapper<StudentInfo> wrapper = new LambdaQueryWrapper<>();
 
@@ -65,6 +65,11 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
             } else {
                 wrapper.in(StudentInfo::getDepartment, departments);
             }
+        }
+
+        String normalizedEnrollmentYear = normalizeStudentNoEnrollmentYear(enrollmentYear);
+        if (normalizedEnrollmentYear != null) {
+            wrapper.likeRight(StudentInfo::getStudentNo, normalizedEnrollmentYear);
         }
 
         if (statuses != null && !statuses.isEmpty()) {
@@ -137,6 +142,15 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
 
         resultPage.setRecords(records);
         return resultPage;
+    }
+
+    private String normalizeStudentNoEnrollmentYear(String enrollmentYear) {
+        if (StringUtils.isBlank(enrollmentYear)) {
+            return null;
+        }
+
+        String normalized = enrollmentYear.trim();
+        return normalized.length() == 4 && StringUtils.isNumeric(normalized) ? normalized : null;
     }
 
     private Integer normalizeEnrollmentYear(String grade) {
