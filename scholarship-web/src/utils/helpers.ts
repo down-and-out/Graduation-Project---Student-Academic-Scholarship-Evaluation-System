@@ -210,21 +210,34 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * 从 API 响应中提取实际数据载荷
+ * @param payload - API 响应数据
+ * @returns 实际数据或 null
+ */
+export function extractApiData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== 'object') return null
+  const raw = payload as Record<string, unknown>
+  if (raw.data && typeof raw.data === 'object') {
+    const inner = raw.data as Record<string, unknown>
+    if (inner.data !== undefined) {
+      return inner.data as T
+    }
+    return raw.data as T
+  }
+  return raw as T
+}
+
+/**
  * 从 API 响应中提取分页数据
  * @param payload - API 响应数据
  * @returns 分页数据或 null
  */
 export function extractPageData<T>(payload: unknown): API.PageResponse<T> | null {
-  if (!payload || typeof payload !== 'object') return null
-  const raw = payload as Record<string, unknown>
-  if (raw.data && typeof raw.data === 'object') {
-    const inner = raw.data as Record<string, unknown>
-    if (inner.data && typeof inner.data === 'object') {
-      return inner.data as API.PageResponse<T>
-    }
-    return raw.data as API.PageResponse<T>
+  const pageData = extractApiData<API.PageResponse<T>>(payload)
+  if (pageData?.records) {
+    return pageData
   }
-  return raw as unknown as API.PageResponse<T>
+  return null
 }
 
 // ============ 审核状态常量 ============

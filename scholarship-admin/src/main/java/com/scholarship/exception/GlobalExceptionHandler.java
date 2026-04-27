@@ -1,5 +1,6 @@
 package com.scholarship.exception;
 
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.common.result.Result;
 import com.scholarship.common.result.ResultCode;
 import io.jsonwebtoken.ExpiredJwtException;

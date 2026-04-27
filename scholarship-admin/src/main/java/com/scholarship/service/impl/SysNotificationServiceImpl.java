@@ -1,12 +1,13 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.entity.SysNotification;
 import com.scholarship.entity.SysRole;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.SysNotificationMapper;
 import com.scholarship.mapper.SysRoleMapper;
 import com.scholarship.service.SysNotificationService;
@@ -93,11 +94,13 @@ public class SysNotificationServiceImpl extends ServiceImpl<SysNotificationMappe
             return true;
         }
 
-        boolean success = true;
-        for (Long id : ids) {
-            success = markAsRead(id, userId, userType) && success;
-        }
-        return success;
+        LambdaUpdateWrapper<SysNotification> wrapper = new LambdaUpdateWrapper<SysNotification>()
+                .in(SysNotification::getId, ids)
+                .set(SysNotification::getIsRead, 1)
+                .set(SysNotification::getReadTime, LocalDateTime.now());
+
+        applyAccessibleConditions(wrapper, userId);
+        return update(wrapper);
     }
 
     @Override
@@ -131,10 +134,7 @@ public class SysNotificationServiceImpl extends ServiceImpl<SysNotificationMappe
 
     private LambdaQueryWrapper<SysNotification> buildAccessibleWrapper(Long userId) {
         LambdaQueryWrapper<SysNotification> wrapper = new LambdaQueryWrapper<>();
-        List<Long> roleIds = sysRoleMapper.selectRolesByUserId(userId).stream()
-                .map(SysRole::getId)
-                .filter(Objects::nonNull)
-                .toList();
+        List<Long> roleIds = getUserRoleIds(userId);
 
         wrapper.and(group -> {
             group.eq(SysNotification::getReceiverType, RECEIVER_TYPE_ALL)
@@ -149,6 +149,30 @@ public class SysNotificationServiceImpl extends ServiceImpl<SysNotificationMappe
             }
         });
         return wrapper;
+    }
+
+    private void applyAccessibleConditions(LambdaUpdateWrapper<SysNotification> wrapper, Long userId) {
+        List<Long> roleIds = getUserRoleIds(userId);
+
+        wrapper.and(group -> {
+            group.eq(SysNotification::getReceiverType, RECEIVER_TYPE_ALL)
+                    .or(child -> child
+                            .eq(SysNotification::getReceiverType, RECEIVER_TYPE_USER)
+                            .eq(SysNotification::getReceiverId, userId));
+
+            if (!roleIds.isEmpty()) {
+                group.or(child -> child
+                        .eq(SysNotification::getReceiverType, RECEIVER_TYPE_ROLE)
+                        .in(SysNotification::getRoleId, roleIds));
+            }
+        });
+    }
+
+    private List<Long> getUserRoleIds(Long userId) {
+        return sysRoleMapper.selectRolesByUserId(userId).stream()
+                .map(SysRole::getId)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private void validateNotification(SysNotification notification) {
