@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.entity.RuleCategory;
 import com.scholarship.entity.ScoreRule;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.RuleCategoryMapper;
 import com.scholarship.service.RuleCategoryService;
 import com.scholarship.service.ScoreRuleService;

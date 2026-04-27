@@ -123,11 +123,13 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
+import { getEvaluationPage, type EvaluationBatch } from '@/api/evaluation'
 import { getOperationLogPage, getSetting, updateSetting } from '@/api/system'
+import { LOG_TYPE_LABELS, LOG_TYPE_OPTIONS } from '@/constants/operationLog'
 import type { BasicSetting, OperationLog, WeightSetting } from '@/api/system'
+import { extractApiData } from '@/utils/helpers'
 
 type AlertType = 'success' | 'warning' | 'info' | 'error'
-type LogTypeValue = 1 | 2 | 3 | 4
 
 interface LogRow {
   operator: string
@@ -138,25 +140,8 @@ interface LogRow {
   createTime: string
 }
 
-const LOG_TYPE_OPTIONS: Array<{ value: LogTypeValue; label: string }> = [
-  { value: 1, label: '登录' },
-  { value: 2, label: '用户管理' },
-  { value: 3, label: '评定管理' },
-  { value: 4, label: '系统设置' }
-]
-
 const CURRENT_YEAR = new Date().getFullYear()
-
-const semesterOptions = computed(() => {
-  const options: Array<{ label: string; value: string }> = []
-  for (let i = 0; i < 3; i++) {
-    const year = CURRENT_YEAR - i
-    const prevYear = year - 1
-    options.push({ label: `${prevYear}-${year}学年第一学期`, value: `${year}-1` })
-    options.push({ label: `${prevYear}-${year}学年第二学期`, value: `${year}-2` })
-  }
-  return options
-})
+const semesterOptions = ref<Array<{ label: string; value: string }>>([])
 
 const activeTab = ref('basic')
 const basicFormRef = ref<FormInstance | null>(null)
@@ -220,17 +205,78 @@ const logQuery = reactive({
 const totalWeight = computed(() => weightForm.courseWeight + weightForm.researchWeight + weightForm.comprehensiveWeight)
 const totalWeightAlertType = computed<AlertType>(() => (totalWeight.value === 100 ? 'success' : 'warning'))
 
-function extractNestedData<T>(payload: unknown): T | null {
-  if (!payload || typeof payload !== 'object') return null
-  const raw = payload as Record<string, unknown>
-  if (raw.data && typeof raw.data === 'object') {
-    const inner = raw.data as Record<string, unknown>
-    if ('data' in inner) {
-      return inner.data as T
-    }
-    return raw.data as T
+function buildSemesterOption(academicYear: string, semester: number): { label: string; value: string } {
+  const numericYear = Number.parseInt(academicYear, 10)
+  const displayAcademicYear = Number.isNaN(numericYear)
+    ? academicYear
+    : `${numericYear}-${numericYear + 1}学年`
+
+  return {
+    label: `${displayAcademicYear}${semester === 1 ? '第一学期' : '第二学期'}`,
+    value: `${academicYear}-${semester}`
   }
-  return raw as T
+}
+
+function sortSemesterOptions(options: Array<{ label: string; value: string }>): Array<{ label: string; value: string }> {
+  return options.sort((left, right) => {
+    const [leftYear, leftSemester] = left.value.split('-')
+    const [rightYear, rightSemester] = right.value.split('-')
+    const yearDiff = Number.parseInt(rightYear, 10) - Number.parseInt(leftYear, 10)
+    if (yearDiff !== 0) return yearDiff
+    return Number.parseInt(rightSemester, 10) - Number.parseInt(leftSemester, 10)
+  })
+}
+
+async function loadSemesterOptions(): Promise<void> {
+  try {
+    const response = await getEvaluationPage({ current: 1, size: 1000 })
+    const pageData = extractApiData<API.PageResponse<EvaluationBatch>>(response)
+    const records = pageData?.records || []
+    const optionMap = new Map<string, { label: string; value: string }>()
+
+    let maxAcademicYear = CURRENT_YEAR
+    records.forEach(item => {
+      if (!item.academicYear || item.semester == null || item.semester === 3) {
+        return
+      }
+      optionMap.set(`${item.academicYear}-${item.semester}`, buildSemesterOption(item.academicYear, item.semester))
+      const numericYear = Number.parseInt(item.academicYear, 10)
+      if (!Number.isNaN(numericYear)) {
+        maxAcademicYear = Math.max(maxAcademicYear, numericYear)
+      }
+    })
+
+    for (let year = maxAcademicYear; year <= maxAcademicYear + 5; year += 1) {
+      optionMap.set(`${year}-1`, buildSemesterOption(String(year), 1))
+      optionMap.set(`${year}-2`, buildSemesterOption(String(year), 2))
+    }
+
+    semesterOptions.value = sortSemesterOptions(Array.from(optionMap.values()))
+  } catch (error) {
+    console.error('加载当前学期选项失败:', error)
+    semesterOptions.value = sortSemesterOptions([
+      buildSemesterOption(String(CURRENT_YEAR), 1),
+      buildSemesterOption(String(CURRENT_YEAR), 2)
+    ])
+  }
+}
+
+function ensureCurrentSemesterOption(): void {
+  if (!basicForm.currentSemester) {
+    return
+  }
+  const exists = semesterOptions.value.some(option => option.value === basicForm.currentSemester)
+  if (exists) {
+    return
+  }
+
+  const [academicYear, semesterValue] = basicForm.currentSemester.split('-')
+  const semester = Number.parseInt(semesterValue || '', 10)
+  const fallbackOption = !academicYear || Number.isNaN(semester)
+    ? { label: basicForm.currentSemester, value: basicForm.currentSemester }
+    : buildSemesterOption(academicYear, semester)
+
+  semesterOptions.value = sortSemesterOptions([...semesterOptions.value, fallbackOption])
 }
 
 async function handleSaveBasic(): Promise<void> {
@@ -255,9 +301,8 @@ function getLogTypeText(type: number | null, typeLabel?: string): string {
   if (typeLabel) {
     return typeLabel
   }
-  const option = LOG_TYPE_OPTIONS.find(item => item.value === type)
-  if (option) {
-    return option.label
+  if (type != null && LOG_TYPE_LABELS[type]) {
+    return LOG_TYPE_LABELS[type]
   }
   return type == null ? '-' : String(type)
 }
@@ -271,7 +316,7 @@ async function handleQueryLog(): Promise<void> {
       operationType: logQuery.type.length > 0 ? logQuery.type : undefined,
       username: logQuery.operator || undefined
     })
-    const pageData = extractNestedData<API.PageResponse<OperationLog>>(response)
+    const pageData = extractApiData<API.PageResponse<OperationLog>>(response)
     const records = pageData?.records || []
     logData.value = records.map((item) => ({
       operator: item.operatorName,
@@ -299,20 +344,24 @@ async function loadSettings(): Promise<void> {
       getSetting<WeightSetting>('weight')
     ])
 
-    const basicData = extractNestedData<BasicSetting>(basicRes)
-    const weightData = extractNestedData<WeightSetting>(weightRes)
+    const basicData = extractApiData<BasicSetting>(basicRes)
+    const weightData = extractApiData<WeightSetting>(weightRes)
 
     if (basicData) Object.assign(basicForm, basicData)
     if (weightData) Object.assign(weightForm, weightData)
+    ensureCurrentSemesterOption()
   } catch (error) {
     console.error('加载设置失败:', error)
     ElMessage.error('加载系统设置失败')
   }
 }
 
-onMounted(async () => {
-  await loadSettings()
-  await handleQueryLog()
+onMounted(() => {
+  void (async () => {
+    await loadSemesterOptions()
+    await loadSettings()
+    await handleQueryLog()
+  })()
 })
 </script>
 

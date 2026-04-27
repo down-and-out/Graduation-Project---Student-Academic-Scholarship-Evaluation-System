@@ -3,12 +3,12 @@ package com.scholarship.controller;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.RuleCategory;
 import com.scholarship.entity.ScoreRule;
-import com.scholarship.exception.BusinessException;
 import com.scholarship.service.RuleCategoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -67,7 +67,7 @@ public class RuleCategoryController {
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "新增分类", description = "添加新的规则分类")
-    public Result<Void> add(@RequestBody RuleCategory category) {
+    public Result<Void> add(@Valid @RequestBody RuleCategory category) {
         category.setStatus(1);
         boolean success = ruleCategoryService.save(category);
         return success ? Result.success("新增成功") : Result.error("新增失败");
@@ -76,7 +76,7 @@ public class RuleCategoryController {
     @PutMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "更新分类", description = "修改规则分类信息")
-    public Result<Void> update(@RequestBody RuleCategory category) {
+    public Result<Void> update(@Valid @RequestBody RuleCategory category) {
         boolean success = ruleCategoryService.updateById(category);
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
@@ -85,23 +85,15 @@ public class RuleCategoryController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除分类", description = "删除指定规则分类")
     public Result<Void> delete(@PathVariable Long id) {
-        try {
-            boolean success = ruleCategoryService.deleteWithCheck(id);
-            return success ? Result.success("删除成功") : Result.error("删除失败");
-        } catch (BusinessException e) {
-            return Result.error(e.getMessage());
-        }
+        boolean success = ruleCategoryService.deleteWithCheck(id);
+        return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
     @PutMapping("/toggle/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "切换分类状态", description = "启用或禁用规则分类")
     public Result<Void> toggleStatus(@PathVariable Long id) {
-        try {
-            boolean success = ruleCategoryService.toggleStatus(id);
-            return success ? Result.success("操作成功") : Result.error("操作失败");
-        } catch (BusinessException e) {
-            return Result.error(e.getMessage());
-        }
+        boolean success = ruleCategoryService.toggleStatus(id);
+        return success ? Result.success("操作成功") : Result.error("操作失败");
     }
 }

@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.dto.query.ScoreRuleQuery;
 import com.scholarship.entity.ScoreRule;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.ScoreRuleMapper;
 import com.scholarship.service.ScoreRuleService;
 import lombok.extern.slf4j.Slf4j;

@@ -2,6 +2,7 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.scholarship.common.result.Result;
+import com.scholarship.common.util.ParamParserUtil;
 import com.scholarship.dto.query.ScoreRuleQuery;
 import com.scholarship.entity.ScoreRule;
 import com.scholarship.service.ScoreRuleService;
@@ -24,7 +25,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -51,7 +51,7 @@ public class ScoreRuleController {
         query.setCurrent(current);
         query.setSize(size);
 
-        List<Integer> ruleTypes = parseIntegerParams(ruleType);
+        List<Integer> ruleTypes = ParamParserUtil.parseIntegerParams(ruleType);
         if (!ruleTypes.isEmpty()) {
             query.setRuleTypes(ruleTypes);
             query.setRuleType(ruleTypes.size() == 1 ? ruleTypes.get(0) : null);
@@ -163,22 +163,4 @@ public class ScoreRuleController {
         return success ? Result.success("导入成功") : Result.error("导入失败");
     }
 
-    private List<Integer> parseIntegerParams(List<String> rawValues) {
-        if (rawValues == null || rawValues.isEmpty()) {
-            return List.of();
-        }
-
-        List<Integer> result = new ArrayList<>();
-        for (String rawValue : rawValues) {
-            if (rawValue == null || rawValue.isBlank()) {
-                continue;
-            }
-            for (String value : rawValue.split(",")) {
-                if (!value.isBlank()) {
-                    result.add(Integer.parseInt(value.trim()));
-                }
-            }
-        }
-        return result.stream().distinct().toList();
-    }
 }

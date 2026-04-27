@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -26,9 +27,11 @@ public class RuleCategory implements Serializable {
     private Long id;
 
     @Schema(description = "分类名称")
+    @NotBlank(message = "分类名称不能为空")
     private String categoryName;
 
     @Schema(description = "分类编码")
+    @NotBlank(message = "分类编码不能为空")
     private String categoryCode;
 
     @Schema(description = "分类描述")
