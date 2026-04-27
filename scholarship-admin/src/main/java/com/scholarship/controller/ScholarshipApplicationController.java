@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -120,7 +121,7 @@ public class ScholarshipApplicationController {
     public Result<Void> review(
             @PathVariable Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "审核参数")
-            @RequestBody ReviewApplicationRequest request,
+            @Valid @RequestBody ReviewApplicationRequest request,
             @AuthenticationPrincipal LoginUser loginUser) {
         boolean success = applicationService.reviewApplication(
                 id,
@@ -132,6 +133,6 @@ public class ScholarshipApplicationController {
         return success ? Result.success("审核成功") : Result.error("审核失败");
     }
 
-    public record ReviewApplicationRequest(String opinion) {
+    public record ReviewApplicationRequest(@NotBlank(message = "审核意见不能为空") String opinion) {
     }
 }

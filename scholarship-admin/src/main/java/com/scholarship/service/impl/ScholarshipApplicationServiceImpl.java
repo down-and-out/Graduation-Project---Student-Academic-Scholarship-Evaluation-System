@@ -193,7 +193,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
 
         Integer reviewStage = resolveReviewStage(reviewerUserType);
         if (reviewStage == 1 && student.getTutorId() != null && !student.getTutorId().equals(reviewerId)) {
-            log.warn("?? {} ??????????????? {}", reviewerId, applicationId);
+            log.warn("审核人 {} 无权审核申请 {}", reviewerId, applicationId);
             throw new BusinessException("无权审核该申请，只能审核自己指导学生的申请");
         }
 
@@ -619,7 +619,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         return switch (reviewerUserType) {
             case 2 -> 1;
             case 3 -> 2;
-            default -> throw new BusinessException("??????????");
+            default -> throw new BusinessException("无效的审核用户类型");
         };
     }
 

@@ -181,13 +181,14 @@ import {
   getAvailableApplicationAchievements,
   submitApplication
 } from '@/api/application'
+import { extractApiData, extractPageData } from '@/utils/helpers'
 import type {
   Application,
   ApplicationAchievementItem,
   ApplicationDetail,
   SubmitApplicationData
 } from '@/api/application'
-import { getAvailableBatches } from '@/api/evaluation'
+import { getAvailableBatches, type EvaluationBatch } from '@/api/evaluation'
 import { applicationStatusMapper } from '@/composables/useStatusMapper'
 
 type TagType = 'primary' | 'success' | 'info' | 'warning' | 'danger'
@@ -211,22 +212,6 @@ interface ApplicationForm {
   agreed: boolean
 }
 
-interface BatchLike {
-  id?: number
-  name?: string
-  batchName?: string
-  startDate?: string
-  endDate?: string
-  startTime?: string
-  endTime?: string
-  status?: number
-  quota?: number
-  amount?: number
-  winnerCount?: number
-  totalAmount?: number
-  description?: string
-}
-
 interface SelectedAchievementMap {
   1: number[]
   2: number[]
@@ -234,12 +219,22 @@ interface SelectedAchievementMap {
   4: number[]
 }
 
+type AvailableBatchPayload = EvaluationBatch & Partial<{
+  batchName: string
+  startTime: string
+  endTime: string
+  quota: number
+  amount: number
+}>
+
 const ACHIEVEMENT_TYPE_LABELS: Record<AchievementType, string> = {
   1: '论文',
   2: '专利',
   3: '项目',
   4: '竞赛'
 }
+
+const ALL_ACHIEVEMENT_TYPES: AchievementType[] = [1, 2, 3, 4]
 
 const dialogVisible = ref(false)
 const submitting = ref(false)
@@ -287,7 +282,7 @@ const hasApplied = computed(() => myApplication.value !== null)
 const dialogTitle = computed(() => isViewMode.value ? '查看申请详情' : '提交申请')
 
 const achievementGroups = computed(() =>
-  ([1, 2, 3, 4] as AchievementType[]).map((type) => ({
+  ALL_ACHIEVEMENT_TYPES.map((type) => ({
     type,
     label: ACHIEVEMENT_TYPE_LABELS[type],
     items: availableAchievements.value.filter(item => item.achievementType === type)
@@ -300,7 +295,7 @@ const selectedAchievements = computed<ApplicationAchievementItem[]>(() => {
   }
 
   const selectedKeySet = new Set(
-    ([1, 2, 3, 4] as AchievementType[]).flatMap(type =>
+    ALL_ACHIEVEMENT_TYPES.flatMap(type =>
       selectedIds[type].map(id => `${type}-${id}`)
     )
   )
@@ -323,44 +318,30 @@ function getApplicationTagType(status: number): TagType {
   return applicationStatusMapper.getType(status) as TagType
 }
 
-function extractNestedData<T>(payload: unknown): T | null {
-  if (!payload || typeof payload !== 'object') return null
-  const raw = payload as Record<string, unknown>
-  if (raw.data && typeof raw.data === 'object') {
-    const inner = raw.data as Record<string, unknown>
-    if ('data' in inner) {
-      return inner.data as T
-    }
-    return raw.data as T
-  }
-  return raw as T
-}
+function normalizeBatchInfo(batch: AvailableBatchPayload): BatchCardInfo {
+  const start = batch.startDate || batch.startTime || ''
+  const end = batch.endDate || batch.endTime || ''
+  const period = start && end ? `${start} 至 ${end}` : start || end || '-'
 
-function extractPageData<T>(payload: unknown): API.PageResponse<T> | null {
-  const data = extractNestedData<API.PageResponse<T>>(payload)
-  if (data?.records) return data
-  return null
+  return {
+    id: batch.id ?? null,
+    name: batch.name || batch.batchName || '',
+    applyPeriod: period,
+    status: batch.status === 2 ? 'active' : 'closed',
+    statusText: batch.status === 2 ? '可申请' : '已结束',
+    quota: batch.winnerCount ?? batch.quota ?? 0,
+    amount: batch.totalAmount ?? batch.amount ?? 0,
+    description: batch.description || ''
+  }
 }
 
 async function loadBatchInfo(): Promise<void> {
   try {
     const response = await getAvailableBatches()
-    const batches = extractNestedData<BatchLike[]>(response) || []
+    const batches = extractApiData<AvailableBatchPayload[]>(response) || []
     if (!batches.length) return
 
-    const batch = batches[0]
-    const start = batch.startTime || batch.startDate || ''
-    const end = batch.endTime || batch.endDate || ''
-    batchInfo.value = {
-      id: batch.id ?? null,
-      name: batch.batchName || batch.name || '',
-      applyPeriod: `${start} 至 ${end}`,
-      status: batch.status === 2 ? 'active' : 'closed',
-      statusText: batch.status === 2 ? '可申请' : '已结束',
-      quota: batch.quota ?? batch.winnerCount ?? 0,
-      amount: batch.amount ?? batch.totalAmount ?? 0,
-      description: batch.description || ''
-    }
+    batchInfo.value = normalizeBatchInfo(batches[0])
   } catch (error) {
     console.error('加载批次信息失败:', error)
   }
@@ -382,7 +363,7 @@ async function loadMyApplication(): Promise<void> {
 async function loadAvailableAchievements(): Promise<void> {
   try {
     const response = await getAvailableApplicationAchievements()
-    availableAchievements.value = extractNestedData<ApplicationAchievementItem[]>(response) || []
+    availableAchievements.value = extractApiData<ApplicationAchievementItem[]>(response) || []
   } catch (error) {
     console.error('加载可选成果失败:', error)
     availableAchievements.value = []
@@ -391,7 +372,7 @@ async function loadAvailableAchievements(): Promise<void> {
 
 async function loadApplicationDetail(applicationId: number): Promise<void> {
   const response = await getApplicationById(applicationId)
-  applicationDetail.value = extractNestedData<ApplicationDetail>(response)
+  applicationDetail.value = extractApiData<ApplicationDetail>(response)
 }
 
 async function handleApply(): Promise<void> {
@@ -440,7 +421,7 @@ async function handleSubmit(): Promise<void> {
 
   submitting.value = true
   try {
-    const achievements = ([1, 2, 3, 4] as AchievementType[]).flatMap(type =>
+    const achievements = ALL_ACHIEVEMENT_TYPES.flatMap(type =>
       selectedIds[type].map(id => ({
         achievementType: type,
         achievementId: id
@@ -484,8 +465,7 @@ function handleDialogClose(): void {
 }
 
 onMounted(() => {
-  loadBatchInfo()
-  loadMyApplication()
+  void Promise.allSettled([loadBatchInfo(), loadMyApplication()])
 })
 </script>
 
