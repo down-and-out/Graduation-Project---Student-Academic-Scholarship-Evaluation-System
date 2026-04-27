@@ -36,6 +36,11 @@ public interface CompetitionAwardService extends IService<CompetitionAward> {
     CompetitionAward getAwardById(Long id, LoginUser loginUser);
 
     /**
+     * 审核竞赛成果。
+     */
+    boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId, boolean isAdmin);
+
+    /**
      * 批量查询学生的审核通过获奖记录。
      */
     Map<Long, List<CompetitionAward>> mapByStudentIds(List<Long> studentIds);

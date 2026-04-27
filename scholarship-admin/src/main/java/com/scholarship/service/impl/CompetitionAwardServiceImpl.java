@@ -5,9 +5,10 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.common.enums.UserTypeEnum;
+import com.scholarship.common.util.DataScopeHelper;
 import com.scholarship.entity.CompetitionAward;
 import com.scholarship.entity.StudentInfo;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.CompetitionAwardMapper;
 import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.security.LoginUser;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -37,15 +39,24 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
     public IPage<CompetitionAward> pageAwards(Page<CompetitionAward> page, Long studentId, Integer auditStatus,
                                               String keyword, LoginUser loginUser) {
         LambdaQueryWrapper<CompetitionAward> wrapper = new LambdaQueryWrapper<>();
-        applyDataScope(wrapper, studentId, loginUser);
+        DataScopeHelper.applyDataScope(wrapper, studentId, loginUser, CompetitionAward::getStudentId, studentInfoMapper);
+        if (StringUtils.hasText(keyword)) {
+            List<Long> keywordStudentIds = DataScopeHelper.listStudentsByKeyword(keyword, studentInfoMapper).stream()
+                    .map(StudentInfo::getId)
+                    .toList();
+            wrapper.and(w -> w
+                    .like(CompetitionAward::getCompetitionName, keyword)
+                    .or().like(CompetitionAward::getInstructor, keyword)
+                    .or().like(CompetitionAward::getIssuingUnit, keyword)
+                    .or().like(CompetitionAward::getOrganizer, keyword)
+                    .or(!keywordStudentIds.isEmpty()).in(CompetitionAward::getStudentId, keywordStudentIds));
+        }
         wrapper.eq(auditStatus != null, CompetitionAward::getAuditStatus, auditStatus)
-                .and(StringUtils.hasText(keyword), w -> w
-                        .like(CompetitionAward::getCompetitionName, keyword)
-                        .or().like(CompetitionAward::getInstructor, keyword)
-                        .or().like(CompetitionAward::getIssuingUnit, keyword)
-                        .or().like(CompetitionAward::getOrganizer, keyword))
                 .orderByDesc(CompetitionAward::getCreateTime);
-        return page(page, wrapper);
+        IPage<CompetitionAward> result = page(page, wrapper);
+        DataScopeHelper.attachStudentInfo(result.getRecords(),
+                CompetitionAward::getStudentId, CompetitionAward::setStudentNo, CompetitionAward::setStudentName, studentInfoMapper);
+        return result;
     }
 
     @Override
@@ -54,8 +65,29 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
         if (award == null) {
             return null;
         }
-        ensureReadable(award.getStudentId(), loginUser);
+        DataScopeHelper.ensureReadable(award.getStudentId(), loginUser, "竞赛成果", studentInfoMapper);
         return award;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId, boolean isAdmin) {
+        CompetitionAward award = getById(id);
+        if (award == null) {
+            throw new BusinessException("竞赛成果不存在");
+        }
+
+        StudentInfo student = DataScopeHelper.requireStudentById(award.getStudentId(), studentInfoMapper);
+        if (!isAdmin && student.getTutorId() != null && !student.getTutorId().equals(auditorId)) {
+            log.warn("用户 {} 尝试审核不属于自己的竞赛成果 {}", auditorId, id);
+            throw new BusinessException("无权审核该竞赛成果");
+        }
+
+        award.setAuditStatus(auditStatus);
+        award.setAuditComment(auditComment);
+        award.setAuditorId(auditorId);
+        award.setAuditTime(LocalDateTime.now());
+        return updateById(award);
     }
 
     @Override
@@ -66,10 +98,10 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
         }
 
         if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = requireStudentByUserId(loginUser.getUserId());
+            StudentInfo currentStudent = DataScopeHelper.requireStudentByUserId(loginUser.getUserId(), studentInfoMapper);
             award.setStudentId(currentStudent.getId());
         } else if (UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            requireStudentById(award.getStudentId());
+            DataScopeHelper.requireStudentById(award.getStudentId(), studentInfoMapper);
         } else {
             throw new BusinessException("无权新增竞赛成果");
         }
@@ -101,7 +133,7 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
         }
 
         if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = requireStudentByUserId(loginUser.getUserId());
+            StudentInfo currentStudent = DataScopeHelper.requireStudentByUserId(loginUser.getUserId(), studentInfoMapper);
             if (!existing.getStudentId().equals(currentStudent.getId())) {
                 log.warn("用户 {} 尝试更新不属于自己的竞赛成果 {}", loginUser.getUserId(), award.getId());
                 throw new BusinessException("无权更新该竞赛成果");
@@ -111,7 +143,7 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
             if (award.getStudentId() == null) {
                 award.setStudentId(existing.getStudentId());
             } else {
-                requireStudentById(award.getStudentId());
+                DataScopeHelper.requireStudentById(award.getStudentId(), studentInfoMapper);
             }
         } else {
             throw new BusinessException("无权更新竞赛成果");
@@ -143,75 +175,4 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
         return awards.stream().collect(Collectors.groupingBy(CompetitionAward::getStudentId));
     }
 
-    private void applyDataScope(LambdaQueryWrapper<CompetitionAward> wrapper, Long requestedStudentId, LoginUser loginUser) {
-        if (loginUser == null || UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            wrapper.eq(requestedStudentId != null, CompetitionAward::getStudentId, requestedStudentId);
-            return;
-        }
-
-        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = findStudentByUserId(loginUser.getUserId());
-            wrapper.eq(CompetitionAward::getStudentId, currentStudent == null ? -1L : currentStudent.getId());
-            return;
-        }
-
-        if (UserTypeEnum.isTutor(loginUser.getUserType())) {
-            List<Long> studentIds = listStudentIdsByTutorId(loginUser.getUserId());
-            if (studentIds.isEmpty()) {
-                wrapper.eq(CompetitionAward::getStudentId, -1L);
-            } else {
-                wrapper.in(CompetitionAward::getStudentId, studentIds);
-            }
-        }
-    }
-
-    private void ensureReadable(Long ownerStudentId, LoginUser loginUser) {
-        if (loginUser == null || UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            return;
-        }
-        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = requireStudentByUserId(loginUser.getUserId());
-            if (!ownerStudentId.equals(currentStudent.getId())) {
-                throw new BusinessException("无权查看该竞赛成果");
-            }
-            return;
-        }
-        if (UserTypeEnum.isTutor(loginUser.getUserType()) && listStudentIdsByTutorId(loginUser.getUserId()).contains(ownerStudentId)) {
-            return;
-        }
-        throw new BusinessException("无权查看该竞赛成果");
-    }
-
-    private StudentInfo requireStudentByUserId(Long userId) {
-        StudentInfo student = findStudentByUserId(userId);
-        if (student == null) {
-            throw new BusinessException("学生信息不存在");
-        }
-        return student;
-    }
-
-    private StudentInfo requireStudentById(Long studentId) {
-        if (studentId == null) {
-            throw new BusinessException("学生 ID 不能为空");
-        }
-        StudentInfo student = studentInfoMapper.selectById(studentId);
-        if (student == null) {
-            throw new BusinessException("学生信息不存在");
-        }
-        return student;
-    }
-
-    private StudentInfo findStudentByUserId(Long userId) {
-        return studentInfoMapper.selectOne(new LambdaQueryWrapper<StudentInfo>()
-                .eq(StudentInfo::getUserId, userId)
-                .last("limit 1"));
-    }
-
-    private List<Long> listStudentIdsByTutorId(Long tutorUserId) {
-        return studentInfoMapper.selectList(new LambdaQueryWrapper<StudentInfo>()
-                        .eq(StudentInfo::getTutorId, tutorUserId))
-                .stream()
-                .map(StudentInfo::getId)
-                .toList();
-    }
 }

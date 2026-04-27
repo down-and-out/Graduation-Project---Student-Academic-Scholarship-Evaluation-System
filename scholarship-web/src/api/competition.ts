@@ -4,6 +4,7 @@ export interface CompetitionAward {
   id?: number
   studentId: number
   studentName?: string
+  studentNo?: string
   competitionName: string
   competitionLevel?: number
   awardLevel: number
@@ -72,10 +73,27 @@ export function deleteCompetition(id: number): Promise<API.Response<null>> {
   })
 }
 
+export interface AuditCompetitionParams {
+  auditStatus: number
+  auditComment?: string
+}
+
+export function auditCompetition(
+  id: number,
+  params: AuditCompetitionParams
+): Promise<API.Response<null>> {
+  return request({
+    url: `/competition-award/audit/${id}`,
+    method: 'put',
+    data: params
+  })
+}
+
 export default {
   getCompetitionPage,
   getCompetitionDetail,
   addCompetition,
   updateCompetition,
-  deleteCompetition
+  deleteCompetition,
+  auditCompetition
 }
