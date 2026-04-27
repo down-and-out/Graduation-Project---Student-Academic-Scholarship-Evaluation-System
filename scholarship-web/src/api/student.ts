@@ -54,6 +54,7 @@ export interface StudentPageParams extends API.PageParams {
   department?: string[] | string
   status?: number[] | number
   grade?: string
+  enrollmentYear?: number | string
 }
 
 export interface TutorStudentPageParams extends API.PageParams {

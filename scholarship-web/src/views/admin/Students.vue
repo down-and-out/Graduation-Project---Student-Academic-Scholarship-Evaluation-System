@@ -16,6 +16,17 @@
           <el-option v-for="opt in departmentOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
+      <el-form-item label="入学年份">
+        <el-input-number
+          v-model="queryParams.enrollmentYear"
+          :min="2000"
+          :max="CURRENT_YEAR + 1"
+          :step="1"
+          :precision="0"
+          controls-position="right"
+          placeholder="请输入入学年份"
+        />
+      </el-form-item>
       <el-form-item label="学籍状态">
         <el-select v-model="queryParams.status" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
           <el-option label="在读" :value="STUDENT_STATUS.ACTIVE" />
@@ -167,6 +178,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getStudentPage, updateStudent, deleteStudent } from '@/api/student'
+import { getDepartments } from '@/api/basicData'
 
 // 常量定义
 const GENDER = { MALE: 1, FEMALE: 0 }
@@ -175,11 +187,7 @@ const STUDENT_STATUS = { ACTIVE: 1, SUSPENDED: 0, GRADUATED: 2, DROPPED: 3 }
 const CURRENT_YEAR = new Date().getFullYear()
 
 // 院系选项
-const departmentOptions = [
-  { label: '计算机学院', value: '计算机学院' },
-  { label: '软件学院', value: '软件学院' },
-  { label: '信息学院', value: '信息学院' }
-]
+const departmentOptions = ref([])
 
 // 状态
 const loading = ref(false)
@@ -196,6 +204,7 @@ const queryParams = reactive({
   size: 10,
   keyword: '',
   department: [],
+  enrollmentYear: undefined,
   status: []
 })
 
@@ -267,6 +276,7 @@ async function handleQuery() {
     const params = {
       ...queryParams,
       department: queryParams.department.length > 0 ? queryParams.department : undefined,
+      enrollmentYear: queryParams.enrollmentYear === undefined ? undefined : String(queryParams.enrollmentYear),
       status: queryParams.status.length > 0 ? queryParams.status : undefined
     }
     const res = await getStudentPage(params)
@@ -276,6 +286,17 @@ async function handleQuery() {
     ElMessage.error(error.message || '查询失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadDepartmentOptions() {
+  try {
+    const res = await getDepartments()
+    const data = res.data?.data || res.data || []
+    departmentOptions.value = data.map(item => ({ label: item, value: item }))
+  } catch (error) {
+    console.error('加载院系列表失败:', error)
+    departmentOptions.value = []
   }
 }
 
@@ -303,6 +324,7 @@ watch(
 function handleReset() {
   queryParams.keyword = ''
   queryParams.department = []
+  queryParams.enrollmentYear = undefined
   queryParams.status = []
   queryParams.current = 1
   handleQuery()
@@ -389,7 +411,7 @@ function handleDialogClose() {
 
 // 生命周期
 onMounted(() => {
-  handleQuery()
+  void Promise.allSettled([loadDepartmentOptions(), handleQuery()])
 })
 </script>
 

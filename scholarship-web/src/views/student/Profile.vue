@@ -134,8 +134,8 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getMyInfo, updateMyInfo } from '@/api/student'
 import type { Student } from '@/api/student'
-import { SUCCESS } from '@/constants/resultCode'
 import { GENDER_TEXT, EDUCATION_LEVEL_TEXT } from '@/constants'
+import { extractApiData } from '@/utils/helpers'
 
 const isEdit = ref(false)
 const formRef = ref<FormInstance | null>(null)
@@ -175,13 +175,7 @@ async function loadInfo(): Promise<void> {
   loading.value = true
   try {
     const response = await getMyInfo()
-    const studentData = extractStudentData(response)
-
-    if (studentData.code !== SUCCESS) {
-      return
-    }
-
-    const profile = studentData.payload
+    const profile = extractApiData<Student>(response)
     if (!profile) {
       throw new Error('学生信息为空')
     }
@@ -227,42 +221,6 @@ async function handleSave(): Promise<void> {
 function handleCancel(): void {
   isEdit.value = false
   loadInfo()
-}
-
-function extractStudentData(payload: unknown): { code?: number; payload: Partial<Student> | null } {
-  if (!payload || typeof payload !== 'object') {
-    return { payload: null }
-  }
-
-  const raw = payload as Record<string, unknown>
-  if (typeof raw.code === 'number' && raw.data && typeof raw.data === 'object') {
-    const data = raw.data as Record<string, unknown>
-    if (data.data && typeof data.data === 'object') {
-      return {
-        code: raw.code,
-        payload: data.data as Partial<Student>
-      }
-    }
-
-    return {
-      code: raw.code,
-      payload: raw.data as Partial<Student>
-    }
-  }
-
-  if (raw.data && typeof raw.data === 'object') {
-    const data = raw.data as Record<string, unknown>
-    return {
-      code: typeof data.code === 'number' ? data.code : undefined,
-      payload: data.data && typeof data.data === 'object'
-        ? data.data as Partial<Student>
-        : raw.data as Partial<Student>
-    }
-  }
-
-  return {
-    payload: raw as Partial<Student>
-  }
 }
 
 onMounted(() => {
