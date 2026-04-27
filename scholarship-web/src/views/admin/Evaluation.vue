@@ -147,7 +147,7 @@
             <el-form-item label="学年" prop="academicYear">
               <el-select v-model="formData.academicYear" placeholder="请选择" style="width: 100%">
                 <el-option
-                  v-for="option in academicYearOptions"
+                  v-for="option in formAcademicYearOptions"
                   :key="option.value"
                   :label="option.label"
                   :value="option.value"
@@ -277,6 +277,8 @@ import {
   type EvaluationBatch as ApiEvaluationBatch
 } from '@/api/evaluation'
 import { getAvailableRulesByType, getRuleById, getRulePage, type ScoreRule } from '@/api/rule'
+import { RULE_TYPE_LABELS } from '@/constants/rule'
+import { extractApiData } from '@/utils/helpers'
 
 type BatchStatus = 1 | 2 | 3 | 4 | 5
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
@@ -319,22 +321,6 @@ const BATCH_STATUS = {
   COMPLETED: 5
 } as const
 
-const RULE_TYPE_LABELS: Record<number, string> = {
-  1: '论文',
-  2: '专利',
-  3: '项目',
-  4: '竞赛',
-  5: '课程',
-  6: '德育'
-}
-
-const ACADEMIC_YEAR_OPTIONS: OptionItem<string>[] = [
-  { label: '2025-2026学年', value: '2025' },
-  { label: '2024-2025学年', value: '2024' },
-  { label: '2023-2024学年', value: '2023' },
-  { label: '2022-2023学年', value: '2022' }
-]
-
 const SEMESTER_OPTIONS: OptionItem<number>[] = [
   { label: '第一学期', value: 1 },
   { label: '第二学期', value: 2 },
@@ -349,9 +335,30 @@ const STATUS_OPTIONS: OptionItem<BatchStatus>[] = [
   { label: '已完成', value: BATCH_STATUS.COMPLETED }
 ]
 
-const academicYearOptions = computed(() => ACADEMIC_YEAR_OPTIONS)
-const semesterFormOptions = computed(() => SEMESTER_OPTIONS)
-const statusOptions = computed(() => STATUS_OPTIONS)
+const academicYearOptions = ref<OptionItem<string>[]>([])
+const formAcademicYearOptions = computed<OptionItem<string>[]>(() => {
+  if (academicYearOptions.value.length === 0) {
+    const currentYear = new Date().getFullYear()
+    return [
+      buildAcademicYearOption(String(currentYear)),
+      buildAcademicYearOption(String(currentYear + 1))
+    ]
+  }
+
+  const nextYearValue = String(
+    Math.max(...academicYearOptions.value.map(option => Number.parseInt(option.value, 10)).filter(year => !Number.isNaN(year))) + 1
+  )
+  const merged = new Map<string, OptionItem<string>>(
+    academicYearOptions.value.map(option => [option.value, option])
+  )
+  if (!merged.has(nextYearValue)) {
+    merged.set(nextYearValue, buildAcademicYearOption(nextYearValue))
+  }
+
+  return Array.from(merged.values()).sort((left, right) => right.value.localeCompare(left.value))
+})
+const semesterFormOptions = SEMESTER_OPTIONS
+const statusOptions = STATUS_OPTIONS
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -380,14 +387,10 @@ function createDefaultAwardConfigs(): ApiBatchAwardConfig[] {
 }
 
 function createDefaultSelectedRuleIdsByType(): Record<number, number[]> {
-  return {
-    1: [],
-    2: [],
-    3: [],
-    4: [],
-    5: [],
-    6: []
-  }
+  return Object.keys(RULE_TYPE_LABELS).reduce<Record<number, number[]>>((acc, type) => {
+    acc[Number(type)] = []
+    return acc
+  }, {})
 }
 
 const formData = reactive<EvaluationForm>({
@@ -428,19 +431,6 @@ const ruleNameMap = computed(() => {
   return new Map<number, string>(entries)
 })
 
-function extractNestedData<T>(payload: unknown): T | null {
-  if (!payload || typeof payload !== 'object') return null
-  const raw = payload as Record<string, unknown>
-  if (raw.data && typeof raw.data === 'object') {
-    const inner = raw.data as Record<string, unknown>
-    if ('data' in inner) {
-      return inner.data as T
-    }
-    return raw.data as T
-  }
-  return raw as T
-}
-
 function getStatusText(status: number | undefined): string {
   return STATUS_OPTIONS.find(item => item.value === status)?.label || '未知'
 }
@@ -470,6 +460,36 @@ function formatAcademicYearSemester(academicYear: string | null | undefined, sem
   if (!academicYear) return formatSemester(semester)
   const nextYear = Number.parseInt(academicYear, 10) + 1
   return `${academicYear}-${nextYear}学年${formatSemester(semester)}`
+}
+
+function buildAcademicYearOption(value: string): OptionItem<string> {
+  const numericYear = Number.parseInt(value, 10)
+  if (Number.isNaN(numericYear)) {
+    return { label: value, value }
+  }
+  return {
+    label: `${numericYear}-${numericYear + 1}学年`,
+    value
+  }
+}
+
+async function loadAcademicYearOptions(): Promise<void> {
+  try {
+    const response = await getEvaluationPage({ current: 1, size: 1000 })
+    const pageData = extractApiData<API.PageResponse<ApiEvaluationBatch>>(response)
+    const years = Array.from(
+      new Set(
+        (pageData?.records || [])
+          .map(item => item.academicYear)
+          .filter((item): item is string => Boolean(item))
+      )
+    ).sort((left, right) => right.localeCompare(left))
+
+    academicYearOptions.value = years.map(buildAcademicYearOption)
+  } catch (error) {
+    console.error('加载学年选项失败:', error)
+    academicYearOptions.value = []
+  }
 }
 
 function getAwardLevelName(level: number): string {
@@ -511,12 +531,12 @@ async function loadRules(): Promise<void> {
     ...Object.keys(RULE_TYPE_LABELS).map(type => getAvailableRulesByType(Number(type)))
   ])
 
-  const allRulePage = extractNestedData<API.PageResponse<ScoreRule>>(allRuleRes)
+  const allRulePage = extractApiData<API.PageResponse<ScoreRule>>(allRuleRes)
   allRules.value = allRulePage?.records || []
 
   const nextRulesByType: Record<number, ScoreRule[]> = {}
   Object.keys(RULE_TYPE_LABELS).forEach((type, index) => {
-    nextRulesByType[Number(type)] = extractNestedData<ScoreRule[]>(availableRuleResponses[index]) || []
+    nextRulesByType[Number(type)] = extractApiData<ScoreRule[]>(availableRuleResponses[index]) || []
   })
   availableRulesByType.value = nextRulesByType
 }
@@ -531,7 +551,7 @@ async function ensureRulesLoaded(ruleIds: number[]): Promise<void> {
     missingRuleIds.map(async id => {
       try {
         const response = await getRuleById(id)
-        return extractNestedData<ScoreRule>(response)
+        return extractApiData<ScoreRule>(response)
       } catch (error) {
         console.error(`加载规则 ${id} 失败:`, error)
         return null
@@ -566,7 +586,7 @@ async function handleQuery(): Promise<void> {
       semesters: queryParams.semesters.length > 0 ? queryParams.semesters : undefined,
       statuses: queryParams.statuses.length > 0 ? queryParams.statuses : undefined
     })
-    const pageData = extractNestedData<API.PageResponse<ApiEvaluationBatch>>(response)
+    const pageData = extractApiData<API.PageResponse<ApiEvaluationBatch>>(response)
     tableData.value = pageData?.records || []
     total.value = pageData?.total || 0
   } catch (error) {
@@ -590,7 +610,7 @@ async function handleView(row: ApiEvaluationBatch): Promise<void> {
 
   try {
     const response = await getEvaluationDetail(row.id)
-    const detail = extractNestedData<ApiEvaluationBatch>(response)
+    const detail = extractApiData<ApiEvaluationBatch>(response)
     if (!detail) return
     await ensureRulesLoaded(detail.selectedRuleIds || [])
 
@@ -787,9 +807,8 @@ function handleDialogClose(): void {
   resetForm()
 }
 
-onMounted(async () => {
-  await loadRules()
-  await handleQuery()
+onMounted(() => {
+  void Promise.allSettled([loadRules(), loadAcademicYearOptions(), handleQuery()])
 })
 </script>
 
