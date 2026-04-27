@@ -10,7 +10,7 @@ import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.enums.AwardLevelEnum;
 import com.scholarship.enums.ResultStatusEnum;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.EvaluationResultService;
@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,44 +45,54 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     private final EvaluationBatchService evaluationBatchService;
 
     @Override
-    public IPage<EvaluationResult> pageResults(Long current, Long size, Long batchId, Long studentId, Integer status, String keyword) {
-        // 创建分页对象
+    public IPage<EvaluationResult> pageResults(Long current, Long size, Long batchId, String academicYear,
+                                               Integer semester, Long studentId, Integer status, String keyword) {
         Page<EvaluationResult> page = new Page<>(current, size);
-
-        // 构建查询条件
         LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
 
-        // 批次筛选
         if (batchId != null) {
             wrapper.eq(EvaluationResult::getBatchId, batchId);
+        } else if (StringUtils.isNotBlank(academicYear) || semester != null) {
+            List<Long> matchedBatchIds = resolveBatchIds(academicYear, semester);
+            if (matchedBatchIds.isEmpty()) {
+                return new Page<>(current, size, 0);
+            }
+            wrapper.in(EvaluationResult::getBatchId, matchedBatchIds);
         }
 
-        // 学生 ID 筛选
         if (studentId != null) {
             wrapper.eq(EvaluationResult::getStudentId, studentId);
         }
 
-        // 状态筛选
         if (status != null) {
             wrapper.eq(EvaluationResult::getResultStatus, status);
         }
 
-        // 关键词模糊查询（学号或姓名）
         if (StringUtils.isNotBlank(keyword)) {
             wrapper.and(w -> w.like(EvaluationResult::getStudentNo, keyword)
                     .or()
                     .like(EvaluationResult::getStudentName, keyword));
         }
 
-        // 按总分降序排列
         wrapper.orderByDesc(EvaluationResult::getTotalScore);
 
         return evaluationResultMapper.selectPage(page, wrapper);
     }
 
     @Override
-    public IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, Long studentId, Integer status, String keyword) {
-        IPage<EvaluationResult> pageResult = pageResults(current, size, batchId, studentId, status, keyword);
+    public IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, String academicYear,
+                                                           Integer semester, Long studentId, Integer status,
+                                                           String keyword) {
+        IPage<EvaluationResult> pageResult = pageResults(
+                current,
+                size,
+                batchId,
+                academicYear,
+                semester,
+                studentId,
+                status,
+                keyword
+        );
         Map<Long, String> batchNameMap = loadBatchNameMap(pageResult.getRecords());
 
         Page<AdminEvaluationResultVO> adminPage = new Page<>(pageResult.getCurrent(), pageResult.getSize(), pageResult.getTotal());
@@ -97,6 +108,8 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
                 query.getCurrent(),
                 query.getSize(),
                 query.getBatchId(),
+                null,
+                null,
                 query.getStudentId(),
                 query.getResultStatus(),
                 query.getKeyword()
@@ -175,12 +188,18 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     }
 
     @Override
-    public List<EvaluationResultExportVO> exportBatchResults(Long batchId) {
-        log.info("导出批次评定结果，batchId={}", batchId);
+    public List<EvaluationResultExportVO> exportBatchResults(Long batchId, String academicYear, Integer semester) {
+        log.info("导出批次评定结果，batchId={}, academicYear={}, semester={}", batchId, academicYear, semester);
 
         LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
         if (batchId != null) {
             wrapper.eq(EvaluationResult::getBatchId, batchId);
+        } else if (StringUtils.isNotBlank(academicYear) || semester != null) {
+            List<Long> matchedBatchIds = resolveBatchIds(academicYear, semester);
+            if (matchedBatchIds.isEmpty()) {
+                return Collections.emptyList();
+            }
+            wrapper.in(EvaluationResult::getBatchId, matchedBatchIds);
         }
         wrapper.orderByDesc(EvaluationResult::getTotalScore);
 
@@ -223,6 +242,21 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         result.setAwardLevel(request.getAwardLevel());
         result.setRemark(request.getReason().trim());
         return updateById(result);
+    }
+
+    private List<Long> resolveBatchIds(String academicYear, Integer semester) {
+        LambdaQueryWrapper<EvaluationBatch> batchWrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.isNotBlank(academicYear)) {
+            batchWrapper.eq(EvaluationBatch::getAcademicYear, academicYear.trim());
+        }
+        if (semester != null) {
+            batchWrapper.eq(EvaluationBatch::getSemester, semester);
+        }
+
+        return evaluationBatchService.list(batchWrapper).stream()
+                .map(EvaluationBatch::getId)
+                .filter(id -> id != null)
+                .toList();
     }
 
     private Map<Long, String> loadBatchNameMap(List<EvaluationResult> results) {

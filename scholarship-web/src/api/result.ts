@@ -35,6 +35,8 @@ export interface EvaluationResult {
 
 export interface ResultPageParams extends API.PageParams {
   batchId?: number
+  academicYear?: string
+  semester?: number
   studentId?: number
   status?: number
   keyword?: string
@@ -78,11 +80,15 @@ export function getMyResult(batchId?: number): Promise<API.Response<EvaluationRe
   })
 }
 
-export async function exportResult(batchId?: number): Promise<Blob> {
+export async function exportResult(params?: {
+  batchId?: number
+  academicYear?: string
+  semester?: number
+}): Promise<Blob> {
   const response = await request({
     url: '/evaluation-result/export',
     method: 'get',
-    params: { batchId },
+    params,
     responseType: 'blob'
   })
   return response.data as Blob

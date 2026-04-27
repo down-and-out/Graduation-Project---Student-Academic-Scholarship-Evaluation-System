@@ -24,14 +24,18 @@ public interface EvaluationResultService extends IService<EvaluationResult> {
      * @param current   当前页
      * @param size      每页大小
      * @param batchId   批次 ID
+     * @param academicYear 学年
+     * @param semester 学期
      * @param studentId 学生 ID
      * @param status    状态（1-公示中, 2-已确定, 3-有异议）
      * @param keyword   关键词（学号/姓名模糊查询）
      * @return 分页结果
      */
-    IPage<EvaluationResult> pageResults(Long current, Long size, Long batchId, Long studentId, Integer status, String keyword);
+    IPage<EvaluationResult> pageResults(Long current, Long size, Long batchId, String academicYear, Integer semester,
+                                        Long studentId, Integer status, String keyword);
 
-    IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, Long studentId, Integer status, String keyword);
+    IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, String academicYear,
+                                                    Integer semester, Long studentId, Integer status, String keyword);
 
     /**
      * 根据查询参数分页查询
@@ -83,7 +87,9 @@ public interface EvaluationResultService extends IService<EvaluationResult> {
      * 导出批次评定结果
      *
      * @param batchId 批次 ID（可选）
+     * @param academicYear 学年（可选）
+     * @param semester 学期（可选）
      * @return 导出数据列表
      */
-    List<EvaluationResultExportVO> exportBatchResults(Long batchId);
+    List<EvaluationResultExportVO> exportBatchResults(Long batchId, String academicYear, Integer semester);
 }

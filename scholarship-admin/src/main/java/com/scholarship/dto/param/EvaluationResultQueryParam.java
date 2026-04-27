@@ -41,6 +41,21 @@ public class EvaluationResultQueryParam {
     private Long batchId;
 
     /**
+     * 学年
+     */
+    @Size(max = 20, message = "学年长度不能超过20个字符")
+    @Schema(description = "学年", example = "2024")
+    private String academicYear;
+
+    /**
+     * 学期（1-第一学期, 2-第二学期）
+     */
+    @Min(value = 1, message = "学期值必须在1-2之间")
+    @Max(value = 2, message = "学期值必须在1-2之间")
+    @Schema(description = "学期：1-第一学期, 2-第二学期", example = "1")
+    private Integer semester;
+
+    /**
      * 学生 ID
      */
     @Schema(description = "学生 ID", example = "1")

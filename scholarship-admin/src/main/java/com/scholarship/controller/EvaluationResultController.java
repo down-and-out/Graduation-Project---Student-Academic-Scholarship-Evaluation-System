@@ -23,6 +23,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -57,7 +58,7 @@ public class EvaluationResultController {
 
     @GetMapping("/page")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_STUDENT')")
-    @Operation(summary = "分页查询评定结果", description = "支持按批次、状态、学号和姓名筛选")
+    @Operation(summary = "分页查询评定结果", description = "支持按批次、学年、学期、状态、学号和姓名筛选")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "查询成功")
     })
@@ -76,6 +77,8 @@ public class EvaluationResultController {
                 queryParam.getCurrent(),
                 queryParam.getSize(),
                 queryParam.getBatchId(),
+                queryParam.getAcademicYear(),
+                queryParam.getSemester(),
                 studentId,
                 queryParam.getStatus(),
                 queryParam.getKeyword()
@@ -160,19 +163,14 @@ public class EvaluationResultController {
     public Result<Map<String, Object>> calculateBatch(@PathVariable Long batchId) {
         log.info("管理员触发批次评分计算，batchId={}", batchId);
 
-        try {
-            Map<Long, EvaluationResult> results = evaluationCalculationService.calculateBatchApplications(batchId);
+        Map<Long, EvaluationResult> results = evaluationCalculationService.calculateBatchApplications(batchId);
 
-            Map<String, Object> stats = new HashMap<>();
-            stats.put("batchId", batchId);
-            stats.put("calculatedCount", results.size());
-            stats.put("results", results);
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("batchId", batchId);
+        stats.put("calculatedCount", results.size());
+        stats.put("results", results);
 
-            return Result.success("评分计算完成", stats);
-        } catch (Exception e) {
-            log.error("批次评分计算失败，batchId={}", batchId, e);
-            return Result.error("评分计算失败: " + e.getMessage());
-        }
+        return Result.success("评分计算完成", stats);
     }
 
     @PostMapping("/generate-ranks/{batchId}")
@@ -186,18 +184,13 @@ public class EvaluationResultController {
     public Result<Map<String, Object>> generateRanks(@PathVariable Long batchId) {
         log.info("管理员触发批次排名生成，batchId={}", batchId);
 
-        try {
-            Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
+        Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
 
-            Map<String, Object> stats = new HashMap<>();
-            stats.put("batchId", batchId);
-            stats.put("rankedCount", rankResults.size());
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("batchId", batchId);
+        stats.put("rankedCount", rankResults.size());
 
-            return Result.success("排名生成完成", stats);
-        } catch (Exception e) {
-            log.error("批次排名生成失败，batchId={}", batchId, e);
-            return Result.error("排名生成失败: " + e.getMessage());
-        }
+        return Result.success("排名生成完成", stats);
     }
 
     @PostMapping("/generate/{batchId}")
@@ -211,13 +204,8 @@ public class EvaluationResultController {
     public Result<AwardAllocationService.AwardAllocationResult> generateAwards(@PathVariable Long batchId) {
         log.info("管理员触发奖项分配，batchId={}", batchId);
 
-        try {
-            AwardAllocationService.AwardAllocationResult result = awardAllocationService.allocateAwards(batchId);
-            return Result.success("奖项分配完成", result);
-        } catch (Exception e) {
-            log.error("奖项分配失败，batchId={}", batchId, e);
-            return Result.error("奖项分配失败: " + e.getMessage());
-        }
+        AwardAllocationService.AwardAllocationResult result = awardAllocationService.allocateAwards(batchId);
+        return Result.success("奖项分配完成", result);
     }
 
     @PutMapping("/confirm/{id}")
@@ -274,58 +262,63 @@ public class EvaluationResultController {
     public Result<Map<String, Object>> evaluateBatch(@PathVariable Long batchId) {
         log.info("一键完成评定，batchId={}", batchId);
 
-        try {
-            Map<String, Object> result = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
 
-            log.info("步骤 1: 计算评分");
-            Map<Long, EvaluationResult> calcResults = evaluationCalculationService.calculateBatchApplications(batchId);
-            result.put("calculatedCount", calcResults.size());
+        log.info("步骤 1: 计算评分");
+        Map<Long, EvaluationResult> calcResults = evaluationCalculationService.calculateBatchApplications(batchId);
+        result.put("calculatedCount", calcResults.size());
 
-            log.info("步骤 2: 生成排名");
-            Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
-            result.put("rankedCount", rankResults.size());
+        log.info("步骤 2: 生成排名");
+        Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
+        result.put("rankedCount", rankResults.size());
 
-            log.info("步骤 3: 分配奖项");
-            AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId);
-            result.put("awardResult", awardResult);
+        log.info("步骤 3: 分配奖项");
+        AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId);
+        result.put("awardResult", awardResult);
 
-            result.put("batchId", batchId);
-            result.put("status", "completed");
+        result.put("batchId", batchId);
+        result.put("status", "completed");
 
-            return Result.success("评定完成", result);
-        } catch (Exception e) {
-            log.error("一键评定失败，batchId={}", batchId, e);
-            return Result.error("评定失败: " + e.getMessage());
-        }
+        return Result.success("评定完成", result);
     }
 
     @GetMapping("/export")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "导出评定结果", description = "导出某批次的评定结果 Excel")
+    @Operation(summary = "导出评定结果", description = "按批次、学年、学期筛选导出评定结果 Excel")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "导出成功"),
             @ApiResponse(responseCode = "403", description = "无权限")
     })
     public void export(@Parameter(description = "批次 ID")
                        @RequestParam(required = false) Long batchId,
-                       HttpServletResponse response) {
-        log.info("导出评定结果，batchId={}", batchId);
+                       @Parameter(description = "学年")
+                       @RequestParam(required = false) String academicYear,
+                       @Parameter(description = "学期：1-第一学期, 2-第二学期")
+                       @RequestParam(required = false) Integer semester,
+                       HttpServletResponse response) throws IOException {
+        log.info("导出评定结果，batchId={}, academicYear={}, semester={}", batchId, academicYear, semester);
 
-        try {
-            List<EvaluationResultExportVO> exportData = evaluationResultService.exportBatchResults(batchId);
+        List<EvaluationResultExportVO> exportData = evaluationResultService.exportBatchResults(batchId, academicYear, semester);
 
-            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            response.setCharacterEncoding("utf-8");
-            String fileName = java.net.URLEncoder.encode("评定结果" + (batchId != null ? "_" + batchId : ""), "UTF-8");
-            response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".xlsx");
-
-            EasyExcel.write(response.getOutputStream(), EvaluationResultExportVO.class)
-                    .sheet("评定结果")
-                    .doWrite(exportData);
-
-            log.info("评定结果导出成功，记录数={}", exportData.size());
-        } catch (Exception e) {
-            log.error("评定结果导出失败", e);
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setCharacterEncoding("utf-8");
+        StringBuilder fileNameBuilder = new StringBuilder("评定结果");
+        if (batchId != null) {
+            fileNameBuilder.append("_").append(batchId);
         }
+        if (academicYear != null && !academicYear.isBlank()) {
+            fileNameBuilder.append("_").append(academicYear);
+        }
+        if (semester != null) {
+            fileNameBuilder.append("_").append(semester);
+        }
+        String fileName = java.net.URLEncoder.encode(fileNameBuilder.toString(), "UTF-8");
+        response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".xlsx");
+
+        EasyExcel.write(response.getOutputStream(), EvaluationResultExportVO.class)
+                .sheet("评定结果")
+                .doWrite(exportData);
+
+        log.info("评定结果导出成功，记录数={}", exportData.size());
     }
 }
