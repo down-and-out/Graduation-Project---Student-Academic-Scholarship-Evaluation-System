@@ -3,6 +3,7 @@ package com.scholarship.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.scholarship.common.enums.OperationLogTypeEnum;
 import com.scholarship.common.result.Result;
+import com.scholarship.common.util.ParamParserUtil;
 import com.scholarship.dto.query.OperationLogQuery;
 import com.scholarship.entity.SysOperationLog;
 import com.scholarship.service.SysOperationLogService;
@@ -17,10 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 @Slf4j
 @RestController
@@ -47,7 +45,7 @@ public class SysOperationLogController {
         query.setCurrent(current);
         query.setSize(size);
 
-        List<Integer> operationTypes = parseIntegerParams(operationType);
+        List<Integer> operationTypes = ParamParserUtil.parseIntegerParams(operationType);
         if (!operationTypes.isEmpty()) {
             query.setOperationTypes(operationTypes);
             query.setOperationType(operationTypes.size() == 1 ? operationTypes.get(0) : null);
@@ -56,26 +54,6 @@ public class SysOperationLogController {
         query.setKeyword(username);
         IPage<SysOperationLog> result = sysOperationLogService.queryPage(query);
         return Result.success(result.convert(this::toOperationLogVO));
-    }
-
-    private List<Integer> parseIntegerParams(List<String> rawValues) {
-        if (rawValues == null || rawValues.isEmpty()) {
-            return List.of();
-        }
-
-        Set<Integer> values = new LinkedHashSet<>();
-        for (String rawValue : rawValues) {
-            if (rawValue == null || rawValue.isBlank()) {
-                continue;
-            }
-            for (String value : rawValue.split(",")) {
-                String trimmed = value.trim();
-                if (!trimmed.isEmpty()) {
-                    values.add(Integer.valueOf(trimmed));
-                }
-            }
-        }
-        return new ArrayList<>(values);
     }
 
     private OperationLogVO toOperationLogVO(SysOperationLog logRecord) {
