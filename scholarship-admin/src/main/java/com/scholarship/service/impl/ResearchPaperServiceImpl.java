@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.common.exception.BusinessException;
+import com.scholarship.common.util.DataScopeHelper;
 import com.scholarship.entity.ResearchPaper;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.mapper.ResearchPaperMapper;
@@ -55,25 +56,10 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
         Page<ResearchPaper> page = new Page<>(current, size);
         LambdaQueryWrapper<ResearchPaper> wrapper = new LambdaQueryWrapper<>();
 
-        if (loginUser != null) {
-            if (loginUser.getUserType() == 1) {
-                StudentInfo currentStudent = findStudentByUserId(loginUser.getUserId());
-                if (currentStudent == null) {
-                    return convertToVOPage(new Page<>(current, size, 0), List.of());
-                }
-                wrapper.eq(ResearchPaper::getStudentId, currentStudent.getId());
-            } else if (loginUser.getUserType() == 2) {
-                List<StudentInfo> students = listStudentsByTutorId(loginUser.getUserId());
-                List<Long> tutorStudentIds = students.stream().map(StudentInfo::getId).toList();
-                if (tutorStudentIds.isEmpty()) {
-                    return convertToVOPage(new Page<>(current, size, 0), List.of());
-                }
-                wrapper.in(ResearchPaper::getStudentId, tutorStudentIds);
-            }
-        }
+        DataScopeHelper.applyDataScope(wrapper, studentId, loginUser, ResearchPaper::getStudentId, studentInfoMapper);
 
         if (StringUtils.hasText(keyword)) {
-            List<StudentInfo> students = listStudentsByKeyword(keyword);
+            List<StudentInfo> students = DataScopeHelper.listStudentsByKeyword(keyword, studentInfoMapper);
             List<Long> keywordStudentIds = students.stream().map(StudentInfo::getId).toList();
             if (keywordStudentIds.isEmpty()) {
                 return convertToVOPage(new Page<>(current, size, 0), List.of());
@@ -153,7 +139,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean submitPaper(ResearchPaper paper, Long studentId) {
-        StudentInfo studentInfo = findStudentByUserId(studentId);
+        StudentInfo studentInfo = DataScopeHelper.findStudentByUserId(studentId, studentInfoMapper);
         if (studentInfo == null) {
             throw new BusinessException("学生信息不存在");
         }
@@ -172,7 +158,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
             throw new BusinessException("论文不存在");
         }
 
-        StudentInfo currentStudent = findStudentByUserId(userId);
+        StudentInfo currentStudent = DataScopeHelper.findStudentByUserId(userId, studentInfoMapper);
         if (currentStudent == null) {
             throw new BusinessException("学生信息不存在");
         }
@@ -253,7 +239,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
 
         Long currentStudentId = currentUserId;
         if (!isAdmin) {
-            StudentInfo currentStudent = findStudentByUserId(currentUserId);
+            StudentInfo currentStudent = DataScopeHelper.findStudentByUserId(currentUserId, studentInfoMapper);
             if (currentStudent == null) {
                 throw new BusinessException("学生信息不存在");
             }
@@ -269,24 +255,6 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
         }
 
         return removeById(id);
-    }
-
-    private StudentInfo findStudentByUserId(Long userId) {
-        return studentInfoMapper.selectOne(new LambdaQueryWrapper<StudentInfo>()
-                .eq(StudentInfo::getUserId, userId)
-                .last("limit 1"));
-    }
-
-    private List<StudentInfo> listStudentsByTutorId(Long tutorUserId) {
-        return studentInfoMapper.selectList(new LambdaQueryWrapper<StudentInfo>()
-                .eq(StudentInfo::getTutorId, tutorUserId));
-    }
-
-    private List<StudentInfo> listStudentsByKeyword(String keyword) {
-        return studentInfoMapper.selectList(new LambdaQueryWrapper<StudentInfo>()
-                .and(w -> w.like(StudentInfo::getStudentNo, keyword)
-                        .or()
-                        .like(StudentInfo::getName, keyword)));
     }
 
     private Map<Long, StudentInfo> mapStudentsByIds(List<Long> ids) {

@@ -43,5 +43,5 @@ public interface ResearchPatentService extends IService<ResearchPatent> {
     /**
      * 审核专利。
      */
-    boolean audit(Long id, Integer auditStatus, String auditComment);
+    boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId, boolean isAdmin);
 }

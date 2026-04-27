@@ -10,6 +10,7 @@ export interface Paper {
   id?: number
   studentId: number
   studentName?: string
+  studentNo?: string
   title: string
   paperTitle?: string
   authors: string

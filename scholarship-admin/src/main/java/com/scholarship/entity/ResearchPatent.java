@@ -1,6 +1,7 @@
 package com.scholarship.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -25,6 +26,14 @@ public class ResearchPatent implements Serializable {
 
     @Schema(description = "学生档案 ID")
     private Long studentId;
+
+    @TableField(exist = false)
+    @Schema(description = "学生学号")
+    private String studentNo;
+
+    @TableField(exist = false)
+    @Schema(description = "学生姓名")
+    private String studentName;
 
     @Schema(description = "专利名称")
     private String patentName;

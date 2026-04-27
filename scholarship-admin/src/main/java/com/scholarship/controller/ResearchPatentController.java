@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ResearchPatent;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.ResearchPatentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -90,13 +90,20 @@ public class ResearchPatentController {
     }
 
     @PutMapping("/audit/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "审核专利", description = "管理员对专利进行审核")
+    @PreAuthorize("hasAnyRole('ROLE_TUTOR', 'ROLE_ADMIN')")
+    @Operation(summary = "审核专利", description = "导师或管理员对专利进行审核")
     public Result<Void> audit(
             @PathVariable @Min(value = 1, message = "专利 ID 无效") Long id,
-            @RequestBody AuditRequest request) {
+            @RequestBody AuditRequest request,
+            @AuthenticationPrincipal LoginUser loginUser) {
         try {
-            boolean success = researchPatentService.audit(id, request.auditStatus(), request.auditComment());
+            boolean success = researchPatentService.audit(
+                    id,
+                    request.auditStatus(),
+                    request.auditComment(),
+                    loginUser.getUserId(),
+                    loginUser.getUserType() == 3
+            );
             return success ? Result.success("审核成功") : Result.error("审核失败");
         } catch (BusinessException e) {
             return Result.error(e.getMessage());

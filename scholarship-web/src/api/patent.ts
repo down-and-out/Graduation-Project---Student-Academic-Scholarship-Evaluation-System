@@ -10,6 +10,7 @@ export interface ResearchPatent {
   id?: number
   studentId?: number
   studentName?: string
+  studentNo?: string
   patentName: string
   patentType: number
   applicant?: string

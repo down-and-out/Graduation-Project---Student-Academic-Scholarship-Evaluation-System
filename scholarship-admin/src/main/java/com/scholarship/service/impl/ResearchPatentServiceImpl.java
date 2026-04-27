@@ -5,9 +5,10 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.common.enums.UserTypeEnum;
+import com.scholarship.common.util.DataScopeHelper;
 import com.scholarship.entity.ResearchPatent;
 import com.scholarship.entity.StudentInfo;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.ResearchPatentMapper;
 import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.security.LoginUser;
@@ -35,15 +36,24 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
     public IPage<ResearchPatent> pagePatents(Page<ResearchPatent> page, Long studentId, Integer auditStatus,
                                              String keyword, LoginUser loginUser) {
         LambdaQueryWrapper<ResearchPatent> wrapper = new LambdaQueryWrapper<>();
-        applyDataScope(wrapper, studentId, loginUser);
+        DataScopeHelper.applyDataScope(wrapper, studentId, loginUser, ResearchPatent::getStudentId, studentInfoMapper);
+        if (StringUtils.hasText(keyword)) {
+            List<Long> keywordStudentIds = DataScopeHelper.listStudentsByKeyword(keyword, studentInfoMapper).stream()
+                    .map(StudentInfo::getId)
+                    .toList();
+            wrapper.and(w -> w
+                    .like(ResearchPatent::getPatentName, keyword)
+                    .or().like(ResearchPatent::getPatentNo, keyword)
+                    .or().like(ResearchPatent::getInventors, keyword)
+                    .or().like(ResearchPatent::getApplicant, keyword)
+                    .or(!keywordStudentIds.isEmpty()).in(ResearchPatent::getStudentId, keywordStudentIds));
+        }
         wrapper.eq(auditStatus != null, ResearchPatent::getAuditStatus, auditStatus)
-                .and(StringUtils.hasText(keyword), w -> w
-                        .like(ResearchPatent::getPatentName, keyword)
-                        .or().like(ResearchPatent::getPatentNo, keyword)
-                        .or().like(ResearchPatent::getInventors, keyword)
-                        .or().like(ResearchPatent::getApplicant, keyword))
                 .orderByDesc(ResearchPatent::getCreateTime);
-        return page(page, wrapper);
+        IPage<ResearchPatent> result = page(page, wrapper);
+        DataScopeHelper.attachStudentInfo(result.getRecords(),
+                ResearchPatent::getStudentId, ResearchPatent::setStudentNo, ResearchPatent::setStudentName, studentInfoMapper);
+        return result;
     }
 
     @Override
@@ -52,7 +62,7 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
         if (patent == null) {
             return null;
         }
-        ensureReadable(patent.getStudentId(), loginUser);
+        DataScopeHelper.ensureReadable(patent.getStudentId(), loginUser, "专利成果", studentInfoMapper);
         return patent;
     }
 
@@ -64,10 +74,10 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
         }
 
         if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = requireStudentByUserId(loginUser.getUserId());
+            StudentInfo currentStudent = DataScopeHelper.requireStudentByUserId(loginUser.getUserId(), studentInfoMapper);
             patent.setStudentId(currentStudent.getId());
         } else if (UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            requireStudentById(patent.getStudentId());
+            DataScopeHelper.requireStudentById(patent.getStudentId(), studentInfoMapper);
         } else {
             throw new BusinessException("无权新增专利成果");
         }
@@ -94,7 +104,7 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
         }
 
         if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = requireStudentByUserId(loginUser.getUserId());
+            StudentInfo currentStudent = DataScopeHelper.requireStudentByUserId(loginUser.getUserId(), studentInfoMapper);
             if (!existing.getStudentId().equals(currentStudent.getId())) {
                 log.warn("用户 {} 尝试更新不属于自己的专利 {}", loginUser.getUserId(), patent.getId());
                 throw new BusinessException("无权更新该专利成果");
@@ -104,7 +114,7 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
             if (patent.getStudentId() == null) {
                 patent.setStudentId(existing.getStudentId());
             } else {
-                requireStudentById(patent.getStudentId());
+                DataScopeHelper.requireStudentById(patent.getStudentId(), studentInfoMapper);
             }
         } else {
             throw new BusinessException("无权更新专利成果");
@@ -133,7 +143,7 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean audit(Long id, Integer auditStatus, String auditComment) {
+    public boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId, boolean isAdmin) {
         log.info("审核专利，id={}, auditStatus={}", id, auditStatus);
 
         ResearchPatent patent = getById(id);
@@ -141,81 +151,17 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
             throw new BusinessException("专利不存在");
         }
 
+        StudentInfo student = DataScopeHelper.requireStudentById(patent.getStudentId(), studentInfoMapper);
+        if (!isAdmin && student.getTutorId() != null && !student.getTutorId().equals(auditorId)) {
+            log.warn("用户 {} 尝试审核不属于自己的专利 {}", auditorId, id);
+            throw new BusinessException("无权审核该专利成果");
+        }
+
         patent.setAuditStatus(auditStatus);
         patent.setAuditComment(auditComment);
         patent.setAuditTime(LocalDateTime.now());
+        patent.setAuditorId(auditorId);
         return updateById(patent);
     }
 
-    private void applyDataScope(LambdaQueryWrapper<ResearchPatent> wrapper, Long requestedStudentId, LoginUser loginUser) {
-        if (loginUser == null || UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            wrapper.eq(requestedStudentId != null, ResearchPatent::getStudentId, requestedStudentId);
-            return;
-        }
-
-        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = findStudentByUserId(loginUser.getUserId());
-            wrapper.eq(ResearchPatent::getStudentId, currentStudent == null ? -1L : currentStudent.getId());
-            return;
-        }
-
-        if (UserTypeEnum.isTutor(loginUser.getUserType())) {
-            List<Long> studentIds = listStudentIdsByTutorId(loginUser.getUserId());
-            if (studentIds.isEmpty()) {
-                wrapper.eq(ResearchPatent::getStudentId, -1L);
-            } else {
-                wrapper.in(ResearchPatent::getStudentId, studentIds);
-            }
-        }
-    }
-
-    private void ensureReadable(Long ownerStudentId, LoginUser loginUser) {
-        if (loginUser == null || UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            return;
-        }
-        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = requireStudentByUserId(loginUser.getUserId());
-            if (!ownerStudentId.equals(currentStudent.getId())) {
-                throw new BusinessException("无权查看该专利成果");
-            }
-            return;
-        }
-        if (UserTypeEnum.isTutor(loginUser.getUserType()) && listStudentIdsByTutorId(loginUser.getUserId()).contains(ownerStudentId)) {
-            return;
-        }
-        throw new BusinessException("无权查看该专利成果");
-    }
-
-    private StudentInfo requireStudentByUserId(Long userId) {
-        StudentInfo student = findStudentByUserId(userId);
-        if (student == null) {
-            throw new BusinessException("学生信息不存在");
-        }
-        return student;
-    }
-
-    private StudentInfo requireStudentById(Long studentId) {
-        if (studentId == null) {
-            throw new BusinessException("学生 ID 不能为空");
-        }
-        StudentInfo student = studentInfoMapper.selectById(studentId);
-        if (student == null) {
-            throw new BusinessException("学生信息不存在");
-        }
-        return student;
-    }
-
-    private StudentInfo findStudentByUserId(Long userId) {
-        return studentInfoMapper.selectOne(new LambdaQueryWrapper<StudentInfo>()
-                .eq(StudentInfo::getUserId, userId)
-                .last("limit 1"));
-    }
-
-    private List<Long> listStudentIdsByTutorId(Long tutorUserId) {
-        return studentInfoMapper.selectList(new LambdaQueryWrapper<StudentInfo>()
-                        .eq(StudentInfo::getTutorId, tutorUserId))
-                .stream()
-                .map(StudentInfo::getId)
-                .toList();
-    }
 }
