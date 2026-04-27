@@ -5,9 +5,10 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.common.enums.UserTypeEnum;
+import com.scholarship.common.util.DataScopeHelper;
 import com.scholarship.entity.ResearchProject;
 import com.scholarship.entity.StudentInfo;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.ResearchProjectMapper;
 import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.security.LoginUser;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -37,15 +39,24 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
     public IPage<ResearchProject> pageProjects(Page<ResearchProject> page, Long studentId, Integer auditStatus,
                                                String keyword, LoginUser loginUser) {
         LambdaQueryWrapper<ResearchProject> wrapper = new LambdaQueryWrapper<>();
-        applyDataScope(wrapper, studentId, loginUser);
+        DataScopeHelper.applyDataScope(wrapper, studentId, loginUser, ResearchProject::getStudentId, studentInfoMapper);
+        if (StringUtils.hasText(keyword)) {
+            List<Long> keywordStudentIds = DataScopeHelper.listStudentsByKeyword(keyword, studentInfoMapper).stream()
+                    .map(StudentInfo::getId)
+                    .toList();
+            wrapper.and(w -> w
+                    .like(ResearchProject::getProjectName, keyword)
+                    .or().like(ResearchProject::getProjectNo, keyword)
+                    .or().like(ResearchProject::getProjectSource, keyword)
+                    .or().like(ResearchProject::getLeaderName, keyword)
+                    .or(!keywordStudentIds.isEmpty()).in(ResearchProject::getStudentId, keywordStudentIds));
+        }
         wrapper.eq(auditStatus != null, ResearchProject::getAuditStatus, auditStatus)
-                .and(StringUtils.hasText(keyword), w -> w
-                        .like(ResearchProject::getProjectName, keyword)
-                        .or().like(ResearchProject::getProjectNo, keyword)
-                        .or().like(ResearchProject::getProjectSource, keyword)
-                        .or().like(ResearchProject::getLeaderName, keyword))
                 .orderByDesc(ResearchProject::getCreateTime);
-        return page(page, wrapper);
+        IPage<ResearchProject> result = page(page, wrapper);
+        DataScopeHelper.attachStudentInfo(result.getRecords(),
+                ResearchProject::getStudentId, ResearchProject::setStudentNo, ResearchProject::setStudentName, studentInfoMapper);
+        return result;
     }
 
     @Override
@@ -54,8 +65,29 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
         if (project == null) {
             return null;
         }
-        ensureReadable(project.getStudentId(), loginUser);
+        DataScopeHelper.ensureReadable(project.getStudentId(), loginUser, "项目成果", studentInfoMapper);
         return project;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId, boolean isAdmin) {
+        ResearchProject project = getById(id);
+        if (project == null) {
+            throw new BusinessException("项目不存在");
+        }
+
+        StudentInfo student = DataScopeHelper.requireStudentById(project.getStudentId(), studentInfoMapper);
+        if (!isAdmin && student.getTutorId() != null && !student.getTutorId().equals(auditorId)) {
+            log.warn("用户 {} 尝试审核不属于自己的项目 {}", auditorId, id);
+            throw new BusinessException("无权审核该项目成果");
+        }
+
+        project.setAuditStatus(auditStatus);
+        project.setAuditComment(auditComment);
+        project.setAuditorId(auditorId);
+        project.setAuditTime(LocalDateTime.now());
+        return updateById(project);
     }
 
     @Override
@@ -66,10 +98,10 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
         }
 
         if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = requireStudentByUserId(loginUser.getUserId());
+            StudentInfo currentStudent = DataScopeHelper.requireStudentByUserId(loginUser.getUserId(), studentInfoMapper);
             project.setStudentId(currentStudent.getId());
         } else if (UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            requireStudentById(project.getStudentId());
+            DataScopeHelper.requireStudentById(project.getStudentId(), studentInfoMapper);
         } else {
             throw new BusinessException("无权新增项目成果");
         }
@@ -96,7 +128,7 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
         }
 
         if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = requireStudentByUserId(loginUser.getUserId());
+            StudentInfo currentStudent = DataScopeHelper.requireStudentByUserId(loginUser.getUserId(), studentInfoMapper);
             if (!existing.getStudentId().equals(currentStudent.getId())) {
                 log.warn("用户 {} 尝试更新不属于自己的项目 {}", loginUser.getUserId(), project.getId());
                 throw new BusinessException("无权更新该项目成果");
@@ -106,7 +138,7 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
             if (project.getStudentId() == null) {
                 project.setStudentId(existing.getStudentId());
             } else {
-                requireStudentById(project.getStudentId());
+                DataScopeHelper.requireStudentById(project.getStudentId(), studentInfoMapper);
             }
         } else {
             throw new BusinessException("无权更新项目成果");
@@ -133,75 +165,4 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
         return projects.stream().collect(Collectors.groupingBy(ResearchProject::getStudentId));
     }
 
-    private void applyDataScope(LambdaQueryWrapper<ResearchProject> wrapper, Long requestedStudentId, LoginUser loginUser) {
-        if (loginUser == null || UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            wrapper.eq(requestedStudentId != null, ResearchProject::getStudentId, requestedStudentId);
-            return;
-        }
-
-        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = findStudentByUserId(loginUser.getUserId());
-            wrapper.eq(ResearchProject::getStudentId, currentStudent == null ? -1L : currentStudent.getId());
-            return;
-        }
-
-        if (UserTypeEnum.isTutor(loginUser.getUserType())) {
-            List<Long> studentIds = listStudentIdsByTutorId(loginUser.getUserId());
-            if (studentIds.isEmpty()) {
-                wrapper.eq(ResearchProject::getStudentId, -1L);
-            } else {
-                wrapper.in(ResearchProject::getStudentId, studentIds);
-            }
-        }
-    }
-
-    private void ensureReadable(Long ownerStudentId, LoginUser loginUser) {
-        if (loginUser == null || UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            return;
-        }
-        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = requireStudentByUserId(loginUser.getUserId());
-            if (!ownerStudentId.equals(currentStudent.getId())) {
-                throw new BusinessException("无权查看该项目成果");
-            }
-            return;
-        }
-        if (UserTypeEnum.isTutor(loginUser.getUserType()) && listStudentIdsByTutorId(loginUser.getUserId()).contains(ownerStudentId)) {
-            return;
-        }
-        throw new BusinessException("无权查看该项目成果");
-    }
-
-    private StudentInfo requireStudentByUserId(Long userId) {
-        StudentInfo student = findStudentByUserId(userId);
-        if (student == null) {
-            throw new BusinessException("学生信息不存在");
-        }
-        return student;
-    }
-
-    private StudentInfo requireStudentById(Long studentId) {
-        if (studentId == null) {
-            throw new BusinessException("学生 ID 不能为空");
-        }
-        StudentInfo student = studentInfoMapper.selectById(studentId);
-        if (student == null) {
-            throw new BusinessException("学生信息不存在");
-        }
-        return student;
-    }
-
-    private StudentInfo findStudentByUserId(Long userId) {
-        return studentInfoMapper.selectOne(new LambdaQueryWrapper<StudentInfo>()
-                .eq(StudentInfo::getUserId, userId)
-                .last("limit 1"));
-    }
-
-    private List<Long> listStudentIdsByTutorId(Long tutorUserId) {
-        return studentInfoMapper.selectList(new LambdaQueryWrapper<StudentInfo>()
-                        .eq(StudentInfo::getTutorId, tutorUserId))
-                .stream()
-                .map(StudentInfo::getId)
-                .toList();
-    }
 }

@@ -10,6 +10,7 @@ export interface ResearchProject {
   id?: number
   studentId: number
   studentName?: string
+  studentNo?: string
   projectName: string
   projectLevel?: number
   projectType: number
@@ -25,6 +26,7 @@ export interface ResearchProject {
   funding?: number
   projectStatus?: number
   attachmentUrl?: string
+  score?: number
   auditStatus?: number
   auditComment?: string
   createTime?: string
@@ -108,10 +110,27 @@ export function deleteProject(id: number): Promise<API.Response<null>> {
   })
 }
 
+export interface AuditProjectParams {
+  auditStatus: number
+  auditComment?: string
+}
+
+export function auditProject(
+  id: number,
+  params: AuditProjectParams
+): Promise<API.Response<null>> {
+  return request({
+    url: `/research-project/audit/${id}`,
+    method: 'put',
+    data: params
+  })
+}
+
 export default {
   getProjectPage,
   getProjectDetail,
   addProject,
   updateProject,
-  deleteProject
+  deleteProject,
+  auditProject
 }

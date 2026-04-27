@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ResearchProject;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.ResearchProjectService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -80,11 +81,35 @@ public class ResearchProjectController {
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 
+    @PutMapping("/audit/{id}")
+    @PreAuthorize("hasAnyRole('ROLE_TUTOR', 'ROLE_ADMIN')")
+    @Operation(summary = "审核项目", description = "导师或管理员审核项目成果")
+    public Result<Void> audit(
+            @PathVariable @Min(value = 1, message = "项目 ID 无效") Long id,
+            @RequestBody AuditRequest request,
+            @AuthenticationPrincipal LoginUser loginUser) {
+        try {
+            boolean success = researchProjectService.audit(
+                    id,
+                    request.auditStatus(),
+                    request.auditComment(),
+                    loginUser.getUserId(),
+                    loginUser.getUserType() == 3
+            );
+            return success ? Result.success("审核成功") : Result.error("审核失败");
+        } catch (BusinessException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除项目", description = "仅管理员可操作")
     public Result<Void> delete(@PathVariable @Min(value = 1, message = "项目 ID 无效") Long id) {
         boolean success = researchProjectService.removeById(id);
         return success ? Result.success("删除成功") : Result.error("删除失败");
+    }
+
+    public record AuditRequest(Integer auditStatus, String auditComment) {
     }
 }

@@ -36,6 +36,11 @@ public interface ResearchProjectService extends IService<ResearchProject> {
     ResearchProject getProjectById(Long id, LoginUser loginUser);
 
     /**
+     * 审核项目成果。
+     */
+    boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId, boolean isAdmin);
+
+    /**
      * 批量查询学生的审核通过项目。
      */
     Map<Long, List<ResearchProject>> mapByStudentIds(List<Long> studentIds);
