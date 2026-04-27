@@ -8,11 +8,11 @@
 
     <el-card v-else-if="result" class="result-card">
       <div class="award-status">
-        <div class="award-icon" :class="getAwardClass(result.awardLevel || 0)">
+        <div class="award-icon" :class="getAwardClass(result.awardLevel)">
           <el-icon><Medal /></el-icon>
         </div>
         <div class="award-info">
-          <h3 class="award-title">{{ getAwardTitle(result.awardLevel || 0) }}</h3>
+          <h3 class="award-title">{{ getAwardTitle(result.awardLevel) }}</h3>
           <p v-if="showAmount" class="award-amount">
             奖学金金额：￥{{ result.awardAmount ?? 0 }}
           </p>
@@ -26,7 +26,7 @@
         <el-descriptions-item label="综合得分">{{ result.totalScore }}分</el-descriptions-item>
         <el-descriptions-item label="排名">{{ result.rank ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="getStatusType(result.status ?? 0)">{{ getStatusText(result.status ?? 0) }}</el-tag>
+          <el-tag :type="getStatusType(result.status)">{{ getStatusText(result.status) }}</el-tag>
         </el-descriptions-item>
       </el-descriptions>
 
@@ -59,8 +59,8 @@
         <el-table-column prop="batchName" label="评定批次" width="200" />
         <el-table-column prop="awardLevel" label="获奖等级" width="120">
           <template #default="{ row }">
-            <el-tag :type="getAwardTagType(row.awardLevel || 0)">
-              {{ getAwardTitle(row.awardLevel || 0) }}
+            <el-tag :type="getAwardTagType(row.awardLevel)">
+              {{ getAwardTitle(row.awardLevel) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -104,15 +104,15 @@
           <el-descriptions-item label="院系">{{ detailResult.department || '-' }}</el-descriptions-item>
           <el-descriptions-item label="专业">{{ detailResult.major || '-' }}</el-descriptions-item>
           <el-descriptions-item label="获奖等级">
-            <el-tag :type="getAwardTagType(detailResult.awardLevel || 0)">
-              {{ getAwardTitle(detailResult.awardLevel || 0) }}
+            <el-tag :type="getAwardTagType(detailResult.awardLevel)">
+              {{ getAwardTitle(detailResult.awardLevel) }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="综合得分">{{ detailResult.totalScore ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="排名">{{ detailResult.rank ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="getStatusType(detailResult.status ?? 0)">
-              {{ getStatusText(detailResult.status ?? 0) }}
+            <el-tag :type="getStatusType(detailResult.status)">
+              {{ getStatusText(detailResult.status) }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="备注">{{ detailResult.remark || '-' }}</el-descriptions-item>
@@ -141,8 +141,14 @@ import { DocumentAdd, Download, Medal } from '@element-plus/icons-vue'
 import { submitAppeal } from '@/api/appeal'
 import { getMyResult, getResultDetail, getResultPage } from '@/api/result'
 import type { EvaluationResult } from '@/api/result'
-
-type TagType = 'info' | 'warning' | 'success' | 'danger'
+import { extractApiData } from '@/utils/helpers'
+import {
+  getAwardLevelConfig,
+  getResultStatusConfig,
+  normalizeAwardLevel,
+  normalizeResultStatus,
+  type ResultTagType
+} from '@/constants/evaluationResult'
 
 interface StudentResultView extends EvaluationResult {
   rank?: number
@@ -175,69 +181,28 @@ const appealRules: FormRules = {
 }
 
 const showAmount = computed(() => {
-  const level = result.value?.awardLevel ?? 0
-  return level > 0 && level <= 3
+  const level = normalizeAwardLevel(result.value?.awardLevel)
+  return level >= 1 && level <= 4 && (result.value?.awardAmount ?? 0) > 0
 })
 
-function extractNestedData<T>(payload: unknown): T | null {
-  if (!payload || typeof payload !== 'object') return null
-  const raw = payload as Record<string, unknown>
-  if (raw.data && typeof raw.data === 'object') {
-    const inner = raw.data as Record<string, unknown>
-    if ('data' in inner) {
-      return inner.data as T
-    }
-    return raw.data as T
-  }
-  return raw as T
+function getAwardTitle(level?: number | null): string {
+  return getAwardLevelConfig(level).text
 }
 
-function getAwardTitle(level: number): string {
-  const titles: Record<number, string> = {
-    0: '未获奖',
-    1: '特等奖学金',
-    2: '一等奖学金',
-    3: '二等奖学金',
-    4: '三等奖学金',
-    5: '未获奖'
-  }
-  return titles[level] || '未评定'
+function getAwardClass(level?: number | null): string {
+  return getAwardLevelConfig(level).className
 }
 
-function getAwardClass(level: number): string {
-  const classes: Record<number, string> = {
-    0: 'award-none',
-    1: 'award-first',
-    2: 'award-first',
-    3: 'award-second',
-    4: 'award-third',
-    5: 'award-none'
-  }
-  return classes[level] || 'award-none'
+function getAwardTagType(level?: number | null): ResultTagType {
+  return getAwardLevelConfig(level).type
 }
 
-function getAwardTagType(level: number): TagType {
-  if (level === 1 || level === 2) return 'danger'
-  if (level === 3) return 'warning'
-  if (level === 4) return 'success'
-  return 'info'
+function getStatusText(status?: number | null): string {
+  return getResultStatusConfig(status).text
 }
 
-function getStatusText(status: number): string {
-  const texts: Record<number, string> = {
-    0: '待公示',
-    1: '公示中',
-    2: '已确认',
-    3: '有异议'
-  }
-  return texts[status] || '未知'
-}
-
-function getStatusType(status: number): TagType {
-  if (status === 1) return 'warning'
-  if (status === 2) return 'success'
-  if (status === 3) return 'danger'
-  return 'info'
+function getStatusType(status?: number | null): ResultTagType {
+  return getResultStatusConfig(status).type
 }
 
 function normalizeResult(payload: EvaluationResult): StudentResultView {
@@ -245,7 +210,7 @@ function normalizeResult(payload: EvaluationResult): StudentResultView {
     ...payload,
     batchName: payload.batchName || `批次${payload.batchId}`,
     rank: payload.rank ?? payload.departmentRank ?? payload.majorRank,
-    status: payload.status ?? payload.resultStatus ?? 0,
+    status: normalizeResultStatus(payload.status, payload.resultStatus),
     publishDate: payload.publishDate || payload.publicityDate
   }
 }
@@ -272,7 +237,7 @@ function downloadTextFile(content: string, fileName: string): void {
 async function loadResult(): Promise<void> {
   try {
     const response = await getMyResult()
-    const raw = extractNestedData<EvaluationResult>(response)
+    const raw = extractApiData<EvaluationResult>(response)
     result.value = raw ? normalizeResult(raw) : null
   } catch (error) {
     console.error('加载评定结果失败:', error)
@@ -280,13 +245,19 @@ async function loadResult(): Promise<void> {
 }
 
 async function loadHistory(): Promise<void> {
-  loading.value = true
   try {
     const response = await getResultPage({ current: 1, size: 100 })
-    const pageData = extractNestedData<API.PageResponse<EvaluationResult>>(response)
+    const pageData = extractApiData<API.PageResponse<EvaluationResult>>(response)
     historyList.value = (pageData?.records || []).map(normalizeResult)
   } catch (error) {
     console.error('加载历史记录失败:', error)
+  }
+}
+
+async function initializePage(): Promise<void> {
+  loading.value = true
+  try {
+    await Promise.allSettled([loadResult(), loadHistory()])
   } finally {
     loading.value = false
   }
@@ -326,10 +297,10 @@ function handleExport(): void {
     `学号：${result.value.studentNo || '-'}`,
     `院系：${result.value.department || '-'}`,
     `专业：${result.value.major || '-'}`,
-    `获奖等级：${getAwardTitle(result.value.awardLevel || 0)}`,
+    `获奖等级：${getAwardTitle(result.value.awardLevel)}`,
     `综合得分：${result.value.totalScore ?? '-'}`,
     `排名：${result.value.rank ?? '-'}`,
-    `状态：${getStatusText(result.value.status ?? 0)}`,
+    `状态：${getStatusText(result.value.status)}`,
     '',
     '说明：本文件由系统根据当前评定结果导出，仅供个人留存与核对。'
   ].join('\r\n')
@@ -343,7 +314,7 @@ async function handleViewDetail(row: StudentResultView): Promise<void> {
 
   try {
     const response = await getResultDetail(row.id)
-    const raw = extractNestedData<EvaluationResult>(response)
+    const raw = extractApiData<EvaluationResult>(response)
     if (!raw) return
     detailResult.value = normalizeResult(raw)
     detailDialogVisible.value = true
@@ -354,8 +325,7 @@ async function handleViewDetail(row: StudentResultView): Promise<void> {
 }
 
 onMounted(() => {
-  loadResult()
-  loadHistory()
+  void initializePage()
 })
 </script>
 

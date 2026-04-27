@@ -120,8 +120,8 @@ import type { UserInfo } from '@/utils/secureStorage'
 import { getPaperPage } from '@/api/paper'
 import { getPatentPage } from '@/api/patent'
 import { getProjectPage } from '@/api/project'
-import { getLatestNotifications } from '@/api/notification'
-import { extractPageData } from '@/utils/helpers'
+import { getLatestNotifications, type Notification } from '@/api/notification'
+import { extractApiData, extractPageData } from '@/utils/helpers'
 import type { PaperPageParams } from '@/api/paper'
 import type { PatentPageParams } from '@/api/patent'
 import type { ProjectPageParams } from '@/api/project'
@@ -140,10 +140,10 @@ interface Stats {
  * 通知公告接口
  */
 interface Notice {
-  id: number
-  title: string
-  content: string
-  createTime: string
+  id: Notification['id']
+  title: Notification['title']
+  content: Notification['content']
+  createTime: Notification['createTime']
 }
 
 // ========== 路由 ==========
@@ -235,7 +235,7 @@ async function loadStats(): Promise<void> {
  */
 async function loadNotices(): Promise<void> {
   const res = await getLatestNotifications()
-  const noticeList = Array.isArray(res.data?.data) ? res.data.data : []
+  const noticeList = extractApiData<Notification[]>(res) || []
   notices.value = noticeList.map(item => ({
     id: item.id,
     title: item.title,

@@ -9,10 +9,20 @@
     </div>
 
     <el-form :inline="true" class="search-form">
-      <el-form-item label="评定批次">
-        <el-select v-model="queryParams.batchId" placeholder="请选择" clearable>
+      <el-form-item label="学年">
+        <el-select v-model="queryParams.academicYear" placeholder="请选择" clearable>
           <el-option
-            v-for="item in batchOptions"
+            v-for="item in academicYearOptions"
+            :key="item"
+            :label="formatAcademicYearLabel(item)"
+            :value="item"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="学期">
+        <el-select v-model="queryParams.semester" placeholder="请选择" clearable>
+          <el-option
+            v-for="item in semesterOptions"
             :key="item.value"
             :label="item.label"
             :value="item.value"
@@ -24,9 +34,12 @@
       </el-form-item>
       <el-form-item label="状态">
         <el-select v-model="queryParams.status" placeholder="请选择" clearable>
-          <el-option label="公示中" :value="1" />
-          <el-option label="已确认" :value="2" />
-          <el-option label="有异议" :value="3" />
+          <el-option
+            v-for="option in resultStatusOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -86,8 +99,8 @@
       </el-table-column>
       <el-table-column label="结果状态" width="110">
         <template #default="{ row }">
-          <el-tag :type="getStatusConfig(row.resultStatus).type">
-            {{ getStatusConfig(row.resultStatus).text }}
+          <el-tag :type="getStatusConfig(getResultStatusValue(row)).type">
+            {{ getStatusConfig(getResultStatusValue(row)).text }}
           </el-tag>
         </template>
       </el-table-column>
@@ -125,8 +138,8 @@
           <el-descriptions-item label="综合得分">{{ detailData.totalScore ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="排名">{{ getDisplayRank(detailData) }}</el-descriptions-item>
           <el-descriptions-item label="结果状态">
-            <el-tag :type="getStatusConfig(detailData.resultStatus).type">
-              {{ getStatusConfig(detailData.resultStatus).text }}
+            <el-tag :type="getStatusConfig(getResultStatusValue(detailData)).type">
+              {{ getStatusConfig(getResultStatusValue(detailData)).text }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="调整备注">{{ detailData.remark || '-' }}</el-descriptions-item>
@@ -196,10 +209,16 @@ import {
   getResultPage,
   type EvaluationResult
 } from '@/api/result'
+import { extractApiData } from '@/utils/helpers'
+import {
+  getAwardLevelConfig,
+  getResultStatusConfig,
+  normalizeResultStatus,
+  RESULT_STATUS_OPTIONS,
+  type ResultTagType
+} from '@/constants/evaluationResult'
 
-type TagType = 'success' | 'warning' | 'danger' | 'info' | 'primary'
-
-interface BatchOption {
+interface SemesterOption {
   label: string
   value: number
 }
@@ -212,7 +231,8 @@ interface ScoreDetailRow {
 interface QueryParams {
   current: number
   size: number
-  batchId: number | null
+  academicYear: string
+  semester: number | null
   keyword: string
   status: number | null
 }
@@ -222,31 +242,22 @@ interface AdjustFormState {
   reason: string
 }
 
-const LEVEL_CONFIG: Record<number, { text: string; type: TagType }> = {
-  1: { text: '特等奖学金', type: 'danger' },
-  2: { text: '一等奖学金', type: 'danger' },
-  3: { text: '二等奖学金', type: 'warning' },
-  4: { text: '三等奖学金', type: 'success' },
-  5: { text: '未获奖', type: 'info' }
-}
-
-const STATUS_CONFIG: Record<number, { text: string; type: TagType }> = {
-  1: { text: '公示中', type: 'warning' },
-  2: { text: '已确认', type: 'success' },
-  3: { text: '有异议', type: 'danger' }
-}
-
 const loading = ref(false)
 const exporting = ref(false)
 const adjustSubmitting = ref(false)
 const tableData = ref<EvaluationResult[]>([])
 const total = ref(0)
-const batchOptions = ref<BatchOption[]>([])
+const academicYearOptions = ref<string[]>([])
 const detailDialogVisible = ref(false)
 const adjustDialogVisible = ref(false)
 const currentRow = ref<EvaluationResult | null>(null)
 const detailData = ref<EvaluationResult | null>(null)
 const adjustFormRef = ref<FormInstance | null>(null)
+const resultStatusOptions = RESULT_STATUS_OPTIONS.filter(option => option.value !== 0)
+const semesterOptions: SemesterOption[] = [
+  { label: '第一学期', value: 1 },
+  { label: '第二学期', value: 2 }
+]
 
 const stats = reactive({
   total: 0,
@@ -258,7 +269,8 @@ const stats = reactive({
 const queryParams = reactive<QueryParams>({
   current: 1,
   size: 10,
-  batchId: null,
+  academicYear: '',
+  semester: null,
   keyword: '',
   status: null
 })
@@ -273,37 +285,45 @@ const adjustRules: FormRules<AdjustFormState> = {
   reason: [{ required: true, message: '请输入调整原因', trigger: 'blur' }]
 }
 
-function extractNestedData<T>(payload: unknown): T | null {
-  if (!payload || typeof payload !== 'object') return null
-  const raw = payload as Record<string, unknown>
-  if (raw.data && typeof raw.data === 'object') {
-    const inner = raw.data as Record<string, unknown>
-    if ('data' in inner) {
-      return inner.data as T
-    }
-    return raw.data as T
-  }
-  return raw as T
+function getLevelConfig(level?: number): { text: string; type: ResultTagType } {
+  return getAwardLevelConfig(level)
 }
 
-function getLevelConfig(level?: number): { text: string; type: TagType } {
-  return LEVEL_CONFIG[level || 5] || LEVEL_CONFIG[5]
+function getStatusConfig(status?: number): { text: string; type: ResultTagType } {
+  return getResultStatusConfig(status)
 }
 
-function getStatusConfig(status?: number): { text: string; type: TagType } {
-  return STATUS_CONFIG[status || 1] || { text: '未知', type: 'info' }
+function getResultStatusValue(row: EvaluationResult): number {
+  return normalizeResultStatus(row.resultStatus, row.status)
 }
 
 function getDisplayRank(row: EvaluationResult): number | string {
   return row.departmentRank ?? row.majorRank ?? '-'
 }
 
+function formatAcademicYearLabel(academicYear: string): string {
+  const startYear = Number(academicYear)
+  if (Number.isNaN(startYear)) {
+    return academicYear
+  }
+  return `${startYear}-${startYear + 1}学年`
+}
+
 function updateStats(records: EvaluationResult[]): void {
-  const awarded = records.filter(item => item.awardLevel && item.awardLevel >= 1 && item.awardLevel <= 4)
-  stats.total = awarded.length
-  stats.firstLevel = records.filter(item => item.awardLevel === 2).length
-  stats.secondLevel = records.filter(item => item.awardLevel === 3).length
-  stats.thirdLevel = records.filter(item => item.awardLevel === 4).length
+  const nextStats = records.reduce(
+    (acc, item) => {
+      if (item.awardLevel && item.awardLevel >= 1 && item.awardLevel <= 4) {
+        acc.total += 1
+      }
+      if (item.awardLevel === 2) acc.firstLevel += 1
+      if (item.awardLevel === 3) acc.secondLevel += 1
+      if (item.awardLevel === 4) acc.thirdLevel += 1
+      return acc
+    },
+    { total: 0, firstLevel: 0, secondLevel: 0, thirdLevel: 0 }
+  )
+
+  Object.assign(stats, nextStats)
 }
 
 function buildScoreDetails(row: EvaluationResult): ScoreDetailRow[] {
@@ -324,19 +344,19 @@ function downloadBlob(blob: Blob, fileName: string): void {
   window.URL.revokeObjectURL(url)
 }
 
-async function loadBatchOptions(): Promise<void> {
+async function loadAcademicYearOptions(): Promise<void> {
   try {
     const response = await getEvaluationPage({ current: 1, size: 1000 })
-    const pageData = extractNestedData<API.PageResponse<EvaluationBatch>>(response)
-    batchOptions.value = (pageData?.records || [])
-      .filter(item => item.id)
-      .map(item => ({
-        label: item.name,
-        value: item.id as number
-      }))
+    const pageData = extractApiData<API.PageResponse<EvaluationBatch>>(response)
+    const years = new Set(
+      (pageData?.records || [])
+        .map(item => item.academicYear)
+        .filter((item): item is string => Boolean(item))
+    )
+    academicYearOptions.value = Array.from(years).sort((left, right) => right.localeCompare(left))
   } catch (error) {
     console.error('加载评定批次失败:', error)
-    batchOptions.value = []
+    academicYearOptions.value = []
   }
 }
 
@@ -346,11 +366,12 @@ async function handleQuery(): Promise<void> {
     const response = await getResultPage({
       current: queryParams.current,
       size: queryParams.size,
-      batchId: queryParams.batchId ?? undefined,
+      academicYear: queryParams.academicYear || undefined,
+      semester: queryParams.semester ?? undefined,
       status: queryParams.status ?? undefined,
       keyword: queryParams.keyword || undefined
     })
-    const pageData = extractNestedData<API.PageResponse<EvaluationResult>>(response)
+    const pageData = extractApiData<API.PageResponse<EvaluationResult>>(response)
     const records = pageData?.records || []
     tableData.value = records
     total.value = pageData?.total || 0
@@ -365,7 +386,8 @@ async function handleQuery(): Promise<void> {
 }
 
 function handleReset(): void {
-  queryParams.batchId = null
+  queryParams.academicYear = ''
+  queryParams.semester = null
   queryParams.keyword = ''
   queryParams.status = null
   queryParams.current = 1
@@ -381,7 +403,7 @@ async function handleView(row: EvaluationResult): Promise<void> {
   if (!row.id) return
   try {
     const response = await getResultDetail(row.id)
-    const detail = extractNestedData<EvaluationResult>(response)
+    const detail = extractApiData<EvaluationResult>(response)
     if (!detail) return
     detailData.value = detail
     detailDialogVisible.value = true
@@ -434,8 +456,15 @@ async function handleAdjustSubmit(): Promise<void> {
 async function handleExport(): Promise<void> {
   try {
     exporting.value = true
-    const blob = await exportResult(queryParams.batchId ?? undefined)
-    const suffix = queryParams.batchId ? `_batch_${queryParams.batchId}` : ''
+    const blob = await exportResult({
+      academicYear: queryParams.academicYear || undefined,
+      semester: queryParams.semester ?? undefined
+    })
+    const suffixParts = [
+      queryParams.academicYear ? queryParams.academicYear : '',
+      queryParams.semester ? `semester_${queryParams.semester}` : ''
+    ].filter(Boolean)
+    const suffix = suffixParts.length > 0 ? `_${suffixParts.join('_')}` : ''
     downloadBlob(blob, `evaluation_results${suffix}.xlsx`)
   } catch (error) {
     console.error('导出失败:', error)
@@ -446,7 +475,7 @@ async function handleExport(): Promise<void> {
 }
 
 onMounted(async () => {
-  await Promise.all([loadBatchOptions(), handleQuery()])
+  await Promise.all([loadAcademicYearOptions(), handleQuery()])
 })
 </script>
 
