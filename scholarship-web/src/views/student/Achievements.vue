@@ -412,66 +412,66 @@
     <el-dialog v-model="detailVisible" :title="`${activeTypeLabel}详情`" width="640px">
       <el-descriptions v-if="currentRow" :column="2" border>
         <template v-if="activeType === 'paper'">
-          <el-descriptions-item label="论文标题" :span="2">{{ currentRow.title || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="作者">{{ currentRow.authors || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="作者排名">{{ getAuthorRankLabel(currentRow.authorRank) }}</el-descriptions-item>
-          <el-descriptions-item label="期刊名称">{{ currentRow.journalName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="期刊级别">{{ getJournalLevelLabel(currentRow.journalLevel) }}</el-descriptions-item>
-          <el-descriptions-item label="影响因子">{{ currentRow.impactFactor ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="发表日期">{{ currentRow.publicationDate || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="论文标题" :span="2">{{ currentPaperRow?.title || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="作者">{{ currentPaperRow?.authors || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="作者排名">{{ getAuthorRankLabel(currentPaperRow?.authorRank) }}</el-descriptions-item>
+          <el-descriptions-item label="期刊名称">{{ currentPaperRow?.journalName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="期刊级别">{{ getJournalLevelLabel(currentPaperRow?.journalLevel) }}</el-descriptions-item>
+          <el-descriptions-item label="影响因子">{{ currentPaperRow?.impactFactor ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="发表日期">{{ currentPaperRow?.publicationDate || '-' }}</el-descriptions-item>
           <el-descriptions-item label="审核状态">{{ getRowStatusLabel(currentRow) }}</el-descriptions-item>
-          <el-descriptions-item label="审核意见" :span="2">{{ currentRow.reviewComment || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="审核意见" :span="2">{{ currentPaperRow?.reviewComment || '-' }}</el-descriptions-item>
         </template>
 
         <template v-else-if="activeType === 'patent'">
-          <el-descriptions-item label="专利名称" :span="2">{{ currentRow.patentName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="专利号">{{ currentRow.patentNo || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="专利类型">{{ getPatentTypeLabel(currentRow.patentType) }}</el-descriptions-item>
-          <el-descriptions-item label="申请人">{{ currentRow.applicant || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="发明人">{{ currentRow.inventors || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="发明人排名">{{ currentRow.inventorRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="申请人排名">{{ currentRow.applicantRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="申请日期">{{ currentRow.applicationDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="专利状态">{{ getPatentStatusLabel(currentRow.patentStatus) }}</el-descriptions-item>
+          <el-descriptions-item label="专利名称" :span="2">{{ currentPatentRow?.patentName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="专利号">{{ currentPatentRow?.patentNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="专利类型">{{ getPatentTypeLabel(currentPatentRow?.patentType) }}</el-descriptions-item>
+          <el-descriptions-item label="申请人">{{ currentPatentRow?.applicant || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="发明人">{{ currentPatentRow?.inventors || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="发明人排名">{{ currentPatentRow?.inventorRank || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="申请人排名">{{ currentPatentRow?.applicantRank || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="申请日期">{{ currentPatentRow?.applicationDate || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="专利状态">{{ getPatentStatusLabel(currentPatentRow?.patentStatus) }}</el-descriptions-item>
           <el-descriptions-item label="审核状态">{{ getRowStatusLabel(currentRow) }}</el-descriptions-item>
-          <el-descriptions-item label="审核意见" :span="2">{{ currentRow.auditComment || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="2">{{ currentRow.remark || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="审核意见" :span="2">{{ currentPatentRow?.auditComment || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="2">{{ currentPatentRow?.remark || '-' }}</el-descriptions-item>
         </template>
 
         <template v-else-if="activeType === 'project'">
-          <el-descriptions-item label="项目名称" :span="2">{{ currentRow.projectName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目类型">{{ getProjectTypeLabel(currentRow.projectType) }}</el-descriptions-item>
-          <el-descriptions-item label="项目级别">{{ getProjectLevelLabel(currentRow.projectLevel) }}</el-descriptions-item>
-          <el-descriptions-item label="项目编号">{{ currentRow.projectNo || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目来源">{{ currentRow.projectSource || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="负责人">{{ currentRow.leaderName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="成员排名">{{ currentRow.memberRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目角色">{{ getProjectRoleLabel(currentRow.projectRole) }}</el-descriptions-item>
-          <el-descriptions-item label="参与人员" :span="2">{{ currentRow.participants || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="开始日期">{{ currentRow.startDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="结束日期">{{ currentRow.endDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目经费">{{ currentRow.funding ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目状态">{{ getProjectStatusLabel(currentRow.projectStatus) }}</el-descriptions-item>
+          <el-descriptions-item label="项目名称" :span="2">{{ currentProjectRow?.projectName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="项目类型">{{ getProjectTypeLabel(currentProjectRow?.projectType) }}</el-descriptions-item>
+          <el-descriptions-item label="项目级别">{{ getProjectLevelLabel(currentProjectRow?.projectLevel) }}</el-descriptions-item>
+          <el-descriptions-item label="项目编号">{{ currentProjectRow?.projectNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="项目来源">{{ currentProjectRow?.projectSource || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="负责人">{{ currentProjectRow?.leaderName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="成员排名">{{ currentProjectRow?.memberRank || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="项目角色">{{ getProjectRoleLabel(currentProjectRow?.projectRole) }}</el-descriptions-item>
+          <el-descriptions-item label="参与人员" :span="2">{{ currentProjectRow?.participants || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="开始日期">{{ currentProjectRow?.startDate || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="结束日期">{{ currentProjectRow?.endDate || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="项目经费">{{ currentProjectRow?.funding ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="项目状态">{{ getProjectStatusLabel(currentProjectRow?.projectStatus) }}</el-descriptions-item>
           <el-descriptions-item label="审核状态">{{ getRowStatusLabel(currentRow) }}</el-descriptions-item>
-          <el-descriptions-item label="审核意见" :span="2">{{ currentRow.auditComment || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="2">{{ currentRow.remark || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="审核意见" :span="2">{{ currentProjectRow?.auditComment || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="2">{{ currentProjectRow?.remark || '-' }}</el-descriptions-item>
         </template>
 
         <template v-else>
-          <el-descriptions-item label="竞赛名称" :span="2">{{ currentRow.competitionName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="竞赛级别">{{ getCompetitionLevelLabel(currentRow.competitionLevel) }}</el-descriptions-item>
-          <el-descriptions-item label="获奖等级">{{ getCompetitionAwardLevelLabel(currentRow.awardLevel) }}</el-descriptions-item>
-          <el-descriptions-item label="获奖名次">{{ currentRow.awardRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="获奖类型">{{ getCompetitionAwardTypeLabel(currentRow.awardType) }}</el-descriptions-item>
-          <el-descriptions-item label="成员排名">{{ currentRow.memberRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="指导老师">{{ currentRow.instructor || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="颁发单位">{{ currentRow.issuingUnit || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="主办单位">{{ currentRow.organizer || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="获奖日期">{{ currentRow.awardDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="团队成员" :span="2">{{ currentRow.teamMembers || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="竞赛名称" :span="2">{{ currentCompetitionRow?.competitionName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="竞赛级别">{{ getCompetitionLevelLabel(currentCompetitionRow?.competitionLevel) }}</el-descriptions-item>
+          <el-descriptions-item label="获奖等级">{{ getCompetitionAwardLevelLabel(currentCompetitionRow?.awardLevel) }}</el-descriptions-item>
+          <el-descriptions-item label="获奖名次">{{ currentCompetitionRow?.awardRank || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="获奖类型">{{ getCompetitionAwardTypeLabel(currentCompetitionRow?.awardType) }}</el-descriptions-item>
+          <el-descriptions-item label="成员排名">{{ currentCompetitionRow?.memberRank || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="指导老师">{{ currentCompetitionRow?.instructor || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="颁发单位">{{ currentCompetitionRow?.issuingUnit || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="主办单位">{{ currentCompetitionRow?.organizer || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="获奖日期">{{ currentCompetitionRow?.awardDate || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="团队成员" :span="2">{{ currentCompetitionRow?.teamMembers || '-' }}</el-descriptions-item>
           <el-descriptions-item label="审核状态">{{ getRowStatusLabel(currentRow) }}</el-descriptions-item>
-          <el-descriptions-item label="审核意见">{{ currentRow.auditComment || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="2">{{ currentRow.remark || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="审核意见">{{ currentCompetitionRow?.auditComment || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="2">{{ currentCompetitionRow?.remark || '-' }}</el-descriptions-item>
         </template>
       </el-descriptions>
     </el-dialog>
@@ -516,6 +516,13 @@ import {
 } from '@/utils/helpers'
 
 type AchievementType = 'paper' | 'patent' | 'project' | 'competition'
+type NormalizedPaper = Paper & {
+  title: string
+  journalName: string
+  publicationDate: string
+}
+type AuditedAchievementRow = ResearchPatent | ResearchProject | CompetitionAward
+type AchievementRow = NormalizedPaper | AuditedAchievementRow
 
 type Option = {
   label: string
@@ -688,8 +695,8 @@ const detailVisible = ref(false)
 const isEdit = ref(false)
 const activeType = ref<AchievementType>('paper')
 const formRef = ref<FormInstance | null>(null)
-const tableData = ref<any[]>([])
-const currentRow = ref<any | null>(null)
+const tableData = ref<AchievementRow[]>([])
+const currentRow = ref<AchievementRow | null>(null)
 
 const queryParams = reactive({
   current: 1,
@@ -825,18 +832,38 @@ const currentFormRules = computed<FormRules>(() => {
 })
 
 const dialogTitle = computed(() => `${isEdit.value ? '编辑' : '添加'}${activeTypeLabel.value}`)
+const currentPaperRow = computed(() => activeType.value === 'paper' ? (currentRow.value as NormalizedPaper | null) : null)
+const currentPatentRow = computed(() => activeType.value === 'patent' ? (currentRow.value as ResearchPatent | null) : null)
+const currentProjectRow = computed(() => activeType.value === 'project' ? (currentRow.value as ResearchProject | null) : null)
+const currentCompetitionRow = computed(() => activeType.value === 'competition' ? (currentRow.value as CompetitionAward | null) : null)
 
 function getOptionLabel(options: Option[], value?: number | null): string {
   return options.find(item => item.value === value)?.label || '-'
 }
 
-function normalizePaper(row: Paper) {
+function normalizePaper(row: Paper): NormalizedPaper {
   return {
     ...row,
     title: row.title || row.paperTitle || '',
     journalName: row.journalName || row.journal || '',
     publicationDate: row.publicationDate || row.publishDate || row.date || ''
   }
+}
+
+function asPaperRow(row: AchievementRow): NormalizedPaper {
+  return row as NormalizedPaper
+}
+
+function asPatentRow(row: AchievementRow): ResearchPatent {
+  return row as ResearchPatent
+}
+
+function asProjectRow(row: AchievementRow): ResearchProject {
+  return row as ResearchProject
+}
+
+function asCompetitionRow(row: AchievementRow): CompetitionAward {
+  return row as CompetitionAward
 }
 
 function getAuthorRankLabel(value?: number): string {
@@ -883,11 +910,11 @@ function getCompetitionAwardTypeLabel(value?: number): string {
   return getOptionLabel(competitionAwardTypeOptions, value)
 }
 
-function getRowStatusValue(row: any): number | undefined {
-  return activeType.value === 'paper' ? row.status : row.auditStatus
+function getRowStatusValue(row: AchievementRow): number | undefined {
+  return activeType.value === 'paper' ? asPaperRow(row).status : (row as AuditedAchievementRow).auditStatus
 }
 
-function getRowStatusLabel(row: any): string {
+function getRowStatusLabel(row: AchievementRow): string {
   const status = getRowStatusValue(row)
   if (status === undefined || status === null) return '-'
   return activeType.value === 'paper'
@@ -895,7 +922,7 @@ function getRowStatusLabel(row: any): string {
     : GENERIC_AUDIT_LABELS[status] || '未知状态'
 }
 
-function getRowStatusType(row: any): 'warning' | 'success' | 'danger' | 'info' | 'primary' {
+function getRowStatusType(row: AchievementRow): 'warning' | 'success' | 'danger' | 'info' | 'primary' {
   const status = getRowStatusValue(row)
   if (status === undefined || status === null) return 'info'
   return activeType.value === 'paper'
@@ -903,12 +930,12 @@ function getRowStatusType(row: any): 'warning' | 'success' | 'danger' | 'info' |
     : GENERIC_AUDIT_TYPES[status] || 'info'
 }
 
-function canEditRow(row: any): boolean {
+function canEditRow(row: AchievementRow): boolean {
   return isTypeEditable.value && getRowStatusValue(row) === AUDIT_STATUS.PENDING
 }
 
-function canDeleteRow(row: any): boolean {
-  return activeType.value === 'paper' && row.status === AUDIT_STATUS.PENDING
+function canDeleteRow(row: AchievementRow): boolean {
+  return activeType.value === 'paper' && asPaperRow(row).status === AUDIT_STATUS.PENDING
 }
 
 function resetPaperForm() {
@@ -1087,72 +1114,76 @@ function handleAdd(): void {
   syncRouteQuery('add')
 }
 
-function handleView(row: any): void {
+function handleView(row: AchievementRow): void {
   currentRow.value = row
   detailVisible.value = true
 }
 
-function handleEdit(row: any): void {
+function handleEdit(row: AchievementRow): void {
   if (!isTypeEditable.value) return
   isEdit.value = true
   if (activeType.value === 'paper') {
+    const paperRow = asPaperRow(row)
     Object.assign(paperForm, {
-      id: row.id ?? null,
-      paperTitle: row.title || row.paperTitle || '',
-      authors: row.authors || '',
-      authorRank: row.authorRank ?? AUTHOR_RANK.FIRST,
-      journalName: row.journalName || '',
-      journalLevel: row.journalLevel ?? null,
-      impactFactor: row.impactFactor ?? null,
-      publicationDate: row.publicationDate || ''
+      id: paperRow.id ?? null,
+      paperTitle: paperRow.title || paperRow.paperTitle || '',
+      authors: paperRow.authors || '',
+      authorRank: paperRow.authorRank ?? AUTHOR_RANK.FIRST,
+      journalName: paperRow.journalName || '',
+      journalLevel: paperRow.journalLevel ?? null,
+      impactFactor: paperRow.impactFactor ?? null,
+      publicationDate: paperRow.publicationDate || ''
     })
   } else if (activeType.value === 'patent') {
+    const patentRow = asPatentRow(row)
     Object.assign(patentForm, {
-      id: row.id ?? null,
-      patentName: row.patentName || '',
-      patentNo: row.patentNo || '',
-      patentType: row.patentType || 1,
-      applicant: row.applicant || '',
-      inventors: row.inventors || '',
-      inventorRank: row.inventorRank ?? 1,
-      applicantRank: row.applicantRank ?? 1,
-      applicationDate: row.applicationDate || '',
-      patentStatus: row.patentStatus || 1,
-      remark: row.remark || ''
+      id: patentRow.id ?? null,
+      patentName: patentRow.patentName || '',
+      patentNo: patentRow.patentNo || '',
+      patentType: patentRow.patentType || 1,
+      applicant: patentRow.applicant || '',
+      inventors: patentRow.inventors || '',
+      inventorRank: patentRow.inventorRank ?? 1,
+      applicantRank: patentRow.applicantRank ?? 1,
+      applicationDate: patentRow.applicationDate || '',
+      patentStatus: patentRow.patentStatus || 1,
+      remark: patentRow.remark || ''
     })
   } else if (activeType.value === 'project') {
+    const projectRow = asProjectRow(row)
     Object.assign(projectForm, {
-      id: row.id ?? null,
-      projectName: row.projectName || '',
-      projectType: row.projectType || 1,
-      projectLevel: row.projectLevel ?? 1,
-      projectNo: row.projectNo || '',
-      projectSource: row.projectSource || '',
-      leaderName: row.leaderName || '',
-      memberRank: row.memberRank ?? 1,
-      projectRole: row.projectRole ?? 1,
-      participants: row.participants || '',
-      startDate: row.startDate || '',
-      endDate: row.endDate || '',
-      funding: row.funding ?? null,
-      projectStatus: row.projectStatus ?? 1,
-      remark: row.remark || ''
+      id: projectRow.id ?? null,
+      projectName: projectRow.projectName || '',
+      projectType: projectRow.projectType || 1,
+      projectLevel: projectRow.projectLevel ?? 1,
+      projectNo: projectRow.projectNo || '',
+      projectSource: projectRow.projectSource || '',
+      leaderName: projectRow.leaderName || '',
+      memberRank: projectRow.memberRank ?? 1,
+      projectRole: projectRow.projectRole ?? 1,
+      participants: projectRow.participants || '',
+      startDate: projectRow.startDate || '',
+      endDate: projectRow.endDate || '',
+      funding: projectRow.funding ?? null,
+      projectStatus: projectRow.projectStatus ?? 1,
+      remark: projectRow.remark || ''
     })
   } else {
+    const competitionRow = asCompetitionRow(row)
     Object.assign(competitionForm, {
-      id: row.id ?? null,
-      competitionName: row.competitionName || '',
-      competitionLevel: row.competitionLevel ?? 1,
-      awardLevel: row.awardLevel ?? 2,
-      awardRank: row.awardRank ?? 1,
-      awardType: row.awardType ?? 1,
-      memberRank: row.memberRank ?? 1,
-      instructor: row.instructor || '',
-      issuingUnit: row.issuingUnit || '',
-      organizer: row.organizer || '',
-      teamMembers: row.teamMembers || '',
-      awardDate: row.awardDate || '',
-      remark: row.remark || ''
+      id: competitionRow.id ?? null,
+      competitionName: competitionRow.competitionName || '',
+      competitionLevel: competitionRow.competitionLevel ?? 1,
+      awardLevel: competitionRow.awardLevel ?? 2,
+      awardRank: competitionRow.awardRank ?? 1,
+      awardType: competitionRow.awardType ?? 1,
+      memberRank: competitionRow.memberRank ?? 1,
+      instructor: competitionRow.instructor || '',
+      issuingUnit: competitionRow.issuingUnit || '',
+      organizer: competitionRow.organizer || '',
+      teamMembers: competitionRow.teamMembers || '',
+      awardDate: competitionRow.awardDate || '',
+      remark: competitionRow.remark || ''
     })
   }
   formRef.value?.clearValidate()
@@ -1160,14 +1191,14 @@ function handleEdit(row: any): void {
   syncRouteQuery()
 }
 
-function handleDelete(row: any): void {
+function handleDelete(row: AchievementRow): void {
   ElMessageBox.confirm('确定要删除该论文吗？', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   })
     .then(async () => {
-      await deletePaper(row.id || 0)
+      await deletePaper(asPaperRow(row).id || 0)
       ElMessage.success('删除成功')
       await fetchTableData()
     })
