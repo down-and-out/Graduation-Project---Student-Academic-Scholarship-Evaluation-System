@@ -19,24 +19,25 @@
         />
       </el-form-item>
       <el-form-item label="角色">
-        <el-select
-          v-model="queryParams.userType"
-          placeholder="请选择"
-          multiple
-          clearable
-        >
+        <el-select v-model="queryParams.userType" placeholder="请选择" multiple clearable>
           <el-option v-for="opt in ROLE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态">
+      <el-form-item label="院系">
         <el-select
-          v-model="queryParams.status"
+          v-model="queryParams.department"
           placeholder="请选择"
           multiple
           clearable
+          collapse-tags
+          collapse-tags-tooltip
         >
-          <el-option label="启用" :value="USER_STATUS.ENABLED" />
-          <el-option label="禁用" :value="USER_STATUS.DISABLED" />
+          <el-option v-for="opt in departmentOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-select v-model="queryParams.status" placeholder="请选择" multiple clearable>
+          <el-option v-for="opt in USER_STATUS_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -179,7 +180,7 @@
             <el-col :span="12">
               <el-form-item label="入学年份" prop="enrollmentYear">
                 <el-select v-model="formData.enrollmentYear" style="width: 100%" placeholder="请选择入学年份">
-                  <el-option v-for="year in ENROLLMENT_YEAR_OPTIONS" :key="year" :label="String(year)" :value="year" />
+                  <el-option v-for="year in enrollmentYearOptions" :key="year" :label="String(year)" :value="year" />
                 </el-select>
               </el-form-item>
             </el-col>
@@ -311,60 +312,24 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Plus, RefreshLeft, View } from '@element-plus/icons-vue'
 import { batchDeleteUsers, addUser, deleteUser, getUserPage, resetPassword, updateUser } from '@/api/user'
+import { getDepartments } from '@/api/basicData'
+import { getStudentPage } from '@/api/student'
+import {
+  EDUCATION_LEVEL_OPTIONS,
+  GENDER_OPTIONS,
+  ROLE_OPTIONS,
+  STUDENT_STATUS_OPTIONS,
+  TRAINING_MODE_OPTIONS,
+  USER_STATUS,
+  USER_STATUS_MAP,
+  USER_STATUS_OPTIONS,
+  USER_TYPE,
+  USER_TYPE_MAP
+} from '@/constants/user'
 import { debounce, deepClone, isValidEmail, isValidPhone, isValidUsername } from '@/utils/helpers'
 
-const USER_TYPE = {
-  STUDENT: 1,
-  TUTOR: 2,
-  ADMIN: 3
-}
-
-const USER_STATUS = {
-  DISABLED: 0,
-  ENABLED: 1
-}
-
-const userTypeMapper = {
-  [USER_TYPE.STUDENT]: { text: '研究生', type: 'success' },
-  [USER_TYPE.TUTOR]: { text: '导师', type: 'warning' },
-  [USER_TYPE.ADMIN]: { text: '管理员', type: 'danger' }
-}
-
-const userStatusMap = {
-  [USER_STATUS.DISABLED]: { text: '禁用', type: 'info' },
-  [USER_STATUS.ENABLED]: { text: '启用', type: 'success' }
-}
-
-const ROLE_OPTIONS = [
-  { label: '研究生', value: USER_TYPE.STUDENT },
-  { label: '导师', value: USER_TYPE.TUTOR },
-  { label: '管理员', value: USER_TYPE.ADMIN }
-]
-
-const GENDER_OPTIONS = [
-  { label: '女', value: 0 },
-  { label: '男', value: 1 }
-]
-
-const EDUCATION_LEVEL_OPTIONS = [
-  { label: '硕士', value: 1 },
-  { label: '博士', value: 2 }
-]
-
-const TRAINING_MODE_OPTIONS = [
-  { label: '全日制', value: 1 },
-  { label: '非全日制', value: 2 }
-]
-
-const STUDENT_STATUS_OPTIONS = [
-  { label: '休学', value: 0 },
-  { label: '在读', value: 1 },
-  { label: '毕业', value: 2 },
-  { label: '退学', value: 3 }
-]
-
 const currentYear = new Date().getFullYear()
-const ENROLLMENT_YEAR_OPTIONS = Array.from({ length: 10 }, (_, index) => currentYear - index)
+const enrollmentYearOptions = ref(Array.from({ length: 10 }, (_, index) => currentYear - index))
 
 function isStudentUserType(userType) {
   return Number(userType) === USER_TYPE.STUDENT
@@ -372,22 +337,22 @@ function isStudentUserType(userType) {
 
 function getUserTypeText(userType) {
   if (userType === undefined || userType === null || userType === '') return ''
-  return userTypeMapper[userType]?.text || '未知'
+  return USER_TYPE_MAP[userType]?.text || '未知'
 }
 
 function getUserTypeTagType(userType) {
   if (userType === undefined || userType === null || userType === '') return ''
-  return userTypeMapper[userType]?.type || ''
+  return USER_TYPE_MAP[userType]?.type || ''
 }
 
 function getUserStatusText(status) {
   if (status === undefined || status === null || status === '') return ''
-  return userStatusMap[status]?.text || '未知'
+  return USER_STATUS_MAP[status]?.text || '未知'
 }
 
 function getUserStatusTagType(status) {
   if (status === undefined || status === null || status === '') return ''
-  return userStatusMap[status]?.type || ''
+  return USER_STATUS_MAP[status]?.type || ''
 }
 
 function formatDateTime(dateTime) {
@@ -424,6 +389,7 @@ function validateStudentRequired(value, callback, message) {
 const loading = ref(false)
 const tableData = ref([])
 const total = ref(0)
+const departmentOptions = ref([])
 const dialogVisible = ref(false)
 const viewDialogVisible = ref(false)
 const isEdit = ref(false)
@@ -438,6 +404,7 @@ const queryParams = reactive({
   current: 1,
   size: 10,
   keyword: '',
+  department: [],
   userType: [],
   status: []
 })
@@ -578,8 +545,44 @@ function getQueryParams() {
     current: queryParams.current,
     size: queryParams.size,
     keyword: queryParams.keyword || undefined,
+    department: queryParams.department.length > 0 ? queryParams.department : undefined,
     userType: queryParams.userType.length > 0 ? queryParams.userType : undefined,
     status: queryParams.status.length > 0 ? queryParams.status : undefined
+  }
+}
+
+async function loadDepartmentOptions() {
+  try {
+    const res = await getDepartments()
+    const data = res.data?.data || res.data || []
+    departmentOptions.value = data.map(item => ({ label: item, value: item }))
+  } catch (error) {
+    console.error('加载院系列表失败:', error)
+  }
+}
+
+async function loadEnrollmentYearOptions() {
+  try {
+    const response = await getStudentPage({ current: 1, size: 1000 })
+    const pageData = response.data?.data || response.data || {}
+    const years = (pageData.records || [])
+      .map(item => Number(item.enrollmentYear))
+      .filter(year => !Number.isNaN(year) && year > 0)
+
+    if (years.length === 0) {
+      enrollmentYearOptions.value = Array.from({ length: 10 }, (_, index) => currentYear - index)
+      return
+    }
+
+    const minYear = Math.min(...years)
+    const maxYear = Math.max(...years)
+    enrollmentYearOptions.value = Array.from(
+      { length: maxYear - minYear + 1 },
+      (_, index) => maxYear - index
+    )
+  } catch (error) {
+    console.error('加载入学年份选项失败:', error)
+    enrollmentYearOptions.value = Array.from({ length: 10 }, (_, index) => currentYear - index)
   }
 }
 
@@ -606,6 +609,7 @@ function handleQuery() {
 function handleReset() {
   queryParams.current = 1
   queryParams.keyword = ''
+  queryParams.department = []
   queryParams.userType = []
   queryParams.status = []
   loadData()
@@ -810,7 +814,7 @@ function handleDialogClose() {
 }
 
 onMounted(() => {
-  loadData()
+  void Promise.allSettled([loadDepartmentOptions(), loadEnrollmentYearOptions(), loadData()])
 })
 </script>
 

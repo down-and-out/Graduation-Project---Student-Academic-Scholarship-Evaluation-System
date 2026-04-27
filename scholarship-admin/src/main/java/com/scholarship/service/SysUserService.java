@@ -13,9 +13,9 @@ import java.util.List;
  */
 public interface SysUserService extends IService<SysUser> {
 
-    IPage<SysUser> pageUsers(Long current, Long size, String keyword, List<Integer> userTypes, List<Integer> statuses);
+    IPage<SysUser> pageUsers(Long current, Long size, String keyword, List<String> departments, List<Integer> userTypes, List<Integer> statuses);
 
-    IPage<SysUserVO> pageUserVOs(Long current, Long size, String keyword, List<Integer> userTypes, List<Integer> statuses);
+    IPage<SysUserVO> pageUserVOs(Long current, Long size, String keyword, List<String> departments, List<Integer> userTypes, List<Integer> statuses);
 
     SysUser getByUsername(String username);
 

@@ -11,6 +11,7 @@ import com.scholarship.mapper.SysUserMapper;
 import com.scholarship.service.StudentInfoService;
 import com.scholarship.service.SysUserService;
 import com.scholarship.vo.SysUserVO;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,26 +29,22 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements SysUserService {
 
     private final PasswordEncoder passwordEncoder;
     private final StudentInfoService studentInfoService;
 
-    public SysUserServiceImpl(PasswordEncoder passwordEncoder, StudentInfoService studentInfoService) {
-        this.passwordEncoder = passwordEncoder;
-        this.studentInfoService = studentInfoService;
-    }
-
     @Override
-    public IPage<SysUserVO> pageUserVOs(Long current, Long size, String keyword, List<Integer> userTypes, List<Integer> statuses) {
-        IPage<SysUser> userPage = pageUsers(current, size, keyword, userTypes, statuses);
+    public IPage<SysUserVO> pageUserVOs(Long current, Long size, String keyword, List<String> departments, List<Integer> userTypes, List<Integer> statuses) {
+        IPage<SysUser> userPage = pageUsers(current, size, keyword, departments, userTypes, statuses);
         Map<Long, StudentInfo> studentInfoMap = getStudentInfoMap(userPage.getRecords());
         return userPage.convert(user -> SysUserVO.fromEntity(user, studentInfoMap.get(user.getId())));
     }
 
     @Override
-    public IPage<SysUser> pageUsers(Long current, Long size, String keyword, List<Integer> userTypes, List<Integer> statuses) {
-        log.debug("分页查询用户，current={}, size={}, keyword={}, userTypes={}, statuses={}", current, size, keyword, userTypes, statuses);
+    public IPage<SysUser> pageUsers(Long current, Long size, String keyword, List<String> departments, List<Integer> userTypes, List<Integer> statuses) {
+        log.debug("分页查询用户，current={}, size={}, keyword={}, departments={}, userTypes={}, statuses={}", current, size, keyword, departments, userTypes, statuses);
 
         Page<SysUser> page = new Page<>(current, size);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
@@ -56,6 +53,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             wrapper.and(w -> w.like(SysUser::getUsername, keyword)
                     .or().like(SysUser::getRealName, keyword));
         }
+        applyIntegerFilter(wrapper, SysUser::getDepartment, departments);
         applyIntegerFilter(wrapper, SysUser::getUserType, userTypes);
         applyIntegerFilter(wrapper, SysUser::getStatus, statuses);
 
@@ -284,7 +282,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         String idsStr;
         if (ids.size() > 10) {
             List<Long> firstTen = ids.subList(0, 10);
-            idsStr = firstTen + "... (共 " + ids.size() + " 个)";
+            idsStr = firstTen + "... (共" + ids.size() + " 个)";
         } else {
             idsStr = ids.toString();
         }

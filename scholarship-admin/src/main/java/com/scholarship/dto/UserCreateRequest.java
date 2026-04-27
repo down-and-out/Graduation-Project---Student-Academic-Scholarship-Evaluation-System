@@ -3,6 +3,8 @@ package com.scholarship.dto;
 import com.scholarship.entity.SysUser;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
@@ -26,6 +28,7 @@ public class UserCreateRequest {
     /**
      * 专业（仅学生类型需要）
      */
+    @NotBlank(message = "专业不能为空")
     @Schema(description = "专业（仅学生类型需要）")
     private String major;
 
@@ -34,12 +37,14 @@ public class UserCreateRequest {
     /**
      * 学号
      */
+    @NotBlank(message = "学号不能为空")
     @Schema(description = "学号")
     private String studentNo;
 
     /**
      * 性别：0-女 1-男
      */
+    @NotNull(message = "性别不能为空")
     @Schema(description = "性别：0-女 1-男")
     private Integer gender;
 
@@ -52,18 +57,21 @@ public class UserCreateRequest {
     /**
      * 入学年份
      */
+    @NotNull(message = "入学年份不能为空")
     @Schema(description = "入学年份")
     private Integer enrollmentYear;
 
     /**
      * 学历层次：1-硕士 2-博士
      */
+    @NotNull(message = "学历层次不能为空")
     @Schema(description = "学历层次：1-硕士 2-博士")
     private Integer educationLevel;
 
     /**
      * 培养方式：1-全日制 2-非全日制
      */
+    @NotNull(message = "培养方式不能为空")
     @Schema(description = "培养方式：1-全日制 2-非全日制")
     private Integer trainingMode;
 
@@ -82,6 +90,7 @@ public class UserCreateRequest {
     /**
      * 学籍状态：0-休学 1-在读 2-毕业 3-退学
      */
+    @NotNull(message = "学籍状态不能为空")
     @Schema(description = "学籍状态：0-休学 1-在读 2-毕业 3-退学")
     private Integer status;
 }

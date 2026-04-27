@@ -2,6 +2,7 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.scholarship.common.result.Result;
+import com.scholarship.common.util.ParamParserUtil;
 import com.scholarship.dto.StudentCreateFields;
 import com.scholarship.dto.UserCreateRequest;
 import com.scholarship.entity.StudentInfo;
@@ -14,12 +15,20 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -37,7 +46,7 @@ public class SysUserController {
 
     @GetMapping("/page")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "分页查询用户", description = "支持按用户名、姓名、单个或多个用户类型、单个或多个状态筛选")
+    @Operation(summary = "分页查询用户", description = "支持按用户名、姓名、院系、单个或多个用户类型、单个或多个状态筛选")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "查询成功"),
             @ApiResponse(responseCode = "403", description = "无权限")
@@ -46,6 +55,8 @@ public class SysUserController {
             @Parameter(description = "当前页", example = "1") @RequestParam(defaultValue = "1") Long current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Long size,
             @Parameter(description = "搜索关键字") @RequestParam(required = false) String keyword,
+            @Parameter(description = "院系/部门，支持单个值、逗号分隔多值或重复参数")
+            @RequestParam(required = false) List<String> department,
             @Parameter(description = "用户类型：支持单个值、逗号分隔多值或重复参数，1-研究生 2-导师 3-管理员")
             @RequestParam(required = false) List<String> userType,
             @Parameter(description = "状态：支持单个值、逗号分隔多值或重复参数，0-禁用 1-正常")
@@ -54,8 +65,9 @@ public class SysUserController {
                 current,
                 size,
                 keyword,
-                normalizeFilterValues(userType),
-                normalizeFilterValues(status)
+                normalizeStringFilterValues(department),
+                normalizeIntegerFilterValues(userType),
+                normalizeIntegerFilterValues(status)
         ));
     }
 
@@ -87,19 +99,15 @@ public class SysUserController {
             @ApiResponse(responseCode = "400", description = "用户名已存在"),
             @ApiResponse(responseCode = "403", description = "无权限")
     })
-    public Result<Void> add(@RequestBody UserCreateRequest request) {
-        try {
-            StudentCreateFields studentFields = new StudentCreateFields(request);
+    public Result<Void> add(@Valid @RequestBody UserCreateRequest request) {
+        StudentCreateFields studentFields = new StudentCreateFields(request);
 
-            boolean success = sysUserService.createUser(
-                    request.getUser(),
-                    request.getMajor(),
-                    studentFields
-            );
-            return success ? Result.success("新增成功") : Result.error("新增失败");
-        } catch (RuntimeException e) {
-            return Result.error(e.getMessage());
-        }
+        boolean success = sysUserService.createUser(
+                request.getUser(),
+                request.getMajor(),
+                studentFields
+        );
+        return success ? Result.success("新增成功") : Result.error("新增失败");
     }
 
     @PutMapping
@@ -110,13 +118,9 @@ public class SysUserController {
             @ApiResponse(responseCode = "400", description = "用户名已存在"),
             @ApiResponse(responseCode = "403", description = "无权限")
     })
-    public Result<Void> update(@RequestBody SysUser user) {
-        try {
-            boolean success = sysUserService.updateUser(user);
-            return success ? Result.success("更新成功") : Result.error("更新失败");
-        } catch (RuntimeException e) {
-            return Result.error(e.getMessage());
-        }
+    public Result<Void> update(@Valid @RequestBody SysUser user) {
+        boolean success = sysUserService.updateUser(user);
+        return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 
     @DeleteMapping("/{id}")
@@ -154,37 +158,17 @@ public class SysUserController {
     public Result<Void> resetPassword(
             @PathVariable Long id,
             @Parameter(description = "新密码") @RequestParam String password) {
-        try {
-            boolean success = sysUserService.resetPassword(id, password);
-            return success ? Result.success("重置成功") : Result.error("重置失败");
-        } catch (RuntimeException e) {
-            return Result.error(e.getMessage());
-        }
+        boolean success = sysUserService.resetPassword(id, password);
+        return success ? Result.success("重置成功") : Result.error("重置失败");
     }
 
-    private List<Integer> normalizeFilterValues(List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return null;
-        }
+    private List<Integer> normalizeIntegerFilterValues(List<String> values) {
+        List<Integer> parsed = ParamParserUtil.parseIntegerParams(values);
+        return parsed.isEmpty() ? null : parsed;
+    }
 
-        List<Integer> normalized = new ArrayList<>();
-        for (String value : values) {
-            if (value == null || value.isBlank()) {
-                continue;
-            }
-
-            String[] parts = value.split(",");
-            for (String part : parts) {
-                if (part == null || part.isBlank()) {
-                    continue;
-                }
-
-                Integer parsed = Integer.valueOf(part.trim());
-                if (!normalized.contains(parsed)) {
-                    normalized.add(parsed);
-                }
-            }
-        }
-        return normalized.isEmpty() ? null : normalized;
+    private List<String> normalizeStringFilterValues(List<String> values) {
+        List<String> parsed = ParamParserUtil.parseStringParams(values);
+        return parsed.isEmpty() ? null : parsed;
     }
 }
