@@ -22,7 +22,10 @@ import com.scholarship.service.ResearchPatentService;
 import com.scholarship.service.ResearchProjectService;
 import com.scholarship.service.ScholarshipApplicationService;
 import com.scholarship.service.ScoreRuleService;
+import com.scholarship.dto.WeightSetting;
 import com.scholarship.service.StudentInfoService;
+import com.scholarship.service.SysSettingService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +42,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResultMapper, EvaluationResult>
         implements EvaluationCalculationService {
 
@@ -52,28 +56,32 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
     private final CourseScoreService courseScoreService;
     private final MoralPerformanceService moralPerformanceService;
     private final EvaluationBatchService evaluationBatchService;
+    private final SysSettingService sysSettingService;
 
-    public EvaluationCalculationServiceImpl(ScoreRuleService scoreRuleService,
-                                            ResearchPaperService researchPaperService,
-                                            ResearchPatentService researchPatentService,
-                                            ResearchProjectService researchProjectService,
-                                            CompetitionAwardService competitionAwardService,
-                                            StudentInfoService studentInfoService,
-                                            ScholarshipApplicationService scholarshipApplicationService,
-                                            CourseScoreService courseScoreService,
-                                            MoralPerformanceService moralPerformanceService,
-                                            EvaluationBatchService evaluationBatchService) {
-        this.scoreRuleService = scoreRuleService;
-        this.researchPaperService = researchPaperService;
-        this.researchPatentService = researchPatentService;
-        this.researchProjectService = researchProjectService;
-        this.competitionAwardService = competitionAwardService;
-        this.studentInfoService = studentInfoService;
-        this.scholarshipApplicationService = scholarshipApplicationService;
-        this.courseScoreService = courseScoreService;
-        this.moralPerformanceService = moralPerformanceService;
-        this.evaluationBatchService = evaluationBatchService;
-    }
+    // ========== 参与因子系数 ==========
+    // 论文作者排名系数
+    private static final BigDecimal PAPER_FIRST_AUTHOR_RATIO = new BigDecimal("1.0");
+    private static final BigDecimal PAPER_SECOND_AUTHOR_RATIO = new BigDecimal("0.7");
+    private static final BigDecimal PAPER_THIRD_AUTHOR_RATIO = new BigDecimal("0.5");
+    private static final BigDecimal PAPER_OTHER_AUTHOR_RATIO = new BigDecimal("0.3");
+
+    // 专利申请人排名系数
+    private static final BigDecimal PATENT_FIRST_RATIO = new BigDecimal("1.0");
+    private static final BigDecimal PATENT_SECOND_RATIO = new BigDecimal("0.6");
+    private static final BigDecimal PATENT_THIRD_RATIO = new BigDecimal("0.4");
+    private static final BigDecimal PATENT_OTHER_RATIO = new BigDecimal("0.2");
+
+    // 项目成员排名系数
+    private static final BigDecimal PROJECT_FIRST_RATIO = new BigDecimal("1.0");
+    private static final BigDecimal PROJECT_SECOND_RATIO = new BigDecimal("0.7");
+    private static final BigDecimal PROJECT_THIRD_RATIO = new BigDecimal("0.5");
+    private static final BigDecimal PROJECT_OTHER_RATIO = new BigDecimal("0.3");
+
+    // 竞赛团队成员排名系数
+    private static final BigDecimal TEAM_FIRST_RATIO = new BigDecimal("1.0");
+    private static final BigDecimal TEAM_SECOND_RATIO = new BigDecimal("0.8");
+    private static final BigDecimal TEAM_THIRD_RATIO = new BigDecimal("0.6");
+    private static final BigDecimal TEAM_OTHER_RATIO = new BigDecimal("0.4");
 
     @Override
     public EvaluationResult calculateApplication(ScholarshipApplication application) {
@@ -304,6 +312,22 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         BigDecimal competitionWeight = new BigDecimal("0.2");
         BigDecimal qualityWeight = new BigDecimal("0.1");
 
+        try {
+            WeightSetting weightSetting = sysSettingService.getWeightSetting();
+            if (weightSetting != null
+                    && weightSetting.getCourseWeight() != null
+                    && weightSetting.getResearchWeight() != null
+                    && weightSetting.getCompetitionWeight() != null
+                    && weightSetting.getComprehensiveWeight() != null) {
+                courseWeight = weightToDecimal(weightSetting.getCourseWeight());
+                researchWeight = weightToDecimal(weightSetting.getResearchWeight());
+                competitionWeight = weightToDecimal(weightSetting.getCompetitionWeight());
+                qualityWeight = weightToDecimal(weightSetting.getComprehensiveWeight());
+            }
+        } catch (Exception e) {
+            log.warn("读取权重设置失败，使用默认权重", e);
+        }
+
         return courseScore.multiply(courseWeight)
                 .add(researchScore.multiply(researchWeight))
                 .add(competitionScore.multiply(competitionWeight))
@@ -481,10 +505,10 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
             return BigDecimal.ONE;
         }
         return switch (authorRank) {
-            case 1 -> new BigDecimal("1.0");
-            case 2 -> new BigDecimal("0.7");
-            case 3 -> new BigDecimal("0.5");
-            default -> new BigDecimal("0.3");
+            case 1 -> PAPER_FIRST_AUTHOR_RATIO;
+            case 2 -> PAPER_SECOND_AUTHOR_RATIO;
+            case 3 -> PAPER_THIRD_AUTHOR_RATIO;
+            default -> PAPER_OTHER_AUTHOR_RATIO;
         };
     }
 
@@ -493,10 +517,10 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
             return BigDecimal.ONE;
         }
         return switch (applicantRank) {
-            case 1 -> new BigDecimal("1.0");
-            case 2 -> new BigDecimal("0.6");
-            case 3 -> new BigDecimal("0.4");
-            default -> new BigDecimal("0.2");
+            case 1 -> PATENT_FIRST_RATIO;
+            case 2 -> PATENT_SECOND_RATIO;
+            case 3 -> PATENT_THIRD_RATIO;
+            default -> PATENT_OTHER_RATIO;
         };
     }
 
@@ -505,10 +529,10 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
             return BigDecimal.ONE;
         }
         return switch (memberRank) {
-            case 1 -> new BigDecimal("1.0");
-            case 2 -> new BigDecimal("0.7");
-            case 3 -> new BigDecimal("0.5");
-            default -> new BigDecimal("0.3");
+            case 1 -> PROJECT_FIRST_RATIO;
+            case 2 -> PROJECT_SECOND_RATIO;
+            case 3 -> PROJECT_THIRD_RATIO;
+            default -> PROJECT_OTHER_RATIO;
         };
     }
 
@@ -517,10 +541,10 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
             return BigDecimal.ONE;
         }
         return switch (memberRank) {
-            case 1 -> new BigDecimal("1.0");
-            case 2 -> new BigDecimal("0.8");
-            case 3 -> new BigDecimal("0.6");
-            default -> new BigDecimal("0.4");
+            case 1 -> TEAM_FIRST_RATIO;
+            case 2 -> TEAM_SECOND_RATIO;
+            case 3 -> TEAM_THIRD_RATIO;
+            default -> TEAM_OTHER_RATIO;
         };
     }
 
@@ -530,6 +554,10 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
                 .map(ScoreRule::getMaxScore)
                 .min(BigDecimal::compareTo)
                 .orElse(null);
+    }
+
+    private static BigDecimal weightToDecimal(Integer weightPercent) {
+        return new BigDecimal(weightPercent).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
     }
 
     private record BatchRuleSelection(Map<Integer, List<ScoreRule>> rulesByType) {

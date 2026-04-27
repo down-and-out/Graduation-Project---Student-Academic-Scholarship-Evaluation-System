@@ -9,7 +9,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -57,7 +61,7 @@ public class EvaluationRankServiceImpl extends ServiceImpl<EvaluationResultMappe
         for (Map.Entry<String, List<EvaluationResult>> entry : departmentMap.entrySet()) {
             List<EvaluationResult> deptResults = entry.getValue();
             // 按总分排序
-            deptResults.sort((a, b) -> b.getTotalScore().compareTo(a.getTotalScore()));
+            deptResults.sort(Comparator.comparing(EvaluationResult::getTotalScore, Comparator.nullsLast(Comparator.reverseOrder())));
             // 设置排名
             for (int i = 0; i < deptResults.size(); i++) {
                 deptResults.get(i).setDepartmentRank(i + 1);
@@ -68,7 +72,7 @@ public class EvaluationRankServiceImpl extends ServiceImpl<EvaluationResultMappe
         for (Map.Entry<String, List<EvaluationResult>> entry : majorMap.entrySet()) {
             List<EvaluationResult> majorResults = entry.getValue();
             // 按总分排序
-            majorResults.sort((a, b) -> b.getTotalScore().compareTo(a.getTotalScore()));
+            majorResults.sort(Comparator.comparing(EvaluationResult::getTotalScore, Comparator.nullsLast(Comparator.reverseOrder())));
             // 设置排名
             for (int i = 0; i < majorResults.size(); i++) {
                 majorResults.get(i).setMajorRank(i + 1);
@@ -151,20 +155,18 @@ public class EvaluationRankServiceImpl extends ServiceImpl<EvaluationResultMappe
     public int updateRanksBatch(Long batchId, List<EvaluationResult> results) {
         log.info("批量更新排名，batchId={}, 数量={}", batchId, results.size());
 
-        int count = 0;
+        List<EvaluationResult> updateEntities = new ArrayList<>(results.size());
         for (EvaluationResult result : results) {
             // 只更新排名字段
             EvaluationResult updateEntity = new EvaluationResult();
             updateEntity.setId(result.getId());
             updateEntity.setDepartmentRank(result.getDepartmentRank());
             updateEntity.setMajorRank(result.getMajorRank());
-
-            if (updateById(updateEntity)) {
-                count++;
-            }
+            updateEntities.add(updateEntity);
         }
 
-        log.info("批量更新排名完成，batchId={}, 成功数量={}", batchId, count);
-        return count;
+        boolean success = updateBatchById(updateEntities);
+        log.info("批量更新排名完成，batchId={}, 成功={}", batchId, success);
+        return success ? results.size() : 0;
     }
 }

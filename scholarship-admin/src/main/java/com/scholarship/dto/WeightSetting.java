@@ -28,4 +28,10 @@ public class WeightSetting {
      */
     @Schema(description = "综合素质权重")
     private Integer comprehensiveWeight;
+
+    /**
+     * 竞赛成绩权重（百分比）
+     */
+    @Schema(description = "竞赛成绩权重")
+    private Integer competitionWeight;
 }

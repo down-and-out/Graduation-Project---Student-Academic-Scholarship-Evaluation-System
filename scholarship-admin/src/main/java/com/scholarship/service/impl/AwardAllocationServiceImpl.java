@@ -8,17 +8,20 @@ import com.scholarship.entity.EvaluationResult;
 import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.service.AwardAllocationService;
 import com.scholarship.service.EvaluationBatchService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapper, EvaluationResult>
         implements AwardAllocationService {
 
@@ -33,10 +36,6 @@ public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapp
     private static final BigDecimal THIRD_AMOUNT = new BigDecimal("1000");
 
     private final EvaluationBatchService evaluationBatchService;
-
-    public AwardAllocationServiceImpl(EvaluationBatchService evaluationBatchService) {
-        this.evaluationBatchService = evaluationBatchService;
-    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -69,6 +68,7 @@ public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapp
         int thirdCount = 0;
         int noAwardCount = 0;
         BigDecimal totalAmount = BigDecimal.ZERO;
+        List<EvaluationResult> updateEntities = new ArrayList<>();
 
         for (EvaluationResult evalResult : results) {
             currentRank++;
@@ -101,11 +101,14 @@ public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapp
             updateEntity.setAwardLevel(awardLevel);
             updateEntity.setAwardAmount(awardAmount);
             updateEntity.setDepartmentRank(currentRank);
+            updateEntities.add(updateEntity);
 
-            if (updateById(updateEntity) && awardLevel != 5) {
+            if (awardLevel != 5) {
                 totalAmount = totalAmount.add(awardAmount);
             }
         }
+
+        updateBatchById(updateEntities);
 
         result.setSpecialCount(specialCount);
         result.setFirstCount(firstCount);

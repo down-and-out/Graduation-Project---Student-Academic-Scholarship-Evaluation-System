@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.enums.BatchStatusEnum;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.EvaluationBatchMapper;
 import com.scholarship.service.EvaluationBatchService;
 import lombok.extern.slf4j.Slf4j;

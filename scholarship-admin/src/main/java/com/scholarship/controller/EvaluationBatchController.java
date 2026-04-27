@@ -4,9 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
+import com.scholarship.common.util.ParamParserUtil;
 import com.scholarship.dto.BatchAwardConfig;
 import com.scholarship.entity.EvaluationBatch;
-import com.scholarship.exception.BusinessException;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.service.EvaluationBatchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -63,10 +64,10 @@ public class EvaluationBatchController {
         Page<EvaluationBatch> page = new Page<>(current, size);
         LambdaQueryWrapper<EvaluationBatch> wrapper = new LambdaQueryWrapper<>();
 
-        List<String> normalizedAcademicYears = parseStringParams(academicYears);
-        List<Integer> normalizedSemesters = parseIntegerParams(semesters);
-        List<Integer> normalizedStatuses = parseIntegerParams(mergeRawValues(statuses, legacyStatus, batchStatus));
-        List<LegacySemesterPair> legacySemesterPairs = parseLegacySemesterPairs(parseStringParams(legacySemester));
+        List<String> normalizedAcademicYears = ParamParserUtil.parseStringParams(academicYears);
+        List<Integer> normalizedSemesters = ParamParserUtil.parseIntegerParams(semesters);
+        List<Integer> normalizedStatuses = ParamParserUtil.parseIntegerParams(mergeRawValues(statuses, legacyStatus, batchStatus));
+        List<LegacySemesterPair> legacySemesterPairs = parseLegacySemesterPairs(ParamParserUtil.parseStringParams(legacySemester));
 
         if (!normalizedAcademicYears.isEmpty()) {
             if (normalizedAcademicYears.size() == 1) {
@@ -257,44 +258,6 @@ public class EvaluationBatchController {
             }
         }
         return result;
-    }
-
-    private List<String> parseStringParams(List<String> rawValues) {
-        if (rawValues == null || rawValues.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        Set<String> result = new LinkedHashSet<>();
-        for (String rawValue : rawValues) {
-            if (rawValue == null || rawValue.isBlank()) {
-                continue;
-            }
-            for (String value : rawValue.split(",")) {
-                if (!value.isBlank()) {
-                    result.add(value.trim());
-                }
-            }
-        }
-        return new ArrayList<>(result);
-    }
-
-    private List<Integer> parseIntegerParams(List<String> rawValues) {
-        if (rawValues == null || rawValues.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        Set<Integer> result = new LinkedHashSet<>();
-        for (String rawValue : rawValues) {
-            if (rawValue == null || rawValue.isBlank()) {
-                continue;
-            }
-            for (String value : rawValue.split(",")) {
-                if (!value.isBlank()) {
-                    result.add(Integer.parseInt(value.trim()));
-                }
-            }
-        }
-        return new ArrayList<>(result);
     }
 
     private void validateBatchConfig(EvaluationBatch batch) {
