@@ -94,10 +94,54 @@ export async function exportResult(params?: {
   return response.data as Blob
 }
 
+export interface EvaluationTaskResponse {
+  taskId: number
+  batchId: number
+  taskType: string
+  status: number
+  statusText: string
+  message: string
+  errorMessage?: string
+  createdAt?: string
+  startedAt?: string
+  finishedAt?: string
+  summary?: {
+    processedCount: number
+    writtenCount: number
+    pageCount: number
+    rankedCount: number
+    awardedCount: number
+  }
+}
+
+export function evaluateBatch(batchId: number): Promise<API.Response<EvaluationTaskResponse>> {
+  return request({
+    url: `/evaluation-result/evaluate/${batchId}`,
+    method: 'post'
+  })
+}
+
+export function getEvaluationTask(taskId: number): Promise<API.Response<EvaluationTaskResponse>> {
+  return request({
+    url: `/evaluation-result/tasks/${taskId}`,
+    method: 'get'
+  })
+}
+
+export function getLatestEvaluationTask(batchId: number): Promise<API.Response<EvaluationTaskResponse>> {
+  return request({
+    url: `/evaluation-result/tasks/latest/${batchId}`,
+    method: 'get'
+  })
+}
+
 export default {
   getResultPage,
   getResultDetail,
   adjustResult,
   getMyResult,
-  exportResult
+  exportResult,
+  evaluateBatch,
+  getEvaluationTask,
+  getLatestEvaluationTask
 }

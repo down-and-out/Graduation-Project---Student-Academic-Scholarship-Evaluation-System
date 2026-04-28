@@ -132,11 +132,23 @@ export function auditPatent(
   })
 }
 
+/**
+ * 统计专利总数
+ * @returns 总数
+ */
+export function countPatent(): Promise<API.Response<number>> {
+  return request({
+    url: '/research-patent/count',
+    method: 'get'
+  })
+}
+
 export default {
   getPatentPage,
   getPatentDetail,
   addPatent,
   updatePatent,
   deletePatent,
-  auditPatent
+  auditPatent,
+  countPatent
 }

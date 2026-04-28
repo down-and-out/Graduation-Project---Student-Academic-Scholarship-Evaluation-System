@@ -126,11 +126,23 @@ export function auditProject(
   })
 }
 
+/**
+ * 统计项目总数
+ * @returns 总数
+ */
+export function countProject(): Promise<API.Response<number>> {
+  return request({
+    url: '/research-project/count',
+    method: 'get'
+  })
+}
+
 export default {
   getProjectPage,
   getProjectDetail,
   addProject,
   updateProject,
   deleteProject,
-  auditProject
+  auditProject,
+  countProject
 }

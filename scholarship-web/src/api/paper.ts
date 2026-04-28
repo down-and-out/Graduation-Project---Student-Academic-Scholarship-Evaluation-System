@@ -82,9 +82,9 @@ export function submitPaper(data: Omit<Paper, 'id'>): Promise<API.Response<null>
 }
 
 /**
- * 缂栬緫璁烘枃
- * @param id - 璁烘枃 ID
- * @param data - 璁烘枃淇℃伅
+ * 编辑论文
+ * @param id - 论文 ID
+ * @param data - 论文信息
  * @returns Promise
  */
 export function updatePaper(id: number, data: Omit<Paper, 'id'>): Promise<API.Response<null>> {
@@ -132,11 +132,23 @@ export function deletePaper(id: number): Promise<API.Response<null>> {
   })
 }
 
+/**
+ * 统计论文总数
+ * @returns 总数
+ */
+export function countPaper(): Promise<API.Response<number>> {
+  return request({
+    url: '/paper/count',
+    method: 'get'
+  })
+}
+
 export default {
   getPaperPage,
   getPaperById,
   submitPaper,
   updatePaper,
   reviewPaper,
-  deletePaper
+  deletePaper,
+  countPaper
 }

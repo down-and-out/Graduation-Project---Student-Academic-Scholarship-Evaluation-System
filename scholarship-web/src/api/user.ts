@@ -111,11 +111,11 @@ export function batchDeleteUsers(ids: number[]): Promise<API.Response<null>> {
   })
 }
 
-export function resetPassword(id: number, password: string): Promise<API.Response<null>> {
+export function resetPassword(id: number): Promise<API.Response<null>> {
   return request({
     url: `/sys/user/reset-password/${id}`,
     method: 'put',
-    params: { password }
+    data: {}
   })
 }
 
