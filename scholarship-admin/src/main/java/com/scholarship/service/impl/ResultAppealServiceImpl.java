@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.entity.ResultAppeal;
 import com.scholarship.entity.StudentInfo;
+import com.scholarship.enums.ResultStatusEnum;
 import com.scholarship.enums.AppealStatusEnum;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.mapper.ResultAppealMapper;
@@ -27,15 +29,13 @@ import java.time.LocalDateTime;
 public class ResultAppealServiceImpl extends ServiceImpl<ResultAppealMapper, ResultAppeal>
         implements ResultAppealService {
 
-    private static final int USER_TYPE_STUDENT = 1;
-
     private final EvaluationResultMapper evaluationResultMapper;
     private final StudentInfoMapper studentInfoMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean submitAppeal(ResultAppeal appeal, LoginUser loginUser) {
-        if (loginUser == null || !Integer.valueOf(USER_TYPE_STUDENT).equals(loginUser.getUserType())) {
+        if (loginUser == null || !UserTypeEnum.isStudent(loginUser.getUserType())) {
             throw new BusinessException("只有学生可以提交结果异议");
         }
 
@@ -47,6 +47,9 @@ public class ResultAppealServiceImpl extends ServiceImpl<ResultAppealMapper, Res
         StudentInfo student = studentInfoMapper.selectById(result.getStudentId());
         if (student == null || !loginUser.getUserId().equals(student.getUserId())) {
             throw new BusinessException("只能对本人的评定结果提交异议");
+        }
+        if (!ResultStatusEnum.PUBLICITY.getCode().equals(result.getResultStatus())) {
+            throw new BusinessException("当前评定结果不在可申诉状态");
         }
 
         log.info("提交结果异议: userId={}, studentId={}, resultId={}",

@@ -4,6 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.common.enums.UserTypeEnum;
+import com.scholarship.common.exception.BusinessException;
+import com.scholarship.common.result.ResultCode;
+import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.StudentCreateFields;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.entity.SysUser;
@@ -34,6 +38,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     private final PasswordEncoder passwordEncoder;
     private final StudentInfoService studentInfoService;
+    private final ScholarshipProperties scholarshipProperties;
 
     @Override
     public IPage<SysUserVO> pageUserVOs(Long current, Long size, String keyword, List<String> departments, List<Integer> userTypes, List<Integer> statuses) {
@@ -82,7 +87,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
 
         List<Long> studentUserIds = users.stream()
-                .filter(user -> user != null && Integer.valueOf(1).equals(user.getUserType()))
+                .filter(user -> user != null && UserTypeEnum.isStudent(user.getUserType()))
                 .map(SysUser::getId)
                 .collect(Collectors.toList());
 
@@ -115,14 +120,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         SysUser existUser = getByUsername(user.getUsername());
         if (existUser != null) {
-            throw new RuntimeException("用户名已存在");
+            throw new BusinessException(ResultCode.USER_ALREADY_EXIST);
         }
 
-        if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
-            user.setPassword(passwordEncoder.encode("a123456789"));
-        } else {
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
-        }
+        user.setPassword(passwordEncoder.encode(
+                user.getPassword() != null && !user.getPassword().trim().isEmpty()
+                        ? user.getPassword()
+                        : scholarshipProperties.getSystem().getDefaultPassword()
+        ));
 
         if (user.getStatus() == null) {
             user.setStatus(1);
@@ -134,10 +139,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
 
         if (user.getId() == null) {
-            throw new RuntimeException("用户保存失败：未能获取生成的用户ID");
+            throw new BusinessException(ResultCode.ERROR, "用户保存失败：未能获取生成的用户ID");
         }
 
-        if (user.getUserType() != null && user.getUserType() == 1) {
+        if (UserTypeEnum.isStudent(user.getUserType())) {
             createStudentInfo(user, major, studentFields);
         }
 
@@ -148,7 +153,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         log.info("自动创建学生档案，userId={}, username={}, major={}", user.getId(), user.getUsername(), major);
 
         if (user.getRealName() == null || user.getRealName().trim().isEmpty()) {
-            throw new RuntimeException("创建学生档案失败：姓名为空，请填写真实姓名");
+            throw new BusinessException(ResultCode.ERROR, "创建学生档案失败：姓名为空，请填写真实姓名");
         }
 
         StudentInfo studentInfo = new StudentInfo();
@@ -174,7 +179,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         boolean success = studentInfoService.save(studentInfo);
         if (!success) {
-            throw new RuntimeException("创建学生档案失败：数据库保存失败");
+            throw new BusinessException(ResultCode.ERROR, "创建学生档案失败：数据库保存失败");
         }
         log.info("学生档案创建完成，studentInfoId={}", studentInfo.getId());
     }
@@ -187,7 +192,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user.getUsername() != null) {
             SysUser existUser = getByUsername(user.getUsername());
             if (existUser != null && !existUser.getId().equals(user.getId())) {
-                throw new RuntimeException("用户名已存在");
+                throw new BusinessException(ResultCode.USER_ALREADY_EXIST);
             }
         }
 
@@ -243,7 +248,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             boolean studentDeleted = studentInfoService.removeById(studentInfo.getId());
             if (!studentDeleted) {
                 log.error("级联删除学生档案失败，studentInfoId={}，触发事务回滚", studentInfo.getId());
-                throw new RuntimeException("级联删除学生档案失败，userId=" + id);
+                throw new BusinessException(ResultCode.ERROR, "级联删除学生档案失败，userId=" + id);
             }
             log.info("级联删除学生档案成功");
         }
@@ -251,7 +256,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         boolean userDeleted = removeById(id);
         if (!userDeleted) {
             log.error("删除用户失败，id={}，触发事务回滚", id);
-            throw new RuntimeException("删除用户失败，id=" + id);
+            throw new BusinessException(ResultCode.ERROR, "删除用户失败，id=" + id);
         }
 
         log.info("删除用户成功，id={}", id);
@@ -265,10 +270,13 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         SysUser user = getById(id);
         if (user == null) {
-            throw new RuntimeException("用户不存在");
+            throw new BusinessException(ResultCode.USER_NOT_EXIST);
         }
 
-        user.setPassword(passwordEncoder.encode(newPassword));
+        String password = (newPassword != null && !newPassword.trim().isEmpty())
+                ? newPassword
+                : scholarshipProperties.getSystem().getDefaultPassword();
+        user.setPassword(passwordEncoder.encode(password));
         return updateById(user);
     }
 
@@ -300,7 +308,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             boolean studentsDeleted = studentInfoService.removeByIds(studentInfoIds);
             if (!studentsDeleted) {
                 log.error("级联批量删除学生档案失败，触发事务回滚");
-                throw new RuntimeException("级联批量删除学生档案失败");
+                throw new BusinessException(ResultCode.ERROR, "级联批量删除学生档案失败");
             }
             log.info("级联批量删除学生档案成功");
         }
@@ -308,7 +316,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         boolean usersDeleted = removeByIds(ids);
         if (!usersDeleted) {
             log.error("批量删除用户失败，触发事务回滚");
-            throw new RuntimeException("批量删除用户失败");
+            throw new BusinessException(ResultCode.ERROR, "批量删除用户失败");
         }
 
         log.info("批量删除用户成功，count={}", ids.size());

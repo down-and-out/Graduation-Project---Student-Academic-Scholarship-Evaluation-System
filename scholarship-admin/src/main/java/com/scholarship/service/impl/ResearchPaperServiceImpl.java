@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.common.enums.PaperLevelEnum;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.common.util.DataScopeHelper;
 import com.scholarship.entity.ResearchPaper;
@@ -114,8 +115,8 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
             vo.setImpactFactor(paper.getImpactFactor());
 
             if (paper.getJournalLevel() != null) {
-                String[] levels = {"", "SCI 一区", "SCI 二区", "SCI 三区", "SCI 四区", "EI", "核心期刊", "普通期刊"};
-                vo.setLevel(paper.getJournalLevel() >= 1 && paper.getJournalLevel() <= 7 ? levels[paper.getJournalLevel()] : "");
+                PaperLevelEnum level = PaperLevelEnum.valueOfCode(paper.getJournalLevel());
+                vo.setLevel(level != null ? level.getDescription() : "");
             }
 
             vo.setScore(paper.getImpactFactor() != null ? paper.getImpactFactor() : BigDecimal.ZERO);
