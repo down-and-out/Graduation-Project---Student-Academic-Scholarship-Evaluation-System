@@ -4,14 +4,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.common.support.CacheConstants;
 import com.scholarship.dto.param.EvaluationResultAdjustRequest;
-import com.scholarship.dto.query.EvaluationResultQuery;
+
 import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.enums.AwardLevelEnum;
 import com.scholarship.enums.ResultStatusEnum;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.EvaluationResultMapper;
+import com.scholarship.service.CacheEvictionService;
 import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.EvaluationResultService;
 import com.scholarship.vo.AdminEvaluationResultVO;
@@ -19,6 +21,7 @@ import com.scholarship.vo.EvaluationResultExportVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +46,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
 
     private final EvaluationResultMapper evaluationResultMapper;
     private final EvaluationBatchService evaluationBatchService;
+    private final CacheEvictionService cacheEvictionService;
 
     @Override
     public IPage<EvaluationResult> pageResults(Long current, Long size, Long batchId, String academicYear,
@@ -80,6 +84,9 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     }
 
     @Override
+    @Cacheable(value = CacheConstants.EVAL_PAGE,
+            key = "T(com.scholarship.common.support.CacheConstants).evalPageKey(#current, #size, #batchId, #academicYear, #semester, #studentId, #status, #keyword)",
+            unless = "#result == null || #result.records == null || #result.records.isEmpty()")
     public IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, String academicYear,
                                                            Integer semester, Long studentId, Integer status,
                                                            String keyword) {
@@ -103,20 +110,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     }
 
     @Override
-    public IPage<EvaluationResult> queryPage(EvaluationResultQuery query) {
-        return pageResults(
-                query.getCurrent(),
-                query.getSize(),
-                query.getBatchId(),
-                null,
-                null,
-                query.getStudentId(),
-                query.getResultStatus(),
-                query.getKeyword()
-        );
-    }
-
-    @Override
+    @Cacheable(value = CacheConstants.EVAL_STUDENT, key = "'student:' + #studentId + ':batch:' + (#batchId != null ? #batchId.toString() : 'latest')", unless = "#result == null")
     public EvaluationResult getStudentResult(Long studentId, Long batchId) {
         log.debug("获取学生评定结果，studentId={}, batchId={}", studentId, batchId);
 
@@ -134,6 +128,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     }
 
     @Override
+    @Cacheable(value = CacheConstants.EVAL_ADMIN, key = "#id", unless = "#result == null")
     public AdminEvaluationResultVO getAdminResultById(Long id) {
         EvaluationResult result = getById(id);
         if (result == null) {
@@ -153,7 +148,11 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         }
 
         result.setResultStatus(ResultStatusEnum.CONFIRMED.getCode());
-        return updateById(result);
+        boolean success = updateById(result);
+        // 确认结果后清除该批次所有评定缓存
+        cacheEvictionService.evictEvaluationResultsForBatch(result.getBatchId());
+        cacheEvictionService.evictAdminResult(id);
+        return success;
     }
 
     @Override
@@ -171,6 +170,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     }
 
     @Override
+    @Cacheable(value = CacheConstants.EVAL_RANK, key = "#batchId + ':' + #type", unless = "#result == null || #result.isEmpty()")
     public List<EvaluationResult> getBatchRanks(Long batchId, String type) {
         log.debug("获取批次排名列表，batchId={}, type={}", batchId, type);
 
@@ -241,7 +241,11 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
 
         result.setAwardLevel(request.getAwardLevel());
         result.setRemark(request.getReason().trim());
-        return updateById(result);
+        boolean success = updateById(result);
+        // 调整结果后清除该批次所有评定缓存
+        cacheEvictionService.evictEvaluationResultsForBatch(result.getBatchId());
+        cacheEvictionService.evictAdminResult(id);
+        return success;
     }
 
     private List<Long> resolveBatchIds(String academicYear, Integer semester) {
