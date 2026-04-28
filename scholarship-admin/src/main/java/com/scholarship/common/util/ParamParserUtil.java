@@ -1,5 +1,7 @@
 package com.scholarship.common.util;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.Set;
  * 去重保留顺序，返回可变列表。
  * </p>
  */
+@Slf4j
 public class ParamParserUtil {
 
     /**
@@ -65,7 +68,12 @@ public class ParamParserUtil {
             }
             for (String value : rawValue.split(",")) {
                 if (!value.isBlank()) {
-                    result.add(Integer.parseInt(value.trim()));
+                    String trimmedValue = value.trim();
+                    try {
+                        result.add(Integer.parseInt(trimmedValue));
+                    } catch (NumberFormatException ex) {
+                        log.warn("忽略非法整数筛选参数: {}", trimmedValue);
+                    }
                 }
             }
         }

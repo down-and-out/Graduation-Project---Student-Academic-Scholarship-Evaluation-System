@@ -91,9 +91,9 @@ public class CourseScore implements Serializable {
     private BigDecimal credit;
 
     /**
-     * 成绩
+     * 成绩（数值型）。
+     * <p>当成绩为"合格"/"通过"等文本型时，本字段为 {@code null}，文本存储在 {@link #scoreText} 中。</p>
      */
-    @NotNull(message = "成绩不能为空")
     @Schema(description = "成绩")
     private BigDecimal score;
 

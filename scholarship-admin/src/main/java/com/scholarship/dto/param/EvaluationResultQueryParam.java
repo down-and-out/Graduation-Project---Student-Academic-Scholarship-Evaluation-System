@@ -50,9 +50,9 @@ public class EvaluationResultQueryParam {
     /**
      * 学期（1-第一学期, 2-第二学期）
      */
-    @Min(value = 1, message = "学期值必须在1-2之间")
-    @Max(value = 2, message = "学期值必须在1-2之间")
-    @Schema(description = "学期：1-第一学期, 2-第二学期", example = "1")
+    @Min(value = 1, message = "学期值必须在1-3之间")
+    @Max(value = 3, message = "学期值必须在1-3之间")
+    @Schema(description = "学期：1-第一学期, 2-第二学期, 3-夏季学期", example = "1")
     private Integer semester;
 
     /**

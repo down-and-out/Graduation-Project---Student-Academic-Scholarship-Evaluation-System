@@ -18,11 +18,14 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.stream.Collectors;
@@ -43,6 +46,9 @@ import java.util.stream.Collectors;
  *   <li>AccessDeniedException: 访问拒绝异常</li>
  *   <li>NoHandlerFoundException: 404 异常</li>
  *   <li>HttpRequestMethodNotSupportedException: 请求方法不支持异常</li>
+ *   <li>MissingServletRequestParameterException: 缺少请求参数异常</li>
+ *   <li>MethodArgumentTypeMismatchException: 参数类型不匹配异常</li>
+ *   <li>HttpMessageNotReadableException: 请求体不可读异常</li>
  *   <li>ExpiredJwtException: JWT Token 过期异常</li>
  *   <li>MalformedJwtException: JWT Token 格式错误异常</li>
  *   <li>SignatureException: JWT Token 签名错误异常</li>
@@ -282,6 +288,53 @@ public class GlobalExceptionHandler {
     public Result<?> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException e, HttpServletRequest request) {
         log.warn("请求方法不支持：URI={}, Method={}", request.getRequestURI(), e.getMethod());
         return Result.error(ResultCode.METHOD_NOT_ALLOWED);
+    }
+
+    /**
+     * 处理缺少请求参数异常
+     * 当请求缺少必填的 @RequestParam 参数时抛出
+     *
+     * @param e       缺少请求参数异常对象
+     * @param request HTTP 请求对象
+     * @return 统一格式的错误响应
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<?> handleMissingServletRequestParameterException(MissingServletRequestParameterException e, HttpServletRequest request) {
+        log.warn("缺少请求参数：URI={}, Parameter={}", request.getRequestURI(), e.getParameterName());
+        return Result.error(ResultCode.BAD_REQUEST.getCode(), "缺少必填参数：" + e.getParameterName());
+    }
+
+    /**
+     * 处理参数类型不匹配异常
+     * 当请求参数无法转换为目标类型时抛出（如传 "abc" 给 Integer 参数）
+     *
+     * @param e       参数类型不匹配异常对象
+     * @param request HTTP 请求对象
+     * @return 统一格式的错误响应
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<?> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException e, HttpServletRequest request) {
+        log.warn("参数类型不匹配：URI={}, Name={}, Value={}",
+                request.getRequestURI(), e.getName(), e.getValue());
+        return Result.error(ResultCode.BAD_REQUEST.getCode(),
+                "参数类型不匹配：" + e.getName());
+    }
+
+    /**
+     * 处理请求体不可读异常
+     * 当请求体格式错误（如 JSON 格式不正确）时抛出
+     *
+     * @param e       请求体不可读异常对象
+     * @param request HTTP 请求对象
+     * @return 统一格式的错误响应
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<?> handleHttpMessageNotReadableException(HttpMessageNotReadableException e, HttpServletRequest request) {
+        log.warn("请求体格式错误：URI={}, Message={}", request.getRequestURI(), e.getMessage());
+        return Result.error(ResultCode.BAD_REQUEST.getCode(), "请求格式错误，请检查请求体");
     }
 
     // ==================== 其他异常处理 ====================
