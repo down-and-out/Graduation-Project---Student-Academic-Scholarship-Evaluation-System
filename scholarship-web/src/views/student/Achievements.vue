@@ -165,7 +165,7 @@
           <el-form-item label="作者排名" prop="authorRank">
             <el-select v-model="paperForm.authorRank" placeholder="请选择">
               <el-option
-                v-for="item in authorRankOptions"
+                v-for="item in AUTHOR_RANK_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -178,7 +178,7 @@
           <el-form-item label="期刊级别" prop="journalLevel">
             <el-select v-model="paperForm.journalLevel" placeholder="请选择">
               <el-option
-                v-for="item in journalLevelOptions"
+                v-for="item in JOURNAL_LEVEL_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -208,7 +208,7 @@
           <el-form-item label="专利类型" prop="patentType">
             <el-select v-model="patentForm.patentType" placeholder="请选择">
               <el-option
-                v-for="item in patentTypeOptions"
+                v-for="item in PATENT_TYPE_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -238,7 +238,7 @@
           <el-form-item label="专利状态" prop="patentStatus">
             <el-select v-model="patentForm.patentStatus" placeholder="请选择">
               <el-option
-                v-for="item in patentStatusOptions"
+                v-for="item in PATENT_STATUS_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -257,7 +257,7 @@
           <el-form-item label="项目类型" prop="projectType">
             <el-select v-model="projectForm.projectType" placeholder="请选择">
               <el-option
-                v-for="item in projectTypeOptions"
+                v-for="item in PROJECT_TYPE_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -267,7 +267,7 @@
           <el-form-item label="项目级别" prop="projectLevel">
             <el-select v-model="projectForm.projectLevel" placeholder="请选择">
               <el-option
-                v-for="item in projectLevelOptions"
+                v-for="item in PROJECT_LEVEL_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -289,7 +289,7 @@
           <el-form-item label="项目角色" prop="projectRole">
             <el-select v-model="projectForm.projectRole" placeholder="请选择">
               <el-option
-                v-for="item in projectRoleOptions"
+                v-for="item in PROJECT_ROLE_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -321,7 +321,7 @@
           <el-form-item label="项目状态" prop="projectStatus">
             <el-select v-model="projectForm.projectStatus" placeholder="请选择">
               <el-option
-                v-for="item in projectStatusOptions"
+                v-for="item in PROJECT_STATUS_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -340,7 +340,7 @@
           <el-form-item label="竞赛级别" prop="competitionLevel">
             <el-select v-model="competitionForm.competitionLevel" placeholder="请选择">
               <el-option
-                v-for="item in competitionLevelOptions"
+                v-for="item in COMPETITION_LEVEL_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -350,7 +350,7 @@
           <el-form-item label="获奖等级" prop="awardLevel">
             <el-select v-model="competitionForm.awardLevel" placeholder="请选择">
               <el-option
-                v-for="item in competitionAwardLevelOptions"
+                v-for="item in COMPETITION_AWARD_LEVEL_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -363,7 +363,7 @@
           <el-form-item label="获奖类型" prop="awardType">
             <el-select v-model="competitionForm.awardType" placeholder="请选择">
               <el-option
-                v-for="item in competitionAwardTypeOptions"
+                v-for="item in COMPETITION_AWARD_TYPE_OPTIONS"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -411,68 +411,12 @@
 
     <el-dialog v-model="detailVisible" :title="`${activeTypeLabel}详情`" width="640px">
       <el-descriptions v-if="currentRow" :column="2" border>
-        <template v-if="activeType === 'paper'">
-          <el-descriptions-item label="论文标题" :span="2">{{ currentPaperRow?.title || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="作者">{{ currentPaperRow?.authors || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="作者排名">{{ getAuthorRankLabel(currentPaperRow?.authorRank) }}</el-descriptions-item>
-          <el-descriptions-item label="期刊名称">{{ currentPaperRow?.journalName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="期刊级别">{{ getJournalLevelLabel(currentPaperRow?.journalLevel) }}</el-descriptions-item>
-          <el-descriptions-item label="影响因子">{{ currentPaperRow?.impactFactor ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="发表日期">{{ currentPaperRow?.publicationDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="审核状态">{{ getRowStatusLabel(currentRow) }}</el-descriptions-item>
-          <el-descriptions-item label="审核意见" :span="2">{{ currentPaperRow?.reviewComment || '-' }}</el-descriptions-item>
-        </template>
-
-        <template v-else-if="activeType === 'patent'">
-          <el-descriptions-item label="专利名称" :span="2">{{ currentPatentRow?.patentName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="专利号">{{ currentPatentRow?.patentNo || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="专利类型">{{ getPatentTypeLabel(currentPatentRow?.patentType) }}</el-descriptions-item>
-          <el-descriptions-item label="申请人">{{ currentPatentRow?.applicant || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="发明人">{{ currentPatentRow?.inventors || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="发明人排名">{{ currentPatentRow?.inventorRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="申请人排名">{{ currentPatentRow?.applicantRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="申请日期">{{ currentPatentRow?.applicationDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="专利状态">{{ getPatentStatusLabel(currentPatentRow?.patentStatus) }}</el-descriptions-item>
-          <el-descriptions-item label="审核状态">{{ getRowStatusLabel(currentRow) }}</el-descriptions-item>
-          <el-descriptions-item label="审核意见" :span="2">{{ currentPatentRow?.auditComment || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="2">{{ currentPatentRow?.remark || '-' }}</el-descriptions-item>
-        </template>
-
-        <template v-else-if="activeType === 'project'">
-          <el-descriptions-item label="项目名称" :span="2">{{ currentProjectRow?.projectName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目类型">{{ getProjectTypeLabel(currentProjectRow?.projectType) }}</el-descriptions-item>
-          <el-descriptions-item label="项目级别">{{ getProjectLevelLabel(currentProjectRow?.projectLevel) }}</el-descriptions-item>
-          <el-descriptions-item label="项目编号">{{ currentProjectRow?.projectNo || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目来源">{{ currentProjectRow?.projectSource || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="负责人">{{ currentProjectRow?.leaderName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="成员排名">{{ currentProjectRow?.memberRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目角色">{{ getProjectRoleLabel(currentProjectRow?.projectRole) }}</el-descriptions-item>
-          <el-descriptions-item label="参与人员" :span="2">{{ currentProjectRow?.participants || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="开始日期">{{ currentProjectRow?.startDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="结束日期">{{ currentProjectRow?.endDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目经费">{{ currentProjectRow?.funding ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目状态">{{ getProjectStatusLabel(currentProjectRow?.projectStatus) }}</el-descriptions-item>
-          <el-descriptions-item label="审核状态">{{ getRowStatusLabel(currentRow) }}</el-descriptions-item>
-          <el-descriptions-item label="审核意见" :span="2">{{ currentProjectRow?.auditComment || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="2">{{ currentProjectRow?.remark || '-' }}</el-descriptions-item>
-        </template>
-
-        <template v-else>
-          <el-descriptions-item label="竞赛名称" :span="2">{{ currentCompetitionRow?.competitionName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="竞赛级别">{{ getCompetitionLevelLabel(currentCompetitionRow?.competitionLevel) }}</el-descriptions-item>
-          <el-descriptions-item label="获奖等级">{{ getCompetitionAwardLevelLabel(currentCompetitionRow?.awardLevel) }}</el-descriptions-item>
-          <el-descriptions-item label="获奖名次">{{ currentCompetitionRow?.awardRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="获奖类型">{{ getCompetitionAwardTypeLabel(currentCompetitionRow?.awardType) }}</el-descriptions-item>
-          <el-descriptions-item label="成员排名">{{ currentCompetitionRow?.memberRank || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="指导老师">{{ currentCompetitionRow?.instructor || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="颁发单位">{{ currentCompetitionRow?.issuingUnit || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="主办单位">{{ currentCompetitionRow?.organizer || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="获奖日期">{{ currentCompetitionRow?.awardDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="团队成员" :span="2">{{ currentCompetitionRow?.teamMembers || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="审核状态">{{ getRowStatusLabel(currentRow) }}</el-descriptions-item>
-          <el-descriptions-item label="审核意见">{{ currentCompetitionRow?.auditComment || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="2">{{ currentCompetitionRow?.remark || '-' }}</el-descriptions-item>
-        </template>
+        <el-descriptions-item
+          v-for="(field, idx) in detailFields"
+          :key="idx"
+          :label="field.label"
+          :span="field.span ?? 1"
+        >{{ field.value(currentRow) }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
   </div>
@@ -507,13 +451,31 @@ import {
   type CompetitionPageParams
 } from '@/api/competition'
 import {
-  AUDIT_STATUS,
-  AUDIT_STATUS_LABELS,
-  AUDIT_STATUS_TYPES,
-  AUTHOR_RANK,
-  JOURNAL_LEVEL,
+  APPLICATION_AUDIT_STATUS,
+  APPLICATION_AUDIT_STATUS_LABELS,
+  APPLICATION_AUDIT_STATUS_TYPES,
   extractPageData
 } from '@/utils/helpers'
+import {
+  ACHIEVEMENT_TYPE_OPTIONS,
+  AUTHOR_RANK,
+  AUTHOR_RANK_OPTIONS,
+  COMPETITION_AWARD_LEVEL_OPTIONS,
+  COMPETITION_AWARD_TYPE_OPTIONS,
+  COMPETITION_LEVEL_OPTIONS,
+  getAchievementOptionLabel,
+  JOURNAL_LEVEL_OPTIONS,
+  PROJECT_ROLE_OPTIONS,
+  PROJECT_LEVEL_OPTIONS,
+  PROJECT_STATUS_OPTIONS,
+  PROJECT_TYPE_OPTIONS
+} from '@/constants/achievement'
+import {
+  GENERIC_AUDIT_LABELS as SHARED_GENERIC_AUDIT_LABELS,
+  GENERIC_AUDIT_OPTIONS as SHARED_GENERIC_AUDIT_OPTIONS,
+  GENERIC_AUDIT_TYPES as SHARED_GENERIC_AUDIT_TYPES
+} from '@/constants/achievementReview'
+import { PATENT_STATUS_OPTIONS, PATENT_TYPE_OPTIONS } from '@/constants/patent'
 
 type AchievementType = 'paper' | 'patent' | 'project' | 'competition'
 type NormalizedPaper = Paper & {
@@ -523,11 +485,6 @@ type NormalizedPaper = Paper & {
 }
 type AuditedAchievementRow = ResearchPatent | ResearchProject | CompetitionAward
 type AchievementRow = NormalizedPaper | AuditedAchievementRow
-
-type Option = {
-  label: string
-  value: number
-}
 
 interface PaperForm {
   id: number | null
@@ -588,103 +545,8 @@ interface CompetitionForm {
   remark: string
 }
 
-const GENERIC_AUDIT_OPTIONS: Option[] = [
-  { label: '待审核', value: 0 },
-  { label: '审核通过', value: 1 },
-  { label: '审核驳回', value: 2 }
-]
+const achievementTypeOptions = [...ACHIEVEMENT_TYPE_OPTIONS] as Array<{ label: string; value: AchievementType }>
 
-const GENERIC_AUDIT_LABELS: Record<number, string> = {
-  0: '待审核',
-  1: '审核通过',
-  2: '审核驳回'
-}
-
-const GENERIC_AUDIT_TYPES: Record<number, 'warning' | 'success' | 'danger' | 'info'> = {
-  0: 'warning',
-  1: 'success',
-  2: 'danger'
-}
-
-const achievementTypeOptions: Array<{ label: string; value: AchievementType }> = [
-  { label: '论文', value: 'paper' },
-  { label: '专利', value: 'patent' },
-  { label: '项目', value: 'project' },
-  { label: '竞赛', value: 'competition' }
-]
-
-const authorRankOptions: Option[] = [
-  { label: '第一作者', value: AUTHOR_RANK.FIRST },
-  { label: '第二作者', value: AUTHOR_RANK.SECOND },
-  { label: '通讯作者', value: AUTHOR_RANK.CORRESPONDING }
-]
-
-const journalLevelOptions: Option[] = [
-  { label: 'SCI 一区', value: JOURNAL_LEVEL.SCI_Q1 },
-  { label: 'SCI 二区', value: JOURNAL_LEVEL.SCI_Q2 },
-  { label: 'SCI 三区', value: JOURNAL_LEVEL.SCI_Q3 },
-  { label: 'SCI 四区', value: JOURNAL_LEVEL.SCI_Q4 },
-  { label: 'EI', value: JOURNAL_LEVEL.EI },
-  { label: '核心期刊', value: JOURNAL_LEVEL.CORE },
-  { label: '普通期刊', value: JOURNAL_LEVEL.REGULAR }
-]
-
-const patentTypeOptions: Option[] = [
-  { label: '发明专利', value: 1 },
-  { label: '实用新型', value: 2 },
-  { label: '外观设计', value: 3 }
-]
-
-const patentStatusOptions: Option[] = [
-  { label: '申请中', value: 1 },
-  { label: '已授权', value: 2 },
-  { label: '已失效', value: 3 }
-]
-
-const projectTypeOptions: Option[] = [
-  { label: '纵向项目', value: 1 },
-  { label: '横向项目', value: 2 },
-  { label: '校级项目', value: 3 }
-]
-
-const projectLevelOptions: Option[] = [
-  { label: '国家级', value: 1 },
-  { label: '省部级', value: 2 },
-  { label: '市厅级', value: 3 },
-  { label: '校级', value: 4 }
-]
-
-const projectRoleOptions: Option[] = [
-  { label: '负责人', value: 1 },
-  { label: '核心成员', value: 2 },
-  { label: '参与成员', value: 3 }
-]
-
-const projectStatusOptions: Option[] = [
-  { label: '立项中', value: 1 },
-  { label: '进行中', value: 2 },
-  { label: '已结题', value: 3 }
-]
-
-const competitionLevelOptions: Option[] = [
-  { label: '国际级', value: 1 },
-  { label: '国家级', value: 2 },
-  { label: '省部级', value: 3 },
-  { label: '校级', value: 4 }
-]
-
-const competitionAwardLevelOptions: Option[] = [
-  { label: '特等奖', value: 1 },
-  { label: '一等奖', value: 2 },
-  { label: '二等奖', value: 3 },
-  { label: '三等奖', value: 4 },
-  { label: '优秀奖', value: 5 }
-]
-
-const competitionAwardTypeOptions: Option[] = [
-  { label: '个人赛', value: 1 },
-  { label: '团队赛', value: 2 }
-]
 
 const route = useRoute()
 const router = useRouter()
@@ -797,12 +659,12 @@ const isTypeEditable = computed(() => activeType.value === 'paper' || activeType
 const currentStatusOptions = computed(() =>
   activeType.value === 'paper'
     ? [
-        { label: AUDIT_STATUS_LABELS[AUDIT_STATUS.PENDING], value: AUDIT_STATUS.PENDING },
-        { label: AUDIT_STATUS_LABELS[AUDIT_STATUS.TUTOR_APPROVED], value: AUDIT_STATUS.TUTOR_APPROVED },
-        { label: AUDIT_STATUS_LABELS[AUDIT_STATUS.DEPARTMENT_APPROVED], value: AUDIT_STATUS.DEPARTMENT_APPROVED },
-        { label: AUDIT_STATUS_LABELS[AUDIT_STATUS.REJECTED], value: AUDIT_STATUS.REJECTED }
+        { label: APPLICATION_AUDIT_STATUS_LABELS[APPLICATION_AUDIT_STATUS.PENDING], value: APPLICATION_AUDIT_STATUS.PENDING },
+        { label: APPLICATION_AUDIT_STATUS_LABELS[APPLICATION_AUDIT_STATUS.TUTOR_APPROVED], value: APPLICATION_AUDIT_STATUS.TUTOR_APPROVED },
+        { label: APPLICATION_AUDIT_STATUS_LABELS[APPLICATION_AUDIT_STATUS.DEPARTMENT_APPROVED], value: APPLICATION_AUDIT_STATUS.DEPARTMENT_APPROVED },
+        { label: APPLICATION_AUDIT_STATUS_LABELS[APPLICATION_AUDIT_STATUS.REJECTED], value: APPLICATION_AUDIT_STATUS.REJECTED }
       ]
-    : GENERIC_AUDIT_OPTIONS
+    : SHARED_GENERIC_AUDIT_OPTIONS
 )
 
 const currentFormModel = computed<Record<string, any>>(() => {
@@ -832,15 +694,6 @@ const currentFormRules = computed<FormRules>(() => {
 })
 
 const dialogTitle = computed(() => `${isEdit.value ? '编辑' : '添加'}${activeTypeLabel.value}`)
-const currentPaperRow = computed(() => activeType.value === 'paper' ? (currentRow.value as NormalizedPaper | null) : null)
-const currentPatentRow = computed(() => activeType.value === 'patent' ? (currentRow.value as ResearchPatent | null) : null)
-const currentProjectRow = computed(() => activeType.value === 'project' ? (currentRow.value as ResearchProject | null) : null)
-const currentCompetitionRow = computed(() => activeType.value === 'competition' ? (currentRow.value as CompetitionAward | null) : null)
-
-function getOptionLabel(options: Option[], value?: number | null): string {
-  return options.find(item => item.value === value)?.label || '-'
-}
-
 function normalizePaper(row: Paper): NormalizedPaper {
   return {
     ...row,
@@ -850,92 +703,92 @@ function normalizePaper(row: Paper): NormalizedPaper {
   }
 }
 
-function asPaperRow(row: AchievementRow): NormalizedPaper {
-  return row as NormalizedPaper
+function isPaperRow(row: AchievementRow): row is NormalizedPaper {
+  return 'title' in row && typeof (row as NormalizedPaper).title === 'string'
 }
 
-function asPatentRow(row: AchievementRow): ResearchPatent {
-  return row as ResearchPatent
+function isPatentRow(row: AchievementRow): row is ResearchPatent {
+  return 'patentName' in row && typeof (row as ResearchPatent).patentName === 'string'
 }
 
-function asProjectRow(row: AchievementRow): ResearchProject {
-  return row as ResearchProject
+function isProjectRow(row: AchievementRow): row is ResearchProject {
+  return 'projectName' in row && typeof (row as ResearchProject).projectName === 'string'
 }
 
-function asCompetitionRow(row: AchievementRow): CompetitionAward {
-  return row as CompetitionAward
+function isCompetitionRow(row: AchievementRow): row is CompetitionAward {
+  return 'competitionName' in row && typeof (row as CompetitionAward).competitionName === 'string'
 }
 
 function getAuthorRankLabel(value?: number): string {
-  return getOptionLabel(authorRankOptions, value)
+  return getAchievementOptionLabel(AUTHOR_RANK_OPTIONS, value)
 }
 
 function getJournalLevelLabel(value?: number): string {
-  return getOptionLabel(journalLevelOptions, value)
+  return getAchievementOptionLabel(JOURNAL_LEVEL_OPTIONS, value)
 }
 
 function getPatentTypeLabel(value?: number): string {
-  return getOptionLabel(patentTypeOptions, value)
+  return getAchievementOptionLabel(PATENT_TYPE_OPTIONS, value)
 }
 
 function getPatentStatusLabel(value?: number): string {
-  return getOptionLabel(patentStatusOptions, value)
+  return getAchievementOptionLabel(PATENT_STATUS_OPTIONS, value)
 }
 
 function getProjectTypeLabel(value?: number): string {
-  return getOptionLabel(projectTypeOptions, value)
+  return getAchievementOptionLabel(PROJECT_TYPE_OPTIONS, value)
 }
 
 function getProjectLevelLabel(value?: number): string {
-  return getOptionLabel(projectLevelOptions, value)
+  return getAchievementOptionLabel(PROJECT_LEVEL_OPTIONS, value)
 }
 
 function getProjectRoleLabel(value?: number): string {
-  return getOptionLabel(projectRoleOptions, value)
+  return getAchievementOptionLabel(PROJECT_ROLE_OPTIONS, value)
 }
 
 function getProjectStatusLabel(value?: number): string {
-  return getOptionLabel(projectStatusOptions, value)
+  return getAchievementOptionLabel(PROJECT_STATUS_OPTIONS, value)
 }
 
 function getCompetitionLevelLabel(value?: number): string {
-  return getOptionLabel(competitionLevelOptions, value)
+  return getAchievementOptionLabel(COMPETITION_LEVEL_OPTIONS, value)
 }
 
 function getCompetitionAwardLevelLabel(value?: number): string {
-  return getOptionLabel(competitionAwardLevelOptions, value)
+  return getAchievementOptionLabel(COMPETITION_AWARD_LEVEL_OPTIONS, value)
 }
 
 function getCompetitionAwardTypeLabel(value?: number): string {
-  return getOptionLabel(competitionAwardTypeOptions, value)
+  return getAchievementOptionLabel(COMPETITION_AWARD_TYPE_OPTIONS, value)
 }
 
 function getRowStatusValue(row: AchievementRow): number | undefined {
-  return activeType.value === 'paper' ? asPaperRow(row).status : (row as AuditedAchievementRow).auditStatus
+  return isPaperRow(row) ? row.status : row.auditStatus
 }
 
 function getRowStatusLabel(row: AchievementRow): string {
   const status = getRowStatusValue(row)
   if (status === undefined || status === null) return '-'
   return activeType.value === 'paper'
-    ? AUDIT_STATUS_LABELS[status] || '未知状态'
-    : GENERIC_AUDIT_LABELS[status] || '未知状态'
+    ? APPLICATION_AUDIT_STATUS_LABELS[status] || '未知状态'
+    : SHARED_GENERIC_AUDIT_LABELS[status] || '未知状态'
 }
 
 function getRowStatusType(row: AchievementRow): 'warning' | 'success' | 'danger' | 'info' | 'primary' {
   const status = getRowStatusValue(row)
   if (status === undefined || status === null) return 'info'
   return activeType.value === 'paper'
-    ? AUDIT_STATUS_TYPES[status] || 'info'
-    : GENERIC_AUDIT_TYPES[status] || 'info'
+    ? APPLICATION_AUDIT_STATUS_TYPES[status] || 'info'
+    : SHARED_GENERIC_AUDIT_TYPES[status] || 'info'
 }
 
 function canEditRow(row: AchievementRow): boolean {
-  return isTypeEditable.value && getRowStatusValue(row) === AUDIT_STATUS.PENDING
+  return isTypeEditable.value && getRowStatusValue(row) === APPLICATION_AUDIT_STATUS.PENDING
 }
 
 function canDeleteRow(row: AchievementRow): boolean {
-  return activeType.value === 'paper' && asPaperRow(row).status === AUDIT_STATUS.PENDING
+  return isPaperRow(row) && row.status === APPLICATION_AUDIT_STATUS.PENDING
 }
 
 function resetPaperForm() {
@@ -1070,6 +923,7 @@ async function fetchTableData(): Promise<void> {
     total.value = pageData?.total || 0
   } catch (error) {
     console.error('加载科研成果失败:', error)
+    ElMessage.error('加载科研成果失败')
   } finally {
     loading.value = false
   }
@@ -1119,86 +973,239 @@ function handleView(row: AchievementRow): void {
   detailVisible.value = true
 }
 
+interface DetailField {
+  label: string
+  span?: number
+  value: (row: any) => string
+}
+
+interface TypeFieldMapping {
+  formModel: Record<string, any>
+  extractEditFields: (row: Record<string, any>) => Record<string, any>
+  getFormPayload: (form: Record<string, any>, isEdit: boolean) => Record<string, any>
+  submitCreate: (payload: any) => Promise<any>
+  submitUpdate: (id: number, payload: any) => Promise<any>
+  detailFields: DetailField[]
+}
+
+const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
+  paper: {
+    formModel: paperForm,
+    extractEditFields: (row) => ({
+      id: row.id ?? null,
+      paperTitle: row.title || row.paperTitle || '',
+      authors: row.authors || '',
+      authorRank: row.authorRank ?? AUTHOR_RANK.FIRST,
+      journalName: row.journalName || '',
+      journalLevel: row.journalLevel ?? null,
+      impactFactor: row.impactFactor ?? null,
+      publicationDate: row.publicationDate || ''
+    }),
+    getFormPayload: (form, isEdit) => ({
+      ...(isEdit ? {} : { studentId: 0 }),
+      title: form.paperTitle,
+      paperTitle: form.paperTitle,
+      authors: form.authors,
+      journalName: form.journalName,
+      journal: form.journalName,
+      authorRank: form.authorRank,
+      journalLevel: form.journalLevel ?? undefined,
+      impactFactor: form.impactFactor ?? undefined,
+      publicationDate: form.publicationDate,
+      publishDate: form.publicationDate
+    }),
+    submitCreate: submitPaper,
+    submitUpdate: (id, payload) => updatePaper(id, payload),
+    detailFields: [
+      { label: '论文标题', span: 2, value: (row) => row.title || '-' },
+      { label: '作者', value: (row) => row.authors || '-' },
+      { label: '作者排名', value: (row) => getAuthorRankLabel(row.authorRank) },
+      { label: '期刊名称', value: (row) => row.journalName || '-' },
+      { label: '期刊级别', value: (row) => getJournalLevelLabel(row.journalLevel) },
+      { label: '影响因子', value: (row) => row.impactFactor ?? '-' },
+      { label: '发表日期', value: (row) => row.publicationDate || '-' },
+      { label: '审核状态', value: (row) => getRowStatusLabel(row) },
+      { label: '审核意见', span: 2, value: (row) => row.reviewComment || '-' }
+    ]
+  },
+  patent: {
+    formModel: patentForm,
+    extractEditFields: (row) => ({
+      id: row.id ?? null,
+      patentName: row.patentName || '',
+      patentNo: row.patentNo || '',
+      patentType: row.patentType || 1,
+      applicant: row.applicant || '',
+      inventors: row.inventors || '',
+      inventorRank: row.inventorRank ?? 1,
+      applicantRank: row.applicantRank ?? 1,
+      applicationDate: row.applicationDate || '',
+      patentStatus: row.patentStatus || 1,
+      remark: row.remark || ''
+    }),
+    getFormPayload: (form, _isEdit) => ({
+      patentName: form.patentName,
+      patentNo: form.patentNo,
+      patentType: form.patentType,
+      applicant: form.applicant,
+      inventors: form.inventors,
+      inventorRank: form.inventorRank ?? undefined,
+      applicantRank: form.applicantRank ?? undefined,
+      applicationDate: form.applicationDate || undefined,
+      patentStatus: form.patentStatus,
+      remark: form.remark
+    }),
+    submitCreate: (payload) => addPatent(payload as Omit<ResearchPatent, 'id'>),
+    submitUpdate: (id, payload) => updatePatent({ id, ...payload }),
+    detailFields: [
+      { label: '专利名称', span: 2, value: (row) => row.patentName || '-' },
+      { label: '专利号', value: (row) => row.patentNo || '-' },
+      { label: '专利类型', value: (row) => getPatentTypeLabel(row.patentType) },
+      { label: '申请人', value: (row) => row.applicant || '-' },
+      { label: '发明人', value: (row) => row.inventors || '-' },
+      { label: '发明人排名', value: (row) => row.inventorRank ?? '-' },
+      { label: '申请人排名', value: (row) => row.applicantRank ?? '-' },
+      { label: '申请日期', value: (row) => row.applicationDate || '-' },
+      { label: '专利状态', value: (row) => getPatentStatusLabel(row.patentStatus) },
+      { label: '审核状态', value: (row) => getRowStatusLabel(row) },
+      { label: '审核意见', span: 2, value: (row) => row.auditComment || '-' },
+      { label: '备注', span: 2, value: (row) => row.remark || '-' }
+    ]
+  },
+  project: {
+    formModel: projectForm,
+    extractEditFields: (row) => ({
+      id: row.id ?? null,
+      projectName: row.projectName || '',
+      projectType: row.projectType || 1,
+      projectLevel: row.projectLevel ?? 1,
+      projectNo: row.projectNo || '',
+      projectSource: row.projectSource || '',
+      leaderName: row.leaderName || '',
+      memberRank: row.memberRank ?? 1,
+      projectRole: row.projectRole ?? 1,
+      participants: row.participants || '',
+      startDate: row.startDate || '',
+      endDate: row.endDate || '',
+      funding: row.funding ?? null,
+      projectStatus: row.projectStatus ?? 1,
+      remark: row.remark || ''
+    }),
+    getFormPayload: (form, isEdit) => ({
+      ...(isEdit ? {} : { studentId: 0 }),
+      projectName: form.projectName,
+      projectType: form.projectType,
+      projectLevel: form.projectLevel ?? undefined,
+      projectNo: form.projectNo || undefined,
+      projectSource: form.projectSource || undefined,
+      leaderName: form.leaderName || undefined,
+      memberRank: form.memberRank ?? undefined,
+      projectRole: form.projectRole ?? undefined,
+      participants: form.participants || undefined,
+      startDate: form.startDate || undefined,
+      endDate: form.endDate || undefined,
+      funding: form.funding ?? undefined,
+      projectStatus: form.projectStatus ?? undefined,
+      remark: form.remark || undefined
+    }),
+    submitCreate: (payload) => addProject(payload as Omit<ResearchProject, 'id'>),
+    submitUpdate: (id, payload) => updateProject({ id, ...payload }),
+    detailFields: [
+      { label: '项目名称', span: 2, value: (row) => row.projectName || '-' },
+      { label: '项目类型', value: (row) => getProjectTypeLabel(row.projectType) },
+      { label: '项目级别', value: (row) => getProjectLevelLabel(row.projectLevel) },
+      { label: '项目编号', value: (row) => row.projectNo || '-' },
+      { label: '项目来源', value: (row) => row.projectSource || '-' },
+      { label: '负责人', value: (row) => row.leaderName || '-' },
+      { label: '成员排名', value: (row) => row.memberRank ?? '-' },
+      { label: '项目角色', value: (row) => getProjectRoleLabel(row.projectRole) },
+      { label: '参与人员', span: 2, value: (row) => row.participants || '-' },
+      { label: '开始日期', value: (row) => row.startDate || '-' },
+      { label: '结束日期', value: (row) => row.endDate || '-' },
+      { label: '项目经费', value: (row) => row.funding ?? '-' },
+      { label: '项目状态', value: (row) => getProjectStatusLabel(row.projectStatus) },
+      { label: '审核状态', value: (row) => getRowStatusLabel(row) },
+      { label: '审核意见', span: 2, value: (row) => row.auditComment || '-' },
+      { label: '备注', span: 2, value: (row) => row.remark || '-' }
+    ]
+  },
+  competition: {
+    formModel: competitionForm,
+    extractEditFields: (row) => ({
+      id: row.id ?? null,
+      competitionName: row.competitionName || '',
+      competitionLevel: row.competitionLevel ?? 1,
+      awardLevel: row.awardLevel ?? 2,
+      awardRank: row.awardRank ?? 1,
+      awardType: row.awardType ?? 1,
+      memberRank: row.memberRank ?? 1,
+      instructor: row.instructor || '',
+      issuingUnit: row.issuingUnit || '',
+      organizer: row.organizer || '',
+      teamMembers: row.teamMembers || '',
+      awardDate: row.awardDate || '',
+      remark: row.remark || ''
+    }),
+    getFormPayload: (form, isEdit) => ({
+      ...(isEdit ? {} : { studentId: 0 }),
+      competitionName: form.competitionName,
+      competitionLevel: form.competitionLevel ?? undefined,
+      awardLevel: form.awardLevel ?? undefined,
+      awardRank: form.awardRank ?? undefined,
+      awardType: form.awardType ?? undefined,
+      memberRank: form.memberRank ?? undefined,
+      instructor: form.instructor || undefined,
+      issuingUnit: form.issuingUnit || undefined,
+      organizer: form.organizer || undefined,
+      teamMembers: form.teamMembers || undefined,
+      awardDate: form.awardDate || undefined,
+      remark: form.remark || undefined
+    }),
+    submitCreate: (payload) => addCompetition(payload as Omit<CompetitionAward, 'id'>),
+    submitUpdate: (id, payload) => updateCompetition({ id, ...payload }),
+    detailFields: [
+      { label: '竞赛名称', span: 2, value: (row) => row.competitionName || '-' },
+      { label: '竞赛级别', value: (row) => getCompetitionLevelLabel(row.competitionLevel) },
+      { label: '获奖等级', value: (row) => getCompetitionAwardLevelLabel(row.awardLevel) },
+      { label: '获奖名次', value: (row) => row.awardRank ?? '-' },
+      { label: '获奖类型', value: (row) => getCompetitionAwardTypeLabel(row.awardType) },
+      { label: '成员排名', value: (row) => row.memberRank ?? '-' },
+      { label: '指导老师', value: (row) => row.instructor || '-' },
+      { label: '颁发单位', value: (row) => row.issuingUnit || '-' },
+      { label: '主办单位', value: (row) => row.organizer || '-' },
+      { label: '获奖日期', value: (row) => row.awardDate || '-' },
+      { label: '团队成员', span: 2, value: (row) => row.teamMembers || '-' },
+      { label: '审核状态', value: (row) => getRowStatusLabel(row) },
+      { label: '审核意见', value: (row) => row.auditComment || '-' },
+      { label: '备注', span: 2, value: (row) => row.remark || '-' }
+    ]
+  }
+}
+
+const detailFields = computed<DetailField[]>(() =>
+  TYPE_FIELD_CONFIG[activeType.value]?.detailFields ?? []
+)
+
 function handleEdit(row: AchievementRow): void {
   if (!isTypeEditable.value) return
+  const config = TYPE_FIELD_CONFIG[activeType.value]
+  if (!config) return
   isEdit.value = true
-  if (activeType.value === 'paper') {
-    const paperRow = asPaperRow(row)
-    Object.assign(paperForm, {
-      id: paperRow.id ?? null,
-      paperTitle: paperRow.title || paperRow.paperTitle || '',
-      authors: paperRow.authors || '',
-      authorRank: paperRow.authorRank ?? AUTHOR_RANK.FIRST,
-      journalName: paperRow.journalName || '',
-      journalLevel: paperRow.journalLevel ?? null,
-      impactFactor: paperRow.impactFactor ?? null,
-      publicationDate: paperRow.publicationDate || ''
-    })
-  } else if (activeType.value === 'patent') {
-    const patentRow = asPatentRow(row)
-    Object.assign(patentForm, {
-      id: patentRow.id ?? null,
-      patentName: patentRow.patentName || '',
-      patentNo: patentRow.patentNo || '',
-      patentType: patentRow.patentType || 1,
-      applicant: patentRow.applicant || '',
-      inventors: patentRow.inventors || '',
-      inventorRank: patentRow.inventorRank ?? 1,
-      applicantRank: patentRow.applicantRank ?? 1,
-      applicationDate: patentRow.applicationDate || '',
-      patentStatus: patentRow.patentStatus || 1,
-      remark: patentRow.remark || ''
-    })
-  } else if (activeType.value === 'project') {
-    const projectRow = asProjectRow(row)
-    Object.assign(projectForm, {
-      id: projectRow.id ?? null,
-      projectName: projectRow.projectName || '',
-      projectType: projectRow.projectType || 1,
-      projectLevel: projectRow.projectLevel ?? 1,
-      projectNo: projectRow.projectNo || '',
-      projectSource: projectRow.projectSource || '',
-      leaderName: projectRow.leaderName || '',
-      memberRank: projectRow.memberRank ?? 1,
-      projectRole: projectRow.projectRole ?? 1,
-      participants: projectRow.participants || '',
-      startDate: projectRow.startDate || '',
-      endDate: projectRow.endDate || '',
-      funding: projectRow.funding ?? null,
-      projectStatus: projectRow.projectStatus ?? 1,
-      remark: projectRow.remark || ''
-    })
-  } else {
-    const competitionRow = asCompetitionRow(row)
-    Object.assign(competitionForm, {
-      id: competitionRow.id ?? null,
-      competitionName: competitionRow.competitionName || '',
-      competitionLevel: competitionRow.competitionLevel ?? 1,
-      awardLevel: competitionRow.awardLevel ?? 2,
-      awardRank: competitionRow.awardRank ?? 1,
-      awardType: competitionRow.awardType ?? 1,
-      memberRank: competitionRow.memberRank ?? 1,
-      instructor: competitionRow.instructor || '',
-      issuingUnit: competitionRow.issuingUnit || '',
-      organizer: competitionRow.organizer || '',
-      teamMembers: competitionRow.teamMembers || '',
-      awardDate: competitionRow.awardDate || '',
-      remark: competitionRow.remark || ''
-    })
-  }
+  Object.assign(config.formModel, config.extractEditFields(row as Record<string, any>))
   formRef.value?.clearValidate()
   dialogVisible.value = true
   syncRouteQuery()
 }
 
 function handleDelete(row: AchievementRow): void {
+  if (!isPaperRow(row)) return
   ElMessageBox.confirm('确定要删除该论文吗？', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   })
     .then(async () => {
-      await deletePaper(asPaperRow(row).id || 0)
+      await deletePaper(row.id || 0)
       ElMessage.success('删除成功')
       await fetchTableData()
     })
@@ -1211,88 +1218,16 @@ async function handleSubmit(): Promise<void> {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
+  const config = TYPE_FIELD_CONFIG[activeType.value]
+  if (!config) return
+
   try {
-    if (activeType.value === 'paper') {
-      const payload = {
-        studentId: 0,
-        title: paperForm.paperTitle,
-        paperTitle: paperForm.paperTitle,
-        authors: paperForm.authors,
-        journalName: paperForm.journalName,
-        journal: paperForm.journalName,
-        authorRank: paperForm.authorRank,
-        journalLevel: paperForm.journalLevel ?? undefined,
-        impactFactor: paperForm.impactFactor ?? undefined,
-        publicationDate: paperForm.publicationDate,
-        publishDate: paperForm.publicationDate
-      }
-      if (isEdit.value && paperForm.id) {
-        await updatePaper(paperForm.id, payload)
-      } else {
-        await submitPaper(payload)
-      }
-    } else if (activeType.value === 'patent') {
-      const payload = {
-        patentName: patentForm.patentName,
-        patentNo: patentForm.patentNo,
-        patentType: patentForm.patentType,
-        applicant: patentForm.applicant,
-        inventors: patentForm.inventors,
-        inventorRank: patentForm.inventorRank ?? undefined,
-        applicantRank: patentForm.applicantRank ?? undefined,
-        applicationDate: patentForm.applicationDate || undefined,
-        patentStatus: patentForm.patentStatus,
-        remark: patentForm.remark
-      }
-      if (isEdit.value && patentForm.id) {
-        await updatePatent({ id: patentForm.id, ...payload })
-      } else {
-        await addPatent(payload as Omit<ResearchPatent, 'id'>)
-      }
-    } else if (activeType.value === 'project') {
-      const payload = {
-        studentId: 0,
-        projectName: projectForm.projectName,
-        projectType: projectForm.projectType,
-        projectLevel: projectForm.projectLevel ?? undefined,
-        projectNo: projectForm.projectNo || undefined,
-        projectSource: projectForm.projectSource || undefined,
-        leaderName: projectForm.leaderName || undefined,
-        memberRank: projectForm.memberRank ?? undefined,
-        projectRole: projectForm.projectRole ?? undefined,
-        participants: projectForm.participants || undefined,
-        startDate: projectForm.startDate || undefined,
-        endDate: projectForm.endDate || undefined,
-        funding: projectForm.funding ?? undefined,
-        projectStatus: projectForm.projectStatus ?? undefined,
-        remark: projectForm.remark || undefined
-      }
-      if (isEdit.value && projectForm.id) {
-        await updateProject({ id: projectForm.id, ...payload })
-      } else {
-        await addProject(payload as Omit<ResearchProject, 'id'>)
-      }
+    const payload = config.getFormPayload(config.formModel, isEdit.value)
+    const id = config.formModel.id
+    if (isEdit.value && id) {
+      await config.submitUpdate(id, payload)
     } else {
-      const payload = {
-        studentId: 0,
-        competitionName: competitionForm.competitionName,
-        competitionLevel: competitionForm.competitionLevel ?? undefined,
-        awardLevel: competitionForm.awardLevel ?? undefined,
-        awardRank: competitionForm.awardRank ?? undefined,
-        awardType: competitionForm.awardType ?? undefined,
-        memberRank: competitionForm.memberRank ?? undefined,
-        instructor: competitionForm.instructor || undefined,
-        issuingUnit: competitionForm.issuingUnit || undefined,
-        organizer: competitionForm.organizer || undefined,
-        teamMembers: competitionForm.teamMembers || undefined,
-        awardDate: competitionForm.awardDate || undefined,
-        remark: competitionForm.remark || undefined
-      }
-      if (isEdit.value && competitionForm.id) {
-        await updateCompetition({ id: competitionForm.id, ...payload })
-      } else {
-        await addCompetition(payload as Omit<CompetitionAward, 'id'>)
-      }
+      await config.submitCreate(payload)
     }
 
     ElMessage.success(isEdit.value ? '修改成功' : '添加成功')
@@ -1301,6 +1236,7 @@ async function handleSubmit(): Promise<void> {
     await fetchTableData()
   } catch (error) {
     console.error('提交科研成果失败:', error)
+    ElMessage.error('提交科研成果失败，请稍后重试')
   }
 }
 

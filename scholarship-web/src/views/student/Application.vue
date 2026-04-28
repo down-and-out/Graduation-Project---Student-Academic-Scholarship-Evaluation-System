@@ -16,8 +16,8 @@
         <el-descriptions-item label="批次名称">{{ batchInfo.name }}</el-descriptions-item>
         <el-descriptions-item label="申请时间">{{ batchInfo.applyPeriod }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="batchInfo.status === 'active' ? 'success' : 'info'">
-            {{ batchInfo.statusText }}
+          <el-tag :type="getBatchStatusType(batchInfo.status)">
+            {{ getBatchStatusText(batchInfo.status) }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="总名额">{{ batchInfo.quota }} 人</el-descriptions-item>
@@ -37,11 +37,12 @@
       </template>
 
       <el-steps :active="getApplicationStep(myApplication.status)" align-center>
-        <el-step title="草稿" description="填写申请信息" />
-        <el-step title="已提交" description="等待导师审核" />
-        <el-step title="审核中" description="学院评审中" />
-        <el-step title="评审完成" description="等待公示" />
-        <el-step title="已完成" description="查看评定结果" />
+        <el-step
+          v-for="item in APPLICATION_STEP_CONFIG"
+          :key="item.title"
+          :title="item.title"
+          :description="item.description"
+        />
       </el-steps>
 
       <el-descriptions :column="2" border class="application-info">
@@ -97,7 +98,11 @@
           <div class="achievement-panel">
             <template v-if="selectedAchievements.length > 0">
               <div class="achievement-list">
-                <div v-for="item in selectedAchievements" :key="`${item.achievementType}-${item.achievementId}`" class="achievement-item">
+                <div
+                  v-for="item in selectedAchievements"
+                  :key="`${item.achievementType}-${item.achievementId}`"
+                  class="achievement-item"
+                >
                   <div class="achievement-main">
                     <div class="achievement-header">
                       <el-tag size="small" effect="plain">{{ getTypeLabel(item.achievementType) }}</el-tag>
@@ -190,6 +195,18 @@ import type {
 } from '@/api/application'
 import { getAvailableBatches, type EvaluationBatch } from '@/api/evaluation'
 import { applicationStatusMapper } from '@/composables/useStatusMapper'
+import {
+  ACHIEVEMENT_TYPE_ID_LABELS,
+  ACHIEVEMENT_TYPE_ID_OPTIONS
+} from '@/constants/achievement'
+import {
+  APPLICATION_BATCH_DISPLAY_STATUS,
+  APPLICATION_STATUS_STEP_MAP,
+  APPLICATION_STEP_CONFIG,
+  getBatchStatusText,
+  getBatchStatusType,
+  type BatchDisplayStatus
+} from '@/constants/application'
 
 type TagType = 'primary' | 'success' | 'info' | 'warning' | 'danger'
 type AchievementType = 1 | 2 | 3 | 4
@@ -198,8 +215,7 @@ interface BatchCardInfo {
   id: number | null
   name: string
   applyPeriod: string
-  status: 'active' | 'closed'
-  statusText: string
+  status: BatchDisplayStatus
   quota: number
   amount: number
   description: string
@@ -212,29 +228,10 @@ interface ApplicationForm {
   agreed: boolean
 }
 
-interface SelectedAchievementMap {
-  1: number[]
-  2: number[]
-  3: number[]
-  4: number[]
-}
+type AchievementTypeId = typeof ACHIEVEMENT_TYPE_ID_OPTIONS[number]['value']
+type SelectedAchievementMap = Record<AchievementTypeId, number[]>
 
-type AvailableBatchPayload = EvaluationBatch & Partial<{
-  batchName: string
-  startTime: string
-  endTime: string
-  quota: number
-  amount: number
-}>
-
-const ACHIEVEMENT_TYPE_LABELS: Record<AchievementType, string> = {
-  1: '论文',
-  2: '专利',
-  3: '项目',
-  4: '竞赛'
-}
-
-const ALL_ACHIEVEMENT_TYPES: AchievementType[] = [1, 2, 3, 4]
+const ALL_ACHIEVEMENT_TYPES = ACHIEVEMENT_TYPE_ID_OPTIONS.map(item => item.value as AchievementType)
 
 const dialogVisible = ref(false)
 const submitting = ref(false)
@@ -245,19 +242,15 @@ const myApplication = ref<Application | null>(null)
 const applicationDetail = ref<ApplicationDetail | null>(null)
 const availableAchievements = ref<ApplicationAchievementItem[]>([])
 
-const selectedIds = reactive<SelectedAchievementMap>({
-  1: [],
-  2: [],
-  3: [],
-  4: []
-})
+const selectedIds = reactive<SelectedAchievementMap>(
+  Object.fromEntries(ACHIEVEMENT_TYPE_ID_OPTIONS.map(o => [o.value, []])) as SelectedAchievementMap
+)
 
 const batchInfo = ref<BatchCardInfo>({
   id: null,
   name: '',
   applyPeriod: '',
-  status: 'closed',
-  statusText: '',
+  status: APPLICATION_BATCH_DISPLAY_STATUS.CLOSED,
   quota: 0,
   amount: 0,
   description: ''
@@ -277,14 +270,14 @@ const formRules: FormRules<ApplicationForm> = {
   ]
 }
 
-const canApply = computed(() => batchInfo.value.status === 'active')
+const canApply = computed(() => batchInfo.value.status === APPLICATION_BATCH_DISPLAY_STATUS.ACTIVE)
 const hasApplied = computed(() => myApplication.value !== null)
 const dialogTitle = computed(() => isViewMode.value ? '查看申请详情' : '提交申请')
 
 const achievementGroups = computed(() =>
-  ALL_ACHIEVEMENT_TYPES.map((type) => ({
+  ALL_ACHIEVEMENT_TYPES.map(type => ({
     type,
-    label: ACHIEVEMENT_TYPE_LABELS[type],
+    label: ACHIEVEMENT_TYPE_ID_LABELS[type],
     items: availableAchievements.value.filter(item => item.achievementType === type)
   }))
 )
@@ -295,9 +288,7 @@ const selectedAchievements = computed<ApplicationAchievementItem[]>(() => {
   }
 
   const selectedKeySet = new Set(
-    ALL_ACHIEVEMENT_TYPES.flatMap(type =>
-      selectedIds[type].map(id => `${type}-${id}`)
-    )
+    ALL_ACHIEVEMENT_TYPES.flatMap(type => selectedIds[type].map(id => `${type}-${id}`))
   )
 
   return availableAchievements.value.filter(item =>
@@ -306,31 +297,31 @@ const selectedAchievements = computed<ApplicationAchievementItem[]>(() => {
 })
 
 function getTypeLabel(type: number): string {
-  return ACHIEVEMENT_TYPE_LABELS[type as AchievementType] || '未知类型'
+  return ACHIEVEMENT_TYPE_ID_LABELS[type as AchievementType] || '未知类型'
 }
 
 function getApplicationStep(status: number): number {
-  const stepMap: Record<number, number> = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 4 }
-  return stepMap[status] ?? 0
+  return APPLICATION_STATUS_STEP_MAP[status] ?? 0
 }
 
 function getApplicationTagType(status: number): TagType {
   return applicationStatusMapper.getType(status) as TagType
 }
 
-function normalizeBatchInfo(batch: AvailableBatchPayload): BatchCardInfo {
-  const start = batch.startDate || batch.startTime || ''
-  const end = batch.endDate || batch.endTime || ''
-  const period = start && end ? `${start} 至 ${end}` : start || end || '-'
+function normalizeBatchInfo(batch: EvaluationBatch): BatchCardInfo {
+  const period = batch.startDate && batch.endDate
+    ? `${batch.startDate} 至 ${batch.endDate}`
+    : batch.startDate || batch.endDate || '-'
 
   return {
     id: batch.id ?? null,
-    name: batch.name || batch.batchName || '',
+    name: batch.name || '',
     applyPeriod: period,
-    status: batch.status === 2 ? 'active' : 'closed',
-    statusText: batch.status === 2 ? '可申请' : '已结束',
-    quota: batch.winnerCount ?? batch.quota ?? 0,
-    amount: batch.totalAmount ?? batch.amount ?? 0,
+    status: batch.status === 2
+      ? APPLICATION_BATCH_DISPLAY_STATUS.ACTIVE
+      : APPLICATION_BATCH_DISPLAY_STATUS.CLOSED,
+    quota: batch.winnerCount ?? 0,
+    amount: batch.totalAmount ?? 0,
     description: batch.description || ''
   }
 }
@@ -338,12 +329,13 @@ function normalizeBatchInfo(batch: AvailableBatchPayload): BatchCardInfo {
 async function loadBatchInfo(): Promise<void> {
   try {
     const response = await getAvailableBatches()
-    const batches = extractApiData<AvailableBatchPayload[]>(response) || []
+    const batches = extractApiData<EvaluationBatch[]>(response) || []
     if (!batches.length) return
 
     batchInfo.value = normalizeBatchInfo(batches[0])
   } catch (error) {
     console.error('加载批次信息失败:', error)
+    ElMessage.error('加载批次信息失败')
   }
 }
 
@@ -355,6 +347,7 @@ async function loadMyApplication(): Promise<void> {
     myApplication.value = pageData?.records?.[0] || null
   } catch (error) {
     console.error('加载申请信息失败:', error)
+    ElMessage.error('加载申请信息失败')
   } finally {
     loading.value = false
   }
@@ -366,6 +359,7 @@ async function loadAvailableAchievements(): Promise<void> {
     availableAchievements.value = extractApiData<ApplicationAchievementItem[]>(response) || []
   } catch (error) {
     console.error('加载可选成果失败:', error)
+    ElMessage.error('加载可选成果失败')
     availableAchievements.value = []
   }
 }
@@ -441,16 +435,16 @@ async function handleSubmit(): Promise<void> {
     await loadMyApplication()
   } catch (error) {
     console.error('提交失败:', error)
+    ElMessage.error('提交申请失败，请稍后重试')
   } finally {
     submitting.value = false
   }
 }
 
 function resetSelections(): void {
-  selectedIds[1] = []
-  selectedIds[2] = []
-  selectedIds[3] = []
-  selectedIds[4] = []
+  for (const key of Object.keys(selectedIds)) {
+    selectedIds[Number(key) as AchievementTypeId] = []
+  }
 }
 
 function handleDialogClose(): void {

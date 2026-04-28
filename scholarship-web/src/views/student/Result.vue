@@ -141,8 +141,11 @@ import { DocumentAdd, Download, Medal } from '@element-plus/icons-vue'
 import { submitAppeal } from '@/api/appeal'
 import { getMyResult, getResultDetail, getResultPage } from '@/api/result'
 import type { EvaluationResult } from '@/api/result'
-import { extractApiData } from '@/utils/helpers'
+import { extractApiData, extractPageData } from '@/utils/helpers'
+import { LARGE_QUERY_SIZE } from '@/constants'
 import {
+  AWARD_LEVEL_MAX,
+  AWARD_LEVEL_MIN,
   getAwardLevelConfig,
   getResultStatusConfig,
   normalizeAwardLevel,
@@ -182,7 +185,7 @@ const appealRules: FormRules = {
 
 const showAmount = computed(() => {
   const level = normalizeAwardLevel(result.value?.awardLevel)
-  return level >= 1 && level <= 4 && (result.value?.awardAmount ?? 0) > 0
+  return level >= AWARD_LEVEL_MIN && level <= AWARD_LEVEL_MAX && (result.value?.awardAmount ?? 0) > 0
 })
 
 function getAwardTitle(level?: number | null): string {
@@ -241,16 +244,18 @@ async function loadResult(): Promise<void> {
     result.value = raw ? normalizeResult(raw) : null
   } catch (error) {
     console.error('加载评定结果失败:', error)
+    ElMessage.error('加载评定结果失败')
   }
 }
 
 async function loadHistory(): Promise<void> {
   try {
-    const response = await getResultPage({ current: 1, size: 100 })
-    const pageData = extractApiData<API.PageResponse<EvaluationResult>>(response)
+    const response = await getResultPage({ current: 1, size: LARGE_QUERY_SIZE })
+    const pageData = extractPageData<EvaluationResult>(response)
     historyList.value = (pageData?.records || []).map(normalizeResult)
   } catch (error) {
     console.error('加载历史记录失败:', error)
+    ElMessage.error('加载历史记录失败')
   }
 }
 

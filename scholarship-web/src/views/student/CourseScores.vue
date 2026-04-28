@@ -33,13 +33,23 @@
 
     <el-form :inline="true" class="search-form">
       <el-form-item label="学年">
-        <el-input v-model="queryParams.academicYear" placeholder="如 2024" clearable />
+        <el-select v-model="queryParams.academicYear" placeholder="全部" clearable style="width: 160px">
+          <el-option
+            v-for="item in academicYearOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item label="学期">
         <el-select v-model="queryParams.semester" placeholder="全部" clearable style="width: 160px">
-          <el-option label="第一学期" :value="1" />
-          <el-option label="第二学期" :value="2" />
-          <el-option label="夏季学期" :value="3" />
+          <el-option
+            v-for="item in COURSE_SCORE_SEMESTER_OPTIONS"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item label="课程名">
@@ -99,14 +109,21 @@ import { onMounted, reactive, ref } from 'vue'
 import type { UploadFile, UploadFiles } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { getMyCourseScorePage, importMyCourseScores } from '@/api/courseScore'
-import type { CourseScore, CourseScorePageParams } from '@/api/courseScore'
-import { extractPageData } from '@/utils/helpers'
+import type { CourseScore, CourseScoreImportResult, CourseScorePageParams } from '@/api/courseScore'
+import { extractApiData, extractPageData } from '@/utils/helpers'
+import {
+  COURSE_SCORE_SEMESTER_LABELS,
+  COURSE_SCORE_SEMESTER_OPTIONS,
+  COURSE_TYPE_LABELS
+} from '@/constants/courseScore'
+import { LARGE_QUERY_SIZE } from '@/constants'
 
 const loading = ref(false)
 const uploading = ref(false)
 const total = ref(0)
 const tableData = ref<CourseScore[]>([])
 const selectedFile = ref<File | null>(null)
+const academicYearOptions = ref<Array<{ label: string; value: string }>>([])
 
 const queryParams = reactive<CourseScorePageParams>({
   current: 1,
@@ -116,18 +133,34 @@ const queryParams = reactive<CourseScorePageParams>({
   courseName: ''
 })
 
+function buildAcademicYearOptions(records: CourseScore[]): Array<{ label: string; value: string }> {
+  const values = Array.from(
+    new Set(records.map(item => item.academicYear).filter((value): value is string => Boolean(value)))
+  ).sort((a, b) => b.localeCompare(a, 'zh-CN'))
+
+  return values.map(value => ({ label: value, value }))
+}
+
+async function fetchAcademicYearOptions(): Promise<void> {
+  try {
+    const response = await getMyCourseScorePage({
+      current: 1,
+      size: LARGE_QUERY_SIZE
+    })
+    const pageData = extractPageData<CourseScore>(response)
+    academicYearOptions.value = buildAcademicYearOptions(pageData?.records || [])
+  } catch (error) {
+    console.error('加载课程成绩学年选项失败:', error)
+    academicYearOptions.value = []
+  }
+}
+
 function formatSemester(value?: number): string {
-  if (value === 1) return '第一学期'
-  if (value === 2) return '第二学期'
-  if (value === 3) return '夏季学期'
-  return '-'
+  return value === undefined ? '-' : (COURSE_SCORE_SEMESTER_LABELS[value] || '-')
 }
 
 function formatCourseType(value?: number): string {
-  if (value === 1) return '必修'
-  if (value === 2) return '选修'
-  if (value === 3) return '任选'
-  return '-'
+  return value === undefined ? '-' : (COURSE_TYPE_LABELS[value] || '-')
 }
 
 function formatScoreDisplay(row: CourseScore): string {
@@ -149,6 +182,7 @@ async function handleQuery(): Promise<void> {
     total.value = pageData?.total || 0
   } catch (error) {
     console.error('加载课程成绩失败:', error)
+    ElMessage.error('加载课程成绩失败')
   } finally {
     loading.value = false
   }
@@ -185,20 +219,21 @@ async function handleImport(): Promise<void> {
   uploading.value = true
   try {
     const response = await importMyCourseScores(selectedFile.value)
-    const importResult = response.data?.data
+    const importResult = extractApiData<CourseScoreImportResult>(response)
     ElMessage.success(importResult?.message || '成绩导入成功')
     selectedFile.value = null
     queryParams.current = 1
-    await handleQuery()
+    await Promise.all([fetchAcademicYearOptions(), handleQuery()])
   } catch (error) {
     console.error('导入成绩失败:', error)
+    ElMessage.error('导入成绩失败')
   } finally {
     uploading.value = false
   }
 }
 
-onMounted(() => {
-  handleQuery()
+onMounted(async () => {
+  await Promise.allSettled([fetchAcademicYearOptions(), handleQuery()])
 })
 </script>
 

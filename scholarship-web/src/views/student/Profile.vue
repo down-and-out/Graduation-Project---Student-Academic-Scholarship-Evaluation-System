@@ -41,12 +41,16 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="性别">
-              <el-input :model-value="GENDER_TEXT[formData.gender] ?? '未知'" disabled />
+              <el-input :model-value="GENDER_TEXT_MAP[formData.gender] ?? '未知'" disabled />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="身份证号" prop="idCard">
-              <el-input v-model="formData.idCard" :disabled="!isEdit" />
+              <el-input
+                :model-value="isEdit ? formData.idCard : maskIdCard(formData.idCard)"
+                :disabled="!isEdit"
+                @update:model-value="formData.idCard = $event"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -59,7 +63,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="学历层次">
-              <el-input :model-value="EDUCATION_LEVEL_TEXT[formData.educationLevel] ?? '未知'" disabled />
+              <el-input :model-value="EDUCATION_LEVEL_TEXT_MAP[formData.educationLevel] ?? '未知'" disabled />
             </el-form-item>
           </el-col>
         </el-row>
@@ -134,13 +138,11 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getMyInfo, updateMyInfo } from '@/api/student'
 import type { Student } from '@/api/student'
-import { GENDER_TEXT, EDUCATION_LEVEL_TEXT } from '@/constants'
-import { extractApiData } from '@/utils/helpers'
+import { EDUCATION_LEVEL_TEXT_MAP, GENDER_TEXT_MAP } from '@/constants/user'
+import { extractApiData, maskIdCard } from '@/utils/helpers'
 
 const isEdit = ref(false)
 const formRef = ref<FormInstance | null>(null)
-const loading = ref(false)
-
 const formData = reactive<Student>({
   id: 0,
   studentNo: '',
@@ -172,7 +174,6 @@ const rules: FormRules = {
 }
 
 async function loadInfo(): Promise<void> {
-  loading.value = true
   try {
     const response = await getMyInfo()
     const profile = extractApiData<Student>(response)
@@ -189,8 +190,6 @@ async function loadInfo(): Promise<void> {
   } catch (error) {
     console.error('加载学生信息失败:', error)
     ElMessage.error('加载学生信息失败')
-  } finally {
-    loading.value = false
   }
 }
 
