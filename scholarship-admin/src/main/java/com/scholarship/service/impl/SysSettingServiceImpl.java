@@ -3,15 +3,20 @@ package com.scholarship.service.impl;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.scholarship.common.exception.BusinessException;
+import com.scholarship.common.support.CacheConstants;
 import com.scholarship.dto.*;
 import com.scholarship.entity.SysSetting;
 import com.scholarship.mapper.SysSettingMapper;
 import com.scholarship.service.SysSettingService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -28,6 +33,7 @@ import java.util.Map;
 public class SysSettingServiceImpl implements SysSettingService {
 
     private final SysSettingMapper sysSettingMapper;
+    private final Validator validator;
 
     @Override
     @Cacheable(key = "#key")
@@ -60,6 +66,7 @@ public class SysSettingServiceImpl implements SysSettingService {
     }
 
     @Override
+    @Cacheable(value = CacheConstants.SYS_SETTING_ACTIVE, key = "#key", unless = "#result == null")
     public <T> T getActiveSetting(String key, Class<T> clazz) {
         SysSetting setting = sysSettingMapper.selectActiveByKey(key);
         if (setting == null || setting.getSettingValue() == null) {
@@ -74,9 +81,14 @@ public class SysSettingServiceImpl implements SysSettingService {
     }
 
     @Override
-    @CacheEvict(allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = CacheConstants.SYS_SETTING, allEntries = true),
+            @CacheEvict(value = CacheConstants.SYS_SETTING_ACTIVE, allEntries = true),
+            @CacheEvict(value = CacheConstants.SYS_SETTINGS_ALL, allEntries = true)
+    })
     public boolean updateSetting(String key, Object data) {
-        String jsonString = JSON.toJSONString(data);
+        Object normalizedData = normalizeAndValidateSetting(key, data);
+        String jsonString = JSON.toJSONString(normalizedData);
 
         SysSetting exist = getLatestActiveByKey(key);
 
@@ -103,6 +115,7 @@ public class SysSettingServiceImpl implements SysSettingService {
     }
 
     @Override
+    @Cacheable(value = CacheConstants.SYS_SETTINGS_ALL, key = "'all'")
     public Map<String, String> getAllSettings() {
         List<SysSetting> list = sysSettingMapper.selectList(new LambdaQueryWrapper<SysSetting>()
                 .eq(SysSetting::getIsActive, 1));
@@ -163,5 +176,25 @@ public class SysSettingServiceImpl implements SysSettingService {
             }
         }
         return activeSettings.get(0);
+    }
+
+    private Object normalizeAndValidateSetting(String key, Object data) {
+        if (!"weight".equals(key)) {
+            return data;
+        }
+
+        WeightSetting weightSetting = JSON.parseObject(JSON.toJSONString(data), WeightSetting.class);
+        if (weightSetting == null) {
+            throw new BusinessException("权重配置不能为空");
+        }
+
+        List<String> errors = validator.validate(weightSetting).stream()
+                .map(ConstraintViolation::getMessage)
+                .distinct()
+                .toList();
+        if (!errors.isEmpty()) {
+            throw new BusinessException(String.join("; ", errors));
+        }
+        return weightSetting;
     }
 }
