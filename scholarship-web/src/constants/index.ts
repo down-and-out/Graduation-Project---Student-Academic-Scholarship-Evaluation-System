@@ -17,6 +17,11 @@ export const USER_ROLE = {
 export type UserRole = typeof USER_ROLE[keyof typeof USER_ROLE]
 
 /**
+ * 大批量查询 size（下拉选项全量拉取）
+ */
+export const LARGE_QUERY_SIZE = 1000
+
+/**
  * 用户类型映射（后端返回的数字类型）
  */
 export const USER_TYPE_MAP: Record<number, UserRole> = {

@@ -11,6 +11,9 @@ export interface ResultStatusConfig {
   type: ResultTagType
 }
 
+export const AWARD_LEVEL_MIN = 1
+export const AWARD_LEVEL_MAX = 4
+
 const FALLBACK_AWARD_LEVEL = 5
 const FALLBACK_RESULT_STATUS = 0
 
@@ -35,7 +38,7 @@ export const RESULT_STATUS_OPTIONS = Object.entries(RESULT_STATUS_CONFIG).map(([
 }))
 
 export function normalizeAwardLevel(level?: number | null): number {
-  return level !== undefined && level !== null && level >= 1 && level <= 4
+  return level !== undefined && level !== null && level >= AWARD_LEVEL_MIN && level <= AWARD_LEVEL_MAX
     ? level
     : FALLBACK_AWARD_LEVEL
 }

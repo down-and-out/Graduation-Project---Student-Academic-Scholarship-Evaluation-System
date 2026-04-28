@@ -140,7 +140,17 @@ export function isValidEmail(email: string): boolean {
  * @returns 是否有效
  */
 export function isValidIdCard(idCard: string): boolean {
-  return /(^\d{15}$)|(^\d{18}$)|(^\d{17}(\d|X|x)$)/.test(idCard)
+  return /^[1-9]\d{5}(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]$/.test(idCard)
+}
+
+/**
+ * 身份证号脱敏，保留前4位和后4位，中间用 * 替代
+ * @returns 如 4301********1234，空值或长度不足返回空字符串
+ */
+export function maskIdCard(idCard: string | null | undefined): string {
+  if (!idCard) return ''
+  if (idCard.length < 8) return idCard
+  return idCard.slice(0, 4) + '*'.repeat(idCard.length - 8) + idCard.slice(-4)
 }
 
 /**
@@ -150,12 +160,13 @@ export function isValidIdCard(idCard: string): boolean {
  */
 export function isValidPassword(password: string): boolean {
   if (!password || password.length < 10) return false
-  // 必须包含字母和数字
-  const hasLetter = /[a-zA-Z]/.test(password)
+  const hasLower = /[a-z]/.test(password)
+  const hasUpper = /[A-Z]/.test(password)
   const hasDigit = /[0-9]/.test(password)
-  // 只能包含字母和数字
-  const isValidChars = /^[a-zA-Z0-9]+$/.test(password)
-  return hasLetter && hasDigit && isValidChars
+  const hasSpecial = /[^a-zA-Z0-9]/.test(password)
+  // 至少满足三类字符要求（大写字母、小写字母、数字、特殊字符）
+  const categoryCount = [hasLower, hasUpper, hasDigit, hasSpecial].filter(Boolean).length
+  return categoryCount >= 3
 }
 
 /**
@@ -185,16 +196,27 @@ export function formatFileSize(bytes: number): string {
  * @param obj - 需要拷贝的对象
  * @returns 拷贝后的对象
  */
-export function deepClone<T>(obj: T): T {
+export function deepClone<T>(obj: T, visited = new WeakMap<object, unknown>()): T {
   if (obj === null || typeof obj !== 'object') return obj
   if (obj instanceof Date) return new Date(obj.getTime()) as any
   if (obj instanceof RegExp) return new RegExp(obj.source, obj.flags) as any
-  if (Array.isArray(obj)) return obj.map(item => deepClone(item)) as any
+
+  if (visited.has(obj as object)) {
+    return visited.get(obj as object) as T
+  }
+
+  if (Array.isArray(obj)) {
+    const arr: unknown[] = []
+    visited.set(obj as object, arr)
+    obj.forEach(item => { arr.push(deepClone(item, visited)) })
+    return arr as unknown as T
+  }
 
   const cloned = {} as T
+  visited.set(obj as object, cloned)
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      ;(cloned as any)[key] = deepClone((obj as any)[key])
+      ;(cloned as any)[key] = deepClone((obj as any)[key], visited)
     }
   }
   return cloned
@@ -240,68 +262,28 @@ export function extractPageData<T>(payload: unknown): API.PageResponse<T> | null
   return null
 }
 
-// ============ 审核状态常量 ============
+// ============ 申请审核状态常量 ============
 
-/** 审核状态枚举 */
-export const AUDIT_STATUS = {
+/** 申请审核状态枚举（申请层面的多阶段审核） */
+export const APPLICATION_AUDIT_STATUS = {
   PENDING: 0,             // 待审核
   TUTOR_APPROVED: 1,      // 导师通过
   DEPARTMENT_APPROVED: 2, // 院系通过
   REJECTED: 3             // 未通过
 } as const
 
-/** 审核状态映射 (状态值 => 标签) */
-export const AUDIT_STATUS_LABELS: Record<number, string> = {
-  [AUDIT_STATUS.PENDING]: '待审核',
-  [AUDIT_STATUS.TUTOR_APPROVED]: '导师通过',
-  [AUDIT_STATUS.DEPARTMENT_APPROVED]: '院系通过',
-  [AUDIT_STATUS.REJECTED]: '未通过'
+/** 申请审核状态映射 (状态值 => 标签) */
+export const APPLICATION_AUDIT_STATUS_LABELS: Record<number, string> = {
+  [APPLICATION_AUDIT_STATUS.PENDING]: '待审核',
+  [APPLICATION_AUDIT_STATUS.TUTOR_APPROVED]: '导师通过',
+  [APPLICATION_AUDIT_STATUS.DEPARTMENT_APPROVED]: '院系通过',
+  [APPLICATION_AUDIT_STATUS.REJECTED]: '未通过'
 }
 
-/** 审核状态 Tag 类型映射 */
-export const AUDIT_STATUS_TYPES: Record<number, 'warning' | 'success' | 'danger' | 'info' | 'primary'> = {
-  [AUDIT_STATUS.PENDING]: 'warning',
-  [AUDIT_STATUS.TUTOR_APPROVED]: 'success',
-  [AUDIT_STATUS.DEPARTMENT_APPROVED]: 'success',
-  [AUDIT_STATUS.REJECTED]: 'danger'
-}
-
-// ============ 期刊级别常量 ============
-
-/** 期刊级别枚举 */
-export const JOURNAL_LEVEL = {
-  SCI_Q1: 1,
-  SCI_Q2: 2,
-  SCI_Q3: 3,
-  SCI_Q4: 4,
-  EI: 5,
-  CORE: 6,
-  REGULAR: 7
-} as const
-
-/** 期刊级别标签映射 */
-export const JOURNAL_LEVEL_LABELS: Record<number, string> = {
-  [JOURNAL_LEVEL.SCI_Q1]: 'SCI 一区',
-  [JOURNAL_LEVEL.SCI_Q2]: 'SCI 二区',
-  [JOURNAL_LEVEL.SCI_Q3]: 'SCI 三区',
-  [JOURNAL_LEVEL.SCI_Q4]: 'SCI 四区',
-  [JOURNAL_LEVEL.EI]: 'EI',
-  [JOURNAL_LEVEL.CORE]: '核心期刊',
-  [JOURNAL_LEVEL.REGULAR]: '普通期刊'
-}
-
-// ============ 作者排名常量 ============
-
-/** 作者排名枚举 */
-export const AUTHOR_RANK = {
-  FIRST: 1,          // 第一作者
-  SECOND: 2,         // 第二作者
-  CORRESPONDING: 3   // 通讯作者
-} as const
-
-/** 作者排名标签映射 */
-export const AUTHOR_RANK_LABELS: Record<number, string> = {
-  [AUTHOR_RANK.FIRST]: '第一作者',
-  [AUTHOR_RANK.SECOND]: '第二作者',
-  [AUTHOR_RANK.CORRESPONDING]: '通讯作者'
+/** 申请审核状态 Tag 类型映射 */
+export const APPLICATION_AUDIT_STATUS_TYPES: Record<number, 'warning' | 'success' | 'danger' | 'info' | 'primary'> = {
+  [APPLICATION_AUDIT_STATUS.PENDING]: 'warning',
+  [APPLICATION_AUDIT_STATUS.TUTOR_APPROVED]: 'success',
+  [APPLICATION_AUDIT_STATUS.DEPARTMENT_APPROVED]: 'success',
+  [APPLICATION_AUDIT_STATUS.REJECTED]: 'danger'
 }
