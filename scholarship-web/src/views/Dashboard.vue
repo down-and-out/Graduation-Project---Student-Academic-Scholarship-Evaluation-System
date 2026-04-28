@@ -117,14 +117,12 @@ import type { Ref } from 'vue'
 import { Document, Medal, Briefcase, Trophy, Plus, DocumentAdd } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import type { UserInfo } from '@/utils/secureStorage'
-import { getPaperPage } from '@/api/paper'
-import { getPatentPage } from '@/api/patent'
-import { getProjectPage } from '@/api/project'
 import { getLatestNotifications, type Notification } from '@/api/notification'
-import { extractApiData, extractPageData } from '@/utils/helpers'
-import type { PaperPageParams } from '@/api/paper'
-import type { PatentPageParams } from '@/api/patent'
-import type { ProjectPageParams } from '@/api/project'
+import { extractApiData } from '@/utils/helpers'
+import { USER_TYPE } from '@/constants/user'
+import { countPaper } from '@/api/paper'
+import { countPatent } from '@/api/patent'
+import { countProject } from '@/api/project'
 
 /**
  * 统计数据接口
@@ -152,7 +150,7 @@ const router = useRouter()
 // ========== 状态管理 ==========
 const userStore = useUserStore()
 const userInfo = computed(() => userStore.userInfo) as Ref<UserInfo>
-const isStudent = computed(() => userInfo.value.userType === 1)
+const isStudent = computed(() => userInfo.value.userType === USER_TYPE.STUDENT)
 
 // ========== 状态 ==========
 const stats = ref<Stats>({
@@ -204,9 +202,9 @@ function handleAction(action: string): void {
  */
 async function loadStats(): Promise<void> {
   const [paperRes, patentRes, projectRes] = await Promise.allSettled([
-    getPaperPage({ current: 1, size: 100 } as PaperPageParams),
-    getPatentPage({ current: 1, size: 100 } as PatentPageParams),
-    getProjectPage({ current: 1, size: 100 } as ProjectPageParams)
+    countPaper(),
+    countPatent(),
+    countProject()
   ])
 
   /**
@@ -216,8 +214,7 @@ async function loadStats(): Promise<void> {
    */
   const extractTotal = (result: PromiseSettledResult<any>): number => {
     if (result.status === 'fulfilled') {
-      const pageData = extractPageData<any>(result.value)
-      return pageData?.total || 0
+      return extractApiData<number>(result.value) || 0
     }
     return 0
   }
@@ -234,14 +231,18 @@ async function loadStats(): Promise<void> {
  * 加载通知公告
  */
 async function loadNotices(): Promise<void> {
-  const res = await getLatestNotifications()
-  const noticeList = extractApiData<Notification[]>(res) || []
-  notices.value = noticeList.map(item => ({
-    id: item.id,
-    title: item.title,
-    content: item.content,
-    createTime: item.createTime
-  }))
+  try {
+    const res = await getLatestNotifications()
+    const noticeList = extractApiData<Notification[]>(res) || []
+    notices.value = noticeList.map(item => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      createTime: item.createTime
+    }))
+  } catch {
+    notices.value = []
+  }
 }
 
 // ========== 生命周期 ==========

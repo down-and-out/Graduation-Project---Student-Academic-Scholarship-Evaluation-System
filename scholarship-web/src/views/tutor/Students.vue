@@ -9,15 +9,14 @@
         <el-input v-model="queryParams.keyword" placeholder="请输入学号或姓名" clearable />
       </el-form-item>
       <el-form-item label="年级">
-        <el-input-number
-          v-model="queryParams.grade"
-          :min="2000"
-          :max="2100"
-          :step="1"
-          :precision="0"
-          controls-position="right"
-          placeholder="请输入入学年份"
-        />
+        <el-select v-model="queryParams.grade" placeholder="请选择年级" clearable>
+          <el-option
+            v-for="item in gradeOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="handleQuery">查询</el-button>
@@ -31,7 +30,7 @@
       <el-table-column prop="name" label="姓名" width="100" />
       <el-table-column prop="gender" label="性别" width="80">
         <template #default="{ row }">
-          {{ row.gender === 1 ? '男' : '女' }}
+          {{ GENDER_TEXT_MAP[row.gender] || '-' }}
         </template>
       </el-table-column>
       <el-table-column prop="grade" label="年级" width="100" />
@@ -61,7 +60,7 @@
       <el-descriptions :column="2" border class="student-info">
         <el-descriptions-item label="学号">{{ currentRow.studentNo }}</el-descriptions-item>
         <el-descriptions-item label="姓名">{{ currentRow.name }}</el-descriptions-item>
-        <el-descriptions-item label="性别">{{ currentRow.gender === 1 ? '男' : '女' }}</el-descriptions-item>
+        <el-descriptions-item label="性别">{{ GENDER_TEXT_MAP[currentRow.gender] || '-' }}</el-descriptions-item>
         <el-descriptions-item label="年级">{{ currentRow.grade }}</el-descriptions-item>
         <el-descriptions-item label="专业" :span="2">{{ currentRow.major || '暂无' }}</el-descriptions-item>
         <el-descriptions-item label="研究方向" :span="2">{{ currentRow.direction || '暂无' }}</el-descriptions-item>
@@ -124,6 +123,9 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { getTutorStudentPage } from '@/api/student'
+import { GENDER_TEXT_MAP } from '@/constants/user'
+import { LARGE_QUERY_SIZE } from '@/constants'
+const GRADE_FALLBACK_COUNT = 10
 
 const loading = ref(false)
 const tableData = ref([])
@@ -131,6 +133,7 @@ const total = ref(0)
 const detailDialogVisible = ref(false)
 const achievementDialogVisible = ref(false)
 const currentRow = ref({})
+const gradeOptions = ref([])
 
 const queryParams = reactive({
   current: 1,
@@ -139,6 +142,65 @@ const queryParams = reactive({
   grade: undefined
 })
 
+function normalizeGradeValue(value) {
+  if (value === undefined || value === null) return undefined
+  const normalized = String(value).trim()
+  return normalized || undefined
+}
+
+function compareGradeValues(a, b) {
+  const aNum = Number(a)
+  const bNum = Number(b)
+  const aIsNumeric = !Number.isNaN(aNum)
+  const bIsNumeric = !Number.isNaN(bNum)
+
+  if (aIsNumeric && bIsNumeric) {
+    return bNum - aNum
+  }
+
+  return String(b).localeCompare(String(a), 'zh-CN')
+}
+
+function buildFallbackGradeOptions() {
+  const currentYear = new Date().getFullYear()
+  return Array.from({ length: GRADE_FALLBACK_COUNT }, (_, index) => {
+    const year = String(currentYear - index)
+    return { label: year, value: year }
+  })
+}
+
+function buildGradeOptions(records = []) {
+  const gradeSet = new Set()
+
+  records.forEach(record => {
+    const normalized = normalizeGradeValue(record?.grade)
+    if (normalized) {
+      gradeSet.add(normalized)
+    }
+  })
+
+  const gradeValues = Array.from(gradeSet).sort(compareGradeValues)
+  if (gradeValues.length === 0) {
+    return buildFallbackGradeOptions()
+  }
+
+  return gradeValues.map(value => ({ label: value, value }))
+}
+
+async function fetchGradeOptions() {
+  try {
+    const res = await getTutorStudentPage({
+      current: 1,
+      size: LARGE_QUERY_SIZE
+    })
+    const records = res.data?.data?.records || []
+    gradeOptions.value = buildGradeOptions(records)
+  } catch (error) {
+    console.error('加载导师学生年级选项失败:', error)
+    gradeOptions.value = buildFallbackGradeOptions()
+  }
+}
+
 async function handleQuery() {
   loading.value = true
   try {
@@ -146,7 +208,7 @@ async function handleQuery() {
       current: queryParams.current,
       size: queryParams.size,
       keyword: queryParams.keyword || undefined,
-      grade: queryParams.grade === undefined ? undefined : String(queryParams.grade)
+      grade: normalizeGradeValue(queryParams.grade)
     })
     tableData.value = res.data?.data?.records || []
     total.value = res.data?.data?.total || 0
@@ -177,8 +239,9 @@ function handleViewAchievements(row) {
   achievementDialogVisible.value = true
 }
 
-onMounted(() => {
-  handleQuery()
+onMounted(async () => {
+  await fetchGradeOptions()
+  await handleQuery()
 })
 </script>
 

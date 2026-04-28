@@ -27,9 +27,12 @@
       <el-form-item label="审核状态">
         <el-select v-model="queryParams.status" placeholder="请选择" clearable>
           <el-option label="全部" value="" />
-          <el-option label="待审核" :value="0" />
-          <el-option label="已通过" :value="1" />
-          <el-option label="未通过" :value="3" />
+          <el-option
+            v-for="item in REVIEW_STATUS_OPTIONS"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -59,7 +62,12 @@
       <el-table-column label="操作" width="160" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handleView(row)">查看</el-button>
-          <el-button link type="primary" :disabled="row.status !== 0" @click="handleReview(row)">
+          <el-button
+            link
+            type="primary"
+            :disabled="row.status !== REVIEW_DISPLAY_STATUS.PENDING"
+            @click="handleReview(row)"
+          >
             审核
           </el-button>
         </template>
@@ -121,8 +129,8 @@
       <el-form :model="reviewForm" label-width="100px">
         <el-form-item label="审核结果">
           <el-radio-group v-model="reviewForm.status">
-            <el-radio :label="1">通过</el-radio>
-            <el-radio :label="3">不通过</el-radio>
+            <el-radio :label="REVIEW_DISPLAY_STATUS.APPROVED">通过</el-radio>
+            <el-radio :label="REVIEW_DISPLAY_STATUS.REJECTED">不通过</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="审核意见">
@@ -137,7 +145,7 @@
 
       <template #footer>
         <el-button @click="reviewDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleReviewSubmit">提交审核</el-button>
+        <el-button type="primary" :loading="reviewSubmitting" @click="handleReviewSubmit">提交审核</el-button>
       </template>
     </el-dialog>
   </div>
@@ -171,6 +179,21 @@ import {
   type CompetitionPageParams
 } from '@/api/competition'
 import { extractPageData } from '@/utils/helpers'
+import {
+  ACHIEVEMENT_TYPE_OPTIONS,
+  COMPETITION_LEVEL_LABELS,
+  JOURNAL_LEVEL_LABELS,
+  PROJECT_LEVEL_LABELS
+} from '@/constants/achievement'
+import { PATENT_TYPE_LABELS } from '@/constants/patent'
+import {
+  REVIEW_DISPLAY_STATUS,
+  REVIEW_STATUS_LABELS,
+  REVIEW_STATUS_OPTIONS,
+  REVIEW_STATUS_TAG_TYPES,
+  normalizeReviewStatus,
+  toSubmitReviewStatus
+} from '@/constants/review'
 
 type ReviewType = 'paper' | 'patent' | 'project' | 'competition'
 
@@ -193,43 +216,7 @@ interface ReviewRow {
   dateText: string
 }
 
-const typeOptions: Array<{ label: string; value: ReviewType }> = [
-  { label: '论文', value: 'paper' },
-  { label: '专利', value: 'patent' },
-  { label: '项目', value: 'project' },
-  { label: '竞赛', value: 'competition' }
-]
-
-const patentTypeLabels: Record<number, string> = {
-  1: '发明专利',
-  2: '实用新型',
-  3: '外观设计',
-  4: '软件著作权'
-}
-
-const projectLevelLabels: Record<number, string> = {
-  1: '国家级',
-  2: '省部级',
-  3: '校级',
-  4: '院级'
-}
-
-const competitionLevelLabels: Record<number, string> = {
-  1: '国家级',
-  2: '省部级',
-  3: '校级',
-  4: '院级'
-}
-
-const journalLevelLabels: Record<number, string> = {
-  1: 'SCI 一区',
-  2: 'SCI 二区',
-  3: 'SCI 三区',
-  4: 'SCI 四区',
-  5: 'EI',
-  6: '核心期刊',
-  7: '普通期刊'
-}
+const typeOptions = ACHIEVEMENT_TYPE_OPTIONS as ReadonlyArray<{ label: string; value: ReviewType }>
 
 const loading = ref(false)
 const tableData = ref<ReviewRow[]>([])
@@ -238,6 +225,7 @@ const activeType = ref<ReviewType>('paper')
 const currentRow = ref<ReviewRow | null>(null)
 const detailDialogVisible = ref(false)
 const reviewDialogVisible = ref(false)
+const reviewSubmitting = ref(false)
 
 const queryParams = reactive({
   current: 1,
@@ -247,7 +235,7 @@ const queryParams = reactive({
 })
 
 const reviewForm = reactive({
-  status: 1,
+  status: REVIEW_DISPLAY_STATUS.APPROVED,
   comment: ''
 })
 
@@ -256,17 +244,11 @@ const activeTypeLabel = computed(
 )
 
 function getStatusText(status?: number) {
-  if (status === 0) return '待审核'
-  if (status === 1) return '已通过'
-  if (status === 3) return '未通过'
-  return '-'
+  return status === undefined ? '-' : (REVIEW_STATUS_LABELS[status] || '-')
 }
 
 function getStatusTag(status?: number): 'warning' | 'success' | 'danger' | 'info' {
-  if (status === 0) return 'warning'
-  if (status === 1) return 'success'
-  if (status === 3) return 'danger'
-  return 'info'
+  return status === undefined ? 'info' : (REVIEW_STATUS_TAG_TYPES[status] || 'info')
 }
 
 function normalizePaper(row: Paper): ReviewRow {
@@ -278,10 +260,10 @@ function normalizePaper(row: Paper): ReviewRow {
     studentName: row.studentName,
     studentNo: row.studentNo,
     title: row.title || row.paperTitle || '-',
-    levelText: journalLevelLabels[row.journalLevel || 0] || row.level || '-',
+    levelText: JOURNAL_LEVEL_LABELS[row.journalLevel || 0] || row.level || '-',
     score: Number(row.score ?? 0),
     submitTime: row.createTime,
-    status: row.status ?? 0,
+    status: row.status ?? REVIEW_DISPLAY_STATUS.PENDING,
     reviewComment: row.reviewComment,
     metaLabel: '作者信息',
     metaText: row.authors || '-',
@@ -299,10 +281,10 @@ function normalizePatent(row: ResearchPatent): ReviewRow {
     studentName: row.studentName,
     studentNo: row.studentNo,
     title: row.patentName || '-',
-    levelText: patentTypeLabels[row.patentType] || '-',
+    levelText: PATENT_TYPE_LABELS[row.patentType] || '-',
     score: Number(row.score ?? 0),
     submitTime: row.createTime,
-    status: row.auditStatus === 2 ? 3 : (row.auditStatus ?? 0),
+    status: normalizeReviewStatus(row.auditStatus),
     reviewComment: row.auditComment,
     metaLabel: '专利号',
     metaText: row.patentNo || '-',
@@ -320,10 +302,10 @@ function normalizeProject(row: ResearchProject): ReviewRow {
     studentName: row.studentName,
     studentNo: row.studentNo,
     title: row.projectName || '-',
-    levelText: projectLevelLabels[row.projectLevel || 0] || '-',
+    levelText: PROJECT_LEVEL_LABELS[row.projectLevel || 0] || '-',
     score: Number(row.score ?? 0),
     submitTime: row.createTime,
-    status: row.auditStatus === 2 ? 3 : (row.auditStatus ?? 0),
+    status: normalizeReviewStatus(row.auditStatus),
     reviewComment: row.auditComment,
     metaLabel: '项目编号',
     metaText: row.projectNo || row.projectSource || '-',
@@ -341,10 +323,10 @@ function normalizeCompetition(row: CompetitionAward): ReviewRow {
     studentName: row.studentName,
     studentNo: row.studentNo,
     title: row.competitionName || '-',
-    levelText: competitionLevelLabels[row.competitionLevel || 0] || '-',
+    levelText: COMPETITION_LEVEL_LABELS[row.competitionLevel || 0] || '-',
     score: Number(row.score ?? 0),
     submitTime: row.createTime,
-    status: row.auditStatus === 2 ? 3 : (row.auditStatus ?? 0),
+    status: normalizeReviewStatus(row.auditStatus),
     reviewComment: row.auditComment,
     metaLabel: '指导教师',
     metaText: row.instructor || '-',
@@ -374,7 +356,7 @@ async function fetchTableData() {
         current: queryParams.current,
         size: queryParams.size,
         keyword: queryParams.keyword || undefined,
-        auditStatus: queryParams.status === '' ? undefined : (queryParams.status === 3 ? 2 : queryParams.status)
+        auditStatus: queryParams.status === '' ? undefined : toSubmitReviewStatus(queryParams.status)
       } as PatentPageParams)
       const pageData = extractPageData<ResearchPatent>(res)
       tableData.value = (pageData?.records || []).map(normalizePatent)
@@ -387,7 +369,7 @@ async function fetchTableData() {
         current: queryParams.current,
         size: queryParams.size,
         keyword: queryParams.keyword || undefined,
-        auditStatus: queryParams.status === '' ? undefined : (queryParams.status === 3 ? 2 : queryParams.status)
+        auditStatus: queryParams.status === '' ? undefined : toSubmitReviewStatus(queryParams.status)
       } as ProjectPageParams)
       const pageData = extractPageData<ResearchProject>(res)
       tableData.value = (pageData?.records || []).map(normalizeProject)
@@ -399,7 +381,7 @@ async function fetchTableData() {
       current: queryParams.current,
       size: queryParams.size,
       keyword: queryParams.keyword || undefined,
-      auditStatus: queryParams.status === '' ? undefined : (queryParams.status === 3 ? 2 : queryParams.status)
+      auditStatus: queryParams.status === '' ? undefined : toSubmitReviewStatus(queryParams.status)
     } as CompetitionPageParams)
     const pageData = extractPageData<CompetitionAward>(res)
     tableData.value = (pageData?.records || []).map(normalizeCompetition)
@@ -439,7 +421,7 @@ function handleView(row: ReviewRow) {
 
 function handleReview(row: ReviewRow) {
   currentRow.value = { ...row }
-  reviewForm.status = 1
+  reviewForm.status = REVIEW_DISPLAY_STATUS.APPROVED
   reviewForm.comment = ''
   reviewDialogVisible.value = true
 }
@@ -451,34 +433,41 @@ async function handleReviewSubmit() {
     return
   }
 
-  const rejectedStatus = 3
-  const genericStatus = reviewForm.status === rejectedStatus ? 2 : reviewForm.status
+  reviewSubmitting.value = true
+  try {
+    const submitStatus = toSubmitReviewStatus(reviewForm.status)
 
-  if (currentRow.value.type === 'paper') {
-    await reviewPaper(currentRow.value.id, {
-      status: reviewForm.status,
-      reviewComment: reviewForm.comment
-    })
-  } else if (currentRow.value.type === 'patent') {
-    await auditPatent(currentRow.value.id, {
-      auditStatus: genericStatus,
-      auditComment: reviewForm.comment
-    })
-  } else if (currentRow.value.type === 'project') {
-    await auditProject(currentRow.value.id, {
-      auditStatus: genericStatus,
-      auditComment: reviewForm.comment
-    })
-  } else {
-    await auditCompetition(currentRow.value.id, {
-      auditStatus: genericStatus,
-      auditComment: reviewForm.comment
-    })
+    if (currentRow.value.type === 'paper') {
+      await reviewPaper(currentRow.value.id, {
+        status: reviewForm.status,
+        reviewComment: reviewForm.comment
+      })
+    } else if (currentRow.value.type === 'patent') {
+      await auditPatent(currentRow.value.id, {
+        auditStatus: submitStatus,
+        auditComment: reviewForm.comment
+      })
+    } else if (currentRow.value.type === 'project') {
+      await auditProject(currentRow.value.id, {
+        auditStatus: submitStatus,
+        auditComment: reviewForm.comment
+      })
+    } else {
+      await auditCompetition(currentRow.value.id, {
+        auditStatus: submitStatus,
+        auditComment: reviewForm.comment
+      })
+    }
+
+    ElMessage.success('审核成功')
+    reviewDialogVisible.value = false
+    await fetchTableData()
+  } catch (error) {
+    console.error('审核提交失败:', error)
+    ElMessage.error('审核提交失败，请稍后重试')
+  } finally {
+    reviewSubmitting.value = false
   }
-
-  ElMessage.success('审核成功')
-  reviewDialogVisible.value = false
-  await fetchTableData()
 }
 
 onMounted(() => {

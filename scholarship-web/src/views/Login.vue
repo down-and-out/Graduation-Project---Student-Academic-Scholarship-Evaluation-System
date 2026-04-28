@@ -216,6 +216,7 @@ async function handleLogin(): Promise<void> {
     }
   } catch (error) {
     console.error('登录异常:', error)
+    ElMessage.error('登录失败，请稍后重试')
   } finally {
     loading.value = false
   }
