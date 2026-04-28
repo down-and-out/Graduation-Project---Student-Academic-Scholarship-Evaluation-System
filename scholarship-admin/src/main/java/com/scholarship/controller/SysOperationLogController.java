@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -30,6 +31,7 @@ public class SysOperationLogController {
     private final SysOperationLogService sysOperationLogService;
 
     @GetMapping("/page")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "分页查询操作日志", description = "支持按操作类型和操作人筛选，操作类型兼容单个或多个值")
     public Result<IPage<OperationLogVO>> page(
             @Parameter(description = "当前页", example = "1")

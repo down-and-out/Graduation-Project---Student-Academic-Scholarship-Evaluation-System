@@ -2,6 +2,7 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.CompetitionAward;
 import com.scholarship.common.exception.BusinessException;
@@ -86,7 +87,7 @@ public class CompetitionAwardController {
                     request.auditStatus(),
                     request.auditComment(),
                     loginUser.getUserId(),
-                    loginUser.getUserType() == 3
+                    UserTypeEnum.isAdmin(loginUser.getUserType())
             );
             return success ? Result.success("审核成功") : Result.error("审核失败");
         } catch (BusinessException e) {

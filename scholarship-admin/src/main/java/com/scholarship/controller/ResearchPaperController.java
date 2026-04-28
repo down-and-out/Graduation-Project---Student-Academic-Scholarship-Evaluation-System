@@ -1,6 +1,7 @@
 package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ResearchPaper;
 import com.scholarship.security.LoginUser;
@@ -143,7 +144,7 @@ public class ResearchPaperController {
                 request.status(),
                 request.reviewComment(),
                 reviewerId,
-                loginUser.getUserType() == 3
+                UserTypeEnum.isAdmin(loginUser.getUserType())
         );
         return success ? Result.success("审核成功") : Result.error("审核失败");
     }
@@ -172,8 +173,14 @@ public class ResearchPaperController {
     public Result<Void> delete(
             @PathVariable Long id,
             @AuthenticationPrincipal LoginUser loginUser) {
-        boolean isAdmin = loginUser.getUserType() == 3;
+        boolean isAdmin = UserTypeEnum.isAdmin(loginUser.getUserType());
         boolean success = researchPaperService.deleteWithAuth(id, loginUser.getUserId(), isAdmin);
         return success ? Result.success("删除成功") : Result.error("删除失败");
+    }
+
+    @GetMapping("/count")
+    @Operation(summary = "统计论文总数")
+    public Result<Long> count() {
+        return Result.success(researchPaperService.count());
     }
 }

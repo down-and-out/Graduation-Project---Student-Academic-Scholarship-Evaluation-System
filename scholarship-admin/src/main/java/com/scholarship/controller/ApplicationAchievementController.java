@@ -1,5 +1,6 @@
 package com.scholarship.controller;
 
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ApplicationAchievement;
 import com.scholarship.entity.ScholarshipApplication;
@@ -38,10 +39,6 @@ import java.util.List;
 @RequestMapping("/application-achievement")
 @Tag(name = "申请成果关联", description = "奖学金申请与成果关联查询接口")
 public class ApplicationAchievementController {
-
-    private static final int USER_TYPE_STUDENT = 1;
-    private static final int USER_TYPE_TUTOR = 2;
-    private static final int USER_TYPE_ADMIN = 3;
 
     private final ApplicationAchievementService applicationAchievementService;
     private final ScholarshipApplicationMapper applicationMapper;
@@ -86,7 +83,7 @@ public class ApplicationAchievementController {
         if (loginUser == null || applicationId == null) {
             return false;
         }
-        if (Integer.valueOf(USER_TYPE_ADMIN).equals(loginUser.getUserType())) {
+        if (UserTypeEnum.isAdmin(loginUser.getUserType())) {
             return true;
         }
         ScholarshipApplication application = applicationMapper.selectById(applicationId);
@@ -97,10 +94,10 @@ public class ApplicationAchievementController {
         if (student == null) {
             return false;
         }
-        if (Integer.valueOf(USER_TYPE_STUDENT).equals(loginUser.getUserType())) {
+        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
             return loginUser.getUserId().equals(student.getUserId());
         }
-        if (Integer.valueOf(USER_TYPE_TUTOR).equals(loginUser.getUserType())) {
+        if (UserTypeEnum.isTutor(loginUser.getUserType())) {
             return loginUser.getUserId().equals(student.getTutorId());
         }
         return false;

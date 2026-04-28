@@ -1,8 +1,10 @@
 package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.common.util.ParamParserUtil;
+import com.scholarship.dto.ResetPasswordRequest;
 import com.scholarship.dto.StudentCreateFields;
 import com.scholarship.dto.UserCreateRequest;
 import com.scholarship.entity.StudentInfo;
@@ -85,7 +87,7 @@ public class SysUserController {
             return Result.error("用户不存在");
         }
         StudentInfo studentInfo = null;
-        if (Integer.valueOf(1).equals(user.getUserType())) {
+        if (UserTypeEnum.isStudent(user.getUserType())) {
             studentInfo = studentInfoService.getByUserId(user.getId());
         }
         return Result.success(SysUserVO.fromEntity(user, studentInfo));
@@ -157,8 +159,8 @@ public class SysUserController {
     })
     public Result<Void> resetPassword(
             @PathVariable Long id,
-            @Parameter(description = "新密码") @RequestParam String password) {
-        boolean success = sysUserService.resetPassword(id, password);
+            @Valid @RequestBody ResetPasswordRequest request) {
+        boolean success = sysUserService.resetPassword(id, request.getPassword());
         return success ? Result.success("重置成功") : Result.error("重置失败");
     }
 

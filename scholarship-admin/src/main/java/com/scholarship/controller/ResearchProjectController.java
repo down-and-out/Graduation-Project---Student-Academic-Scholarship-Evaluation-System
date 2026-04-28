@@ -2,6 +2,7 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ResearchProject;
 import com.scholarship.common.exception.BusinessException;
@@ -94,7 +95,7 @@ public class ResearchProjectController {
                     request.auditStatus(),
                     request.auditComment(),
                     loginUser.getUserId(),
-                    loginUser.getUserType() == 3
+                    UserTypeEnum.isAdmin(loginUser.getUserType())
             );
             return success ? Result.success("审核成功") : Result.error("审核失败");
         } catch (BusinessException e) {
@@ -108,6 +109,12 @@ public class ResearchProjectController {
     public Result<Void> delete(@PathVariable @Min(value = 1, message = "项目 ID 无效") Long id) {
         boolean success = researchProjectService.removeById(id);
         return success ? Result.success("删除成功") : Result.error("删除失败");
+    }
+
+    @GetMapping("/count")
+    @Operation(summary = "统计项目总数")
+    public Result<Long> count() {
+        return Result.success(researchProjectService.count());
     }
 
     public record AuditRequest(Integer auditStatus, String auditComment) {

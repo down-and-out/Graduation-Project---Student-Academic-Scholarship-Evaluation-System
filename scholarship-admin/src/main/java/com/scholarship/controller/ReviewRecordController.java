@@ -1,5 +1,6 @@
 package com.scholarship.controller;
 
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ReviewRecord;
 import com.scholarship.entity.ScholarshipApplication;
@@ -31,10 +32,6 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "12-评审记录管理", description = "奖学金申请评审记录查询接口")
 public class ReviewRecordController {
-
-    private static final int USER_TYPE_STUDENT = 1;
-    private static final int USER_TYPE_TUTOR = 2;
-    private static final int USER_TYPE_ADMIN = 3;
 
     private final ReviewRecordService reviewRecordService;
     private final ScholarshipApplicationMapper applicationMapper;
@@ -124,16 +121,16 @@ public class ReviewRecordController {
         if (student == null) {
             return false;
         }
-        if (Integer.valueOf(USER_TYPE_STUDENT).equals(loginUser.getUserType())) {
+        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
             return loginUser.getUserId().equals(student.getUserId());
         }
-        if (Integer.valueOf(USER_TYPE_TUTOR).equals(loginUser.getUserType())) {
+        if (UserTypeEnum.isTutor(loginUser.getUserType())) {
             return loginUser.getUserId().equals(student.getTutorId());
         }
         return false;
     }
 
     private boolean isAdmin(LoginUser loginUser) {
-        return loginUser != null && Integer.valueOf(USER_TYPE_ADMIN).equals(loginUser.getUserType());
+        return loginUser != null && UserTypeEnum.isAdmin(loginUser.getUserType());
     }
 }

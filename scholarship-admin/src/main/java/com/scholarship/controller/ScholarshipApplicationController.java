@@ -2,6 +2,7 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.dto.param.ScholarshipApplicationSubmitRequest;
 import com.scholarship.entity.ScholarshipApplication;
@@ -60,7 +61,7 @@ public class ScholarshipApplicationController {
             @Parameter(description = "状态", example = "1")
             @RequestParam(required = false) Integer status,
             @AuthenticationPrincipal LoginUser loginUser) {
-        if (loginUser != null && loginUser.getUserType() == 1) {
+        if (loginUser != null && UserTypeEnum.isStudent(loginUser.getUserType())) {
             StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
             if (studentInfo == null) {
                 return Result.success(new Page<>(current, size, 0));

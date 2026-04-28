@@ -3,6 +3,7 @@ package com.scholarship.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.dto.query.MoralPerformanceQuery;
 import com.scholarship.entity.MoralPerformance;
@@ -36,9 +37,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Tag(name = "04-德育表现管理", description = "德育表现的查询、录入和审核接口")
 public class MoralPerformanceController {
-
-    private static final int USER_TYPE_TUTOR = 2;
-    private static final int USER_TYPE_ADMIN = 3;
 
     private final MoralPerformanceService moralPerformanceService;
     private final StudentInfoService studentInfoService;
@@ -239,10 +237,10 @@ public class MoralPerformanceController {
     }
 
     private boolean isAdmin(LoginUser loginUser) {
-        return loginUser != null && Integer.valueOf(USER_TYPE_ADMIN).equals(loginUser.getUserType());
+        return loginUser != null && UserTypeEnum.isAdmin(loginUser.getUserType());
     }
 
     private boolean isTutor(LoginUser loginUser) {
-        return loginUser != null && Integer.valueOf(USER_TYPE_TUTOR).equals(loginUser.getUserType());
+        return loginUser != null && UserTypeEnum.isTutor(loginUser.getUserType());
     }
 }

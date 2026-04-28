@@ -3,6 +3,7 @@ package com.scholarship.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ResultAppeal;
 import com.scholarship.entity.StudentInfo;
@@ -28,8 +29,6 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @Tag(name = "结果异议管理", description = "评定结果异议提交和处理接口")
 public class ResultAppealController {
-
-    private static final int USER_TYPE_ADMIN = 3;
 
     private final ResultAppealService resultAppealService;
     private final StudentInfoMapper studentInfoMapper;
@@ -90,7 +89,7 @@ public class ResultAppealController {
     }
 
     private boolean isAdmin(LoginUser loginUser) {
-        return loginUser != null && Integer.valueOf(USER_TYPE_ADMIN).equals(loginUser.getUserType());
+        return loginUser != null && UserTypeEnum.isAdmin(loginUser.getUserType());
     }
 
     public record HandleAppealRequest(String handleOpinion) {

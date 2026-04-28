@@ -4,6 +4,7 @@ import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.dto.CourseScoreImportResult;
 import com.scholarship.dto.query.CourseScoreQuery;
@@ -40,10 +41,6 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "03-课程成绩管理", description = "课程成绩的查询和录入接口")
 public class CourseScoreController {
-
-    private static final int USER_TYPE_STUDENT = 1;
-    private static final int USER_TYPE_TUTOR = 2;
-    private static final int USER_TYPE_ADMIN = 3;
 
     private final CourseScoreService courseScoreService;
     private final StudentInfoService studentInfoService;
@@ -298,10 +295,10 @@ public class CourseScoreController {
     }
 
     private boolean isAdmin(LoginUser loginUser) {
-        return loginUser != null && Integer.valueOf(USER_TYPE_ADMIN).equals(loginUser.getUserType());
+        return loginUser != null && UserTypeEnum.isAdmin(loginUser.getUserType());
     }
 
     private boolean isTutor(LoginUser loginUser) {
-        return loginUser != null && Integer.valueOf(USER_TYPE_TUTOR).equals(loginUser.getUserType());
+        return loginUser != null && UserTypeEnum.isTutor(loginUser.getUserType());
     }
 }
