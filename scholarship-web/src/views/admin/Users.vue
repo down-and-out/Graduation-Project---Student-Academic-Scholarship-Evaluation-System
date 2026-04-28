@@ -267,8 +267,8 @@
 
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="formData.status">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
+            <el-radio :value="USER_STATUS.ENABLED">启用</el-radio>
+            <el-radio :value="USER_STATUS.DISABLED">禁用</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -327,9 +327,11 @@ import {
   USER_TYPE_MAP
 } from '@/constants/user'
 import { debounce, deepClone, isValidEmail, isValidPhone, isValidUsername } from '@/utils/helpers'
+import { LARGE_QUERY_SIZE } from '@/constants'
 
+const ENROLLMENT_YEAR_RANGE = 10
 const currentYear = new Date().getFullYear()
-const enrollmentYearOptions = ref(Array.from({ length: 10 }, (_, index) => currentYear - index))
+const enrollmentYearOptions = ref(Array.from({ length: ENROLLMENT_YEAR_RANGE }, (_, index) => currentYear - index))
 
 function isStudentUserType(userType) {
   return Number(userType) === USER_TYPE.STUDENT
@@ -558,19 +560,20 @@ async function loadDepartmentOptions() {
     departmentOptions.value = data.map(item => ({ label: item, value: item }))
   } catch (error) {
     console.error('加载院系列表失败:', error)
+    ElMessage.error('加载院系列表失败')
   }
 }
 
 async function loadEnrollmentYearOptions() {
   try {
-    const response = await getStudentPage({ current: 1, size: 1000 })
+    const response = await getStudentPage({ current: 1, size: LARGE_QUERY_SIZE })
     const pageData = response.data?.data || response.data || {}
     const years = (pageData.records || [])
       .map(item => Number(item.enrollmentYear))
       .filter(year => !Number.isNaN(year) && year > 0)
 
     if (years.length === 0) {
-      enrollmentYearOptions.value = Array.from({ length: 10 }, (_, index) => currentYear - index)
+      enrollmentYearOptions.value = Array.from({ length: ENROLLMENT_YEAR_RANGE }, (_, index) => currentYear - index)
       return
     }
 
@@ -582,7 +585,8 @@ async function loadEnrollmentYearOptions() {
     )
   } catch (error) {
     console.error('加载入学年份选项失败:', error)
-    enrollmentYearOptions.value = Array.from({ length: 10 }, (_, index) => currentYear - index)
+    ElMessage.error('加载入学年份选项失败')
+    enrollmentYearOptions.value = Array.from({ length: ENROLLMENT_YEAR_RANGE }, (_, index) => currentYear - index)
   }
 }
 
@@ -684,7 +688,7 @@ function handleView(row) {
 function handleResetPassword(row) {
   const displayName = row.realName || row.name || '该用户'
   ElMessageBox.confirm(
-    `确定要重置用户“${displayName}”的密码吗？\n\n重置后密码将恢复为默认密码：123456`,
+    `确定要重置用户”${displayName}”的密码吗？\n\n重置后密码将恢复为系统默认密码。`,
     '警告',
     {
       confirmButtonText: '确定',
@@ -693,8 +697,8 @@ function handleResetPassword(row) {
     }
   )
     .then(async () => {
-      await resetPassword(row.id, '123456')
-      ElMessage.success('密码已重置为默认密码：123456')
+      await resetPassword(row.id)
+      ElMessage.success('密码重置成功，已恢复为系统默认密码')
       loadData()
     })
     .catch(error => {

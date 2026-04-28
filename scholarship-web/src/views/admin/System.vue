@@ -128,6 +128,7 @@ import { getOperationLogPage, getSetting, updateSetting } from '@/api/system'
 import { LOG_TYPE_LABELS, LOG_TYPE_OPTIONS } from '@/constants/operationLog'
 import type { BasicSetting, OperationLog, WeightSetting } from '@/api/system'
 import { extractApiData } from '@/utils/helpers'
+import { LARGE_QUERY_SIZE } from '@/constants'
 
 type AlertType = 'success' | 'warning' | 'info' | 'error'
 
@@ -167,7 +168,7 @@ const basicRules: FormRules<BasicSetting> = {
   ],
   adminPhone: [
     { required: true, message: '请输入联系电话', trigger: 'blur' },
-    { pattern: /^0?[1-9]\d{1,2}-?\d{7,8}$/, message: '电话格式不正确', trigger: 'blur' }
+    { pattern: /^(?:0?[1-9]\d{1,2}-?\d{7,8}|1[3-9]\d{9})$/, message: '请输入正确的电话号码', trigger: 'blur' }
   ],
   announcement: [{ max: 500, message: '公告内容不能超过 500 字', trigger: 'blur' }]
 }
@@ -192,6 +193,9 @@ const weightRules: FormRules<WeightSetting> = {
     { type: 'number', message: '权重必须为数字', trigger: 'change' }
   ]
 }
+
+const FULL_YEAR_SEMESTER = 3
+const SEMESTER_FORWARD_YEARS = 5
 
 const logData = ref<LogRow[]>([])
 const logTotal = ref(0)
@@ -229,14 +233,14 @@ function sortSemesterOptions(options: Array<{ label: string; value: string }>): 
 
 async function loadSemesterOptions(): Promise<void> {
   try {
-    const response = await getEvaluationPage({ current: 1, size: 1000 })
+    const response = await getEvaluationPage({ current: 1, size: LARGE_QUERY_SIZE })
     const pageData = extractApiData<API.PageResponse<EvaluationBatch>>(response)
     const records = pageData?.records || []
     const optionMap = new Map<string, { label: string; value: string }>()
 
     let maxAcademicYear = CURRENT_YEAR
     records.forEach(item => {
-      if (!item.academicYear || item.semester == null || item.semester === 3) {
+      if (!item.academicYear || item.semester == null || item.semester === FULL_YEAR_SEMESTER) {
         return
       }
       optionMap.set(`${item.academicYear}-${item.semester}`, buildSemesterOption(item.academicYear, item.semester))
@@ -246,7 +250,7 @@ async function loadSemesterOptions(): Promise<void> {
       }
     })
 
-    for (let year = maxAcademicYear; year <= maxAcademicYear + 5; year += 1) {
+    for (let year = maxAcademicYear; year <= maxAcademicYear + SEMESTER_FORWARD_YEARS; year += 1) {
       optionMap.set(`${year}-1`, buildSemesterOption(String(year), 1))
       optionMap.set(`${year}-2`, buildSemesterOption(String(year), 2))
     }
@@ -357,11 +361,7 @@ async function loadSettings(): Promise<void> {
 }
 
 onMounted(() => {
-  void (async () => {
-    await loadSemesterOptions()
-    await loadSettings()
-    await handleQueryLog()
-  })()
+  void Promise.allSettled([loadSemesterOptions(), loadSettings(), handleQueryLog()])
 })
 </script>
 

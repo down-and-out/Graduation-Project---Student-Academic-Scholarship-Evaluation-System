@@ -210,6 +210,7 @@ import {
   type EvaluationResult
 } from '@/api/result'
 import { extractApiData } from '@/utils/helpers'
+import { LARGE_QUERY_SIZE } from '@/constants'
 import {
   getAwardLevelConfig,
   getResultStatusConfig,
@@ -298,7 +299,9 @@ function getResultStatusValue(row: EvaluationResult): number {
 }
 
 function getDisplayRank(row: EvaluationResult): number | string {
-  return row.departmentRank ?? row.majorRank ?? '-'
+  if (row.departmentRank != null) return row.departmentRank
+  if (row.majorRank != null) return row.majorRank
+  return '-'
 }
 
 function formatAcademicYearLabel(academicYear: string): string {
@@ -346,7 +349,7 @@ function downloadBlob(blob: Blob, fileName: string): void {
 
 async function loadAcademicYearOptions(): Promise<void> {
   try {
-    const response = await getEvaluationPage({ current: 1, size: 1000 })
+    const response = await getEvaluationPage({ current: 1, size: LARGE_QUERY_SIZE })
     const pageData = extractApiData<API.PageResponse<EvaluationBatch>>(response)
     const years = new Set(
       (pageData?.records || [])
@@ -378,6 +381,7 @@ async function handleQuery(): Promise<void> {
     updateStats(records)
   } catch (error) {
     console.error('查询失败:', error)
+    ElMessage.error('查询失败')
     tableData.value = []
     total.value = 0
   } finally {

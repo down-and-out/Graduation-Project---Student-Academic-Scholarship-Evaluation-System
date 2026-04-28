@@ -7,9 +7,7 @@
         </el-form-item>
         <el-form-item label="审核状态">
           <el-select v-model="queryParams.auditStatus" placeholder="请选择" clearable>
-            <el-option label="待审核" :value="AUDIT_STATUS.PENDING" />
-            <el-option label="审核通过" :value="AUDIT_STATUS.APPROVED" />
-            <el-option label="审核驳回" :value="AUDIT_STATUS.REJECTED" />
+            <el-option v-for="opt in AUDIT_STATUS_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -34,26 +32,26 @@
         <el-table-column prop="patentNo" label="专利号" min-width="160" />
         <el-table-column prop="patentType" label="专利类型" width="110">
           <template #default="{ row }">
-            <el-tag v-if="row.patentType === PATENT_TYPE.INVENT" type="danger">发明专利</el-tag>
-            <el-tag v-else-if="row.patentType === PATENT_TYPE.UTILITY" type="success">实用新型</el-tag>
-            <el-tag v-else type="warning">外观设计</el-tag>
+            <el-tag :type="PATENT_TYPE_TAG_TYPES[row.patentType] || 'warning'">
+              {{ PATENT_TYPE_LABELS[row.patentType] || '外观设计' }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="inventorRank" label="发明人排名" width="110" />
         <el-table-column prop="applicationDate" label="申请日期" width="120" />
         <el-table-column prop="patentStatus" label="专利状态" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.patentStatus === PATENT_STATUS.APPLYING" type="info">申请中</el-tag>
-            <el-tag v-else-if="row.patentStatus === PATENT_STATUS.AUTHORIZED" type="success">已授权</el-tag>
-            <el-tag v-else type="danger">已失效</el-tag>
+            <el-tag :type="PATENT_STATUS_TAG_TYPES[row.patentStatus] || 'danger'">
+              {{ PATENT_STATUS_LABELS[row.patentStatus] || '已失效' }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="score" label="得分" width="90" />
         <el-table-column prop="auditStatus" label="审核状态" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.auditStatus === AUDIT_STATUS.PENDING" type="warning">待审核</el-tag>
-            <el-tag v-else-if="row.auditStatus === AUDIT_STATUS.APPROVED" type="success">通过</el-tag>
-            <el-tag v-else type="danger">驳回</el-tag>
+            <el-tag :type="AUDIT_STATUS_TAG_TYPES[row.auditStatus] || 'danger'">
+              {{ AUDIT_STATUS_LABELS[row.auditStatus] || '驳回' }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
@@ -98,9 +96,7 @@
         </el-form-item>
         <el-form-item label="专利类型" prop="patentType">
           <el-select v-model="formData.patentType" placeholder="请选择专利类型">
-            <el-option label="发明专利" :value="PATENT_TYPE.INVENT" />
-            <el-option label="实用新型" :value="PATENT_TYPE.UTILITY" />
-            <el-option label="外观设计" :value="PATENT_TYPE.DESIGN" />
+            <el-option v-for="opt in PATENT_TYPE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="申请人" prop="applicant">
@@ -125,9 +121,7 @@
         </el-form-item>
         <el-form-item label="专利状态" prop="patentStatus">
           <el-select v-model="formData.patentStatus" placeholder="请选择专利状态">
-            <el-option label="申请中" :value="PATENT_STATUS.APPLYING" />
-            <el-option label="已授权" :value="PATENT_STATUS.AUTHORIZED" />
-            <el-option label="已失效" :value="PATENT_STATUS.REJECTED" />
+            <el-option v-for="opt in PATENT_STATUS_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="证明材料" prop="attachmentUrl">
@@ -164,19 +158,19 @@
         <el-descriptions-item label="申请人排名">{{ currentPatent.applicantRank || '-' }}</el-descriptions-item>
         <el-descriptions-item label="申请日期">{{ currentPatent.applicationDate || '-' }}</el-descriptions-item>
         <el-descriptions-item label="专利类型">
-          <el-tag v-if="currentPatent.patentType === PATENT_TYPE.INVENT" type="danger">发明专利</el-tag>
-          <el-tag v-else-if="currentPatent.patentType === PATENT_TYPE.UTILITY" type="success">实用新型</el-tag>
-          <el-tag v-else type="warning">外观设计</el-tag>
+          <el-tag :type="getPatentTypeTagType(currentPatent.patentType)">
+            {{ getPatentTypeLabel(currentPatent.patentType) }}
+          </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="专利状态">
-          <el-tag v-if="currentPatent.patentStatus === PATENT_STATUS.APPLYING" type="info">申请中</el-tag>
-          <el-tag v-else-if="currentPatent.patentStatus === PATENT_STATUS.AUTHORIZED" type="success">已授权</el-tag>
-          <el-tag v-else type="danger">已失效</el-tag>
+          <el-tag :type="getPatentStatusTagType(currentPatent.patentStatus)">
+            {{ getPatentStatusLabel(currentPatent.patentStatus) }}
+          </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="审核状态">
-          <el-tag v-if="currentPatent.auditStatus === AUDIT_STATUS.PENDING" type="warning">待审核</el-tag>
-          <el-tag v-else-if="currentPatent.auditStatus === AUDIT_STATUS.APPROVED" type="success">通过</el-tag>
-          <el-tag v-else type="danger">驳回</el-tag>
+          <el-tag :type="getAuditStatusTagType(currentPatent.auditStatus)">
+            {{ getAuditStatusLabel(currentPatent.auditStatus) }}
+          </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="得分">{{ currentPatent.score ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="审核意见" :span="2">{{ currentPatent.auditComment || '-' }}</el-descriptions-item>
@@ -225,24 +219,20 @@ import {
   type ResearchPatent,
   updatePatent
 } from '@/api/patent'
-
-const PATENT_TYPE = {
-  INVENT: 1,
-  UTILITY: 2,
-  DESIGN: 3
-} as const
-
-const PATENT_STATUS = {
-  APPLYING: 1,
-  AUTHORIZED: 2,
-  REJECTED: 3
-} as const
-
-const AUDIT_STATUS = {
-  PENDING: 0,
-  APPROVED: 1,
-  REJECTED: 2
-} as const
+import {
+  AUDIT_STATUS,
+  AUDIT_STATUS_LABELS,
+  AUDIT_STATUS_OPTIONS,
+  AUDIT_STATUS_TAG_TYPES,
+  PATENT_STATUS,
+  PATENT_STATUS_LABELS,
+  PATENT_STATUS_OPTIONS,
+  PATENT_STATUS_TAG_TYPES,
+  PATENT_TYPE,
+  PATENT_TYPE_LABELS,
+  PATENT_TYPE_OPTIONS,
+  PATENT_TYPE_TAG_TYPES
+} from '@/constants/patent'
 
 type PatentForm = {
   id: number | null
@@ -311,6 +301,30 @@ const formRules: FormRules<PatentForm> = {
   inventors: [{ required: true, message: '请输入发明人', trigger: 'blur' }],
   inventorRank: [{ required: true, message: '请输入发明人排名', trigger: 'blur' }],
   applicantRank: [{ required: true, message: '请输入申请人排名', trigger: 'blur' }]
+}
+
+function getPatentTypeLabel(value?: number): string {
+  return PATENT_TYPE_LABELS[value ?? PATENT_TYPE.DESIGN] || '外观设计'
+}
+
+function getPatentTypeTagType(value?: number): 'danger' | 'success' | 'warning' | 'info' {
+  return PATENT_TYPE_TAG_TYPES[value ?? PATENT_TYPE.DESIGN] || 'warning'
+}
+
+function getPatentStatusLabel(value?: number): string {
+  return PATENT_STATUS_LABELS[value ?? PATENT_STATUS.REJECTED] || '已失效'
+}
+
+function getPatentStatusTagType(value?: number): 'info' | 'success' | 'danger' {
+  return PATENT_STATUS_TAG_TYPES[value ?? PATENT_STATUS.REJECTED] || 'danger'
+}
+
+function getAuditStatusLabel(value?: number): string {
+  return AUDIT_STATUS_LABELS[value ?? AUDIT_STATUS.REJECTED] || '驳回'
+}
+
+function getAuditStatusTagType(value?: number): 'warning' | 'success' | 'danger' {
+  return AUDIT_STATUS_TAG_TYPES[value ?? AUDIT_STATUS.REJECTED] || 'danger'
 }
 
 function syncUploadFileList(value?: string) {

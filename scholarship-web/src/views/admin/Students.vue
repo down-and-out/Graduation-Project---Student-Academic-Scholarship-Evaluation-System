@@ -29,9 +29,7 @@
       </el-form-item>
       <el-form-item label="学籍状态">
         <el-select v-model="queryParams.status" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
-          <el-option label="在读" :value="STUDENT_STATUS.ACTIVE" />
-          <el-option label="休学" :value="STUDENT_STATUS.SUSPENDED" />
-          <el-option label="毕业" :value="STUDENT_STATUS.GRADUATED" />
+          <el-option v-for="opt in STUDENT_STATUS_OPTIONS.filter(item => item.value !== STUDENT_STATUS.DROPPED)" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -54,7 +52,7 @@
       <el-table-column prop="name" label="姓名" width="100" />
       <el-table-column prop="gender" label="性别" width="60">
         <template #default="{ row }">
-          {{ row.gender === GENDER.MALE ? '男' : '女' }}
+          {{ GENDER_TEXT_MAP[row.gender] || '-' }}
         </template>
       </el-table-column>
       <el-table-column prop="department" label="院系" width="150" />
@@ -62,15 +60,14 @@
       <el-table-column prop="enrollmentYear" label="入学年份" width="100" />
       <el-table-column prop="educationLevel" label="学历" width="80">
         <template #default="{ row }">
-          {{ row.educationLevel === EDUCATION_LEVEL.MASTER ? '硕士' : '博士' }}
+          {{ EDUCATION_LEVEL_OPTIONS.find(item => item.value === row.educationLevel)?.label || '-' }}
         </template>
       </el-table-column>
       <el-table-column prop="status" label="学籍状态" width="90">
         <template #default="{ row }">
-          <el-tag v-if="row.status === STUDENT_STATUS.ACTIVE" type="success">在读</el-tag>
-          <el-tag v-else-if="row.status === STUDENT_STATUS.SUSPENDED" type="info">休学</el-tag>
-          <el-tag v-else-if="row.status === STUDENT_STATUS.GRADUATED">毕业</el-tag>
-          <el-tag v-else-if="row.status === STUDENT_STATUS.DROPPED" type="danger">退学</el-tag>
+          <el-tag :type="STUDENT_STATUS_TAG_TYPE_MAP[row.status]">
+            {{ STUDENT_STATUS_TEXT_MAP[row.status] || '未知' }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="180" fixed="right">
@@ -103,7 +100,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="学号" prop="studentNo">
-              <el-input v-model="formData.studentNo" />
+              <el-input v-model="formData.studentNo" :disabled="isEdit" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -116,8 +113,7 @@
           <el-col :span="12">
             <el-form-item label="性别" prop="gender">
               <el-select v-model="formData.gender" style="width: 100%">
-                <el-option label="男" :value="GENDER.MALE" />
-                <el-option label="女" :value="GENDER.FEMALE" />
+                <el-option v-for="opt in GENDER_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -136,8 +132,7 @@
           <el-col :span="12">
             <el-form-item label="学历层次" prop="educationLevel">
               <el-select v-model="formData.educationLevel" style="width: 100%">
-                <el-option label="硕士" :value="EDUCATION_LEVEL.MASTER" />
-                <el-option label="博士" :value="EDUCATION_LEVEL.PHD" />
+                <el-option v-for="opt in EDUCATION_LEVEL_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -159,10 +154,7 @@
         </el-form-item>
         <el-form-item label="学籍状态" prop="status">
           <el-radio-group v-model="formData.status">
-            <el-radio :label="STUDENT_STATUS.ACTIVE">在读</el-radio>
-            <el-radio :label="STUDENT_STATUS.SUSPENDED">休学</el-radio>
-            <el-radio :label="STUDENT_STATUS.GRADUATED">毕业</el-radio>
-            <el-radio :label="STUDENT_STATUS.DROPPED">退学</el-radio>
+            <el-radio v-for="opt in STUDENT_STATUS_OPTIONS" :key="opt.value" :label="opt.value">{{ opt.label }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -179,11 +171,18 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getStudentPage, updateStudent, deleteStudent } from '@/api/student'
 import { getDepartments } from '@/api/basicData'
+import {
+  EDUCATION_LEVEL,
+  EDUCATION_LEVEL_OPTIONS,
+  GENDER,
+  GENDER_OPTIONS,
+  GENDER_TEXT_MAP,
+  STUDENT_STATUS,
+  STUDENT_STATUS_OPTIONS,
+  STUDENT_STATUS_TAG_TYPE_MAP,
+  STUDENT_STATUS_TEXT_MAP
+} from '@/constants/user'
 
-// 常量定义
-const GENDER = { MALE: 1, FEMALE: 0 }
-const EDUCATION_LEVEL = { MASTER: 1, PHD: 2 }
-const STUDENT_STATUS = { ACTIVE: 1, SUSPENDED: 0, GRADUATED: 2, DROPPED: 3 }
 const CURRENT_YEAR = new Date().getFullYear()
 
 // 院系选项

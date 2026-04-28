@@ -36,7 +36,7 @@
           clearable
         >
           <el-option
-            v-for="option in semesterFormOptions"
+            v-for="option in SEMESTER_OPTIONS"
             :key="option.value"
             :label="option.label"
             :value="option.value"
@@ -53,7 +53,7 @@
           clearable
         >
           <el-option
-            v-for="option in statusOptions"
+            v-for="option in STATUS_OPTIONS"
             :key="option.value"
             :label="option.label"
             :value="option.value"
@@ -104,14 +104,23 @@
           >
             开始评审
           </el-button>
-          <el-button
-            v-else-if="row.status === BATCH_STATUS.REVIEWING"
-            link
-            type="warning"
-            @click="handleStartPublicity(row)"
-          >
-            开始公示
-          </el-button>
+          <template v-else-if="row.status === BATCH_STATUS.REVIEWING">
+            <el-button
+              link
+              type="danger"
+              :loading="isEvaluating(row.id)"
+              @click="handleEvaluate(row)"
+            >
+              {{ getEvaluateButtonText(row.id) }}
+            </el-button>
+            <el-button
+              link
+              type="warning"
+              @click="handleStartPublicity(row)"
+            >
+              开始公示
+            </el-button>
+          </template>
           <el-button
             v-else-if="row.status === BATCH_STATUS.PUBLICITY"
             link
@@ -159,7 +168,7 @@
             <el-form-item label="学期" prop="semester">
               <el-select v-model="formData.semester" placeholder="请选择" style="width: 100%">
                 <el-option
-                  v-for="option in semesterFormOptions"
+                  v-for="option in SEMESTER_OPTIONS"
                   :key="option.value"
                   :label="option.label"
                   :value="option.value"
@@ -260,7 +269,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -276,9 +285,17 @@ import {
   type BatchAwardConfig as ApiBatchAwardConfig,
   type EvaluationBatch as ApiEvaluationBatch
 } from '@/api/evaluation'
+import {
+  evaluateBatch,
+  getEvaluationTask,
+  getLatestEvaluationTask,
+  type EvaluationTaskResponse
+} from '@/api/result'
 import { getAvailableRulesByType, getRuleById, getRulePage, type ScoreRule } from '@/api/rule'
 import { RULE_TYPE_LABELS } from '@/constants/rule'
+import { getAwardLevelConfig } from '@/constants/evaluationResult'
 import { extractApiData } from '@/utils/helpers'
+import { LARGE_QUERY_SIZE } from '@/constants'
 
 type BatchStatus = 1 | 2 | 3 | 4 | 5
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
@@ -357,9 +374,6 @@ const formAcademicYearOptions = computed<OptionItem<string>[]>(() => {
 
   return Array.from(merged.values()).sort((left, right) => right.value.localeCompare(left.value))
 })
-const semesterFormOptions = SEMESTER_OPTIONS
-const statusOptions = STATUS_OPTIONS
-
 const loading = ref(false)
 const submitting = ref(false)
 const total = ref(0)
@@ -376,6 +390,118 @@ const queryParams = reactive<QueryParams>({
   semesters: [],
   statuses: []
 })
+
+const EVALUATION_POLL_INTERVAL_MS = 2000
+const evaluationTaskMap = reactive<Record<number, EvaluationTaskResponse | null>>({})
+const pollTimerMap = new Map<number, ReturnType<typeof setInterval>>()
+
+function isEvaluating(batchId?: number): boolean {
+  if (!batchId) return false
+  const task = evaluationTaskMap[batchId]
+  return task !== undefined && task !== null && (task.status === 0 || task.status === 1)
+}
+
+function getEvaluateButtonText(batchId?: number): string {
+  if (!batchId) return '一键评定'
+  const task = evaluationTaskMap[batchId]
+  if (!task) return '一键评定'
+  if (task.status === 0) return '等待执行...'
+  if (task.status === 1) return '评定中...'
+  return '一键评定'
+}
+
+function stopPolling(batchId: number): void {
+  const timer = pollTimerMap.get(batchId)
+  if (timer !== undefined) {
+    clearInterval(timer)
+    pollTimerMap.delete(batchId)
+  }
+}
+
+async function pollTaskStatus(batchId: number, taskId: number): Promise<void> {
+  stopPolling(batchId)
+
+  const poll = async () => {
+    try {
+      const response = await getEvaluationTask(taskId)
+      const task = extractApiData<EvaluationTaskResponse>(response)
+      if (!task) return
+      evaluationTaskMap[batchId] = task
+
+      if (task.status === 2) {
+        // SUCCESS
+        stopPolling(batchId)
+        ElMessage.success('评定执行成功，页面即将刷新')
+        setTimeout(() => handleQuery(), 500)
+      } else if (task.status === 3) {
+        // FAILED
+        stopPolling(batchId)
+        ElMessage.error(task.errorMessage || '评定执行失败，请稍后重试')
+      }
+    } catch (error) {
+      console.error('轮询任务状态失败:', error)
+    }
+  }
+
+  // 立即查询一次
+  await poll()
+
+  // 如果仍未结束，开始定时轮询
+  const task = evaluationTaskMap[batchId]
+  if (task && (task.status === 0 || task.status === 1)) {
+    pollTimerMap.set(batchId, setInterval(poll, EVALUATION_POLL_INTERVAL_MS))
+  }
+}
+
+async function handleEvaluate(row: ApiEvaluationBatch): Promise<void> {
+  if (!row.id) return
+  try {
+    await ElMessageBox.confirm(
+      '确定对该批次执行一键评定吗？评定将在后台异步执行，可随时刷新页面查看最新状态。',
+      '确认评定',
+      {
+        confirmButtonText: '确定评定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const response = await evaluateBatch(row.id)
+    const task = extractApiData<EvaluationTaskResponse>(response)
+    if (!task) return
+    evaluationTaskMap[row.id] = task
+    ElMessage.success('评定任务已提交，正在后台执行...')
+    await pollTaskStatus(row.id, task.taskId)
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('发起评定失败:', error)
+      ElMessage.error('发起评定失败，请稍后重试')
+    }
+  }
+}
+
+async function restoreEvaluationTasks(records: ApiEvaluationBatch[]): Promise<void> {
+  const reviewingBatches = records.filter(
+    item => item.id !== undefined && item.status === BATCH_STATUS.REVIEWING
+  )
+  if (reviewingBatches.length === 0) return
+
+  await Promise.all(
+    reviewingBatches.map(async item => {
+      const batchId = item.id as number
+      try {
+        const response = await getLatestEvaluationTask(batchId)
+        const task = extractApiData<EvaluationTaskResponse>(response)
+        if (task && (task.status === 0 || task.status === 1)) {
+          evaluationTaskMap[batchId] = task
+          pollTaskStatus(batchId, task.taskId)
+        }
+      } catch (error) {
+        console.error(`恢复批次 ${batchId} 任务状态失败:`, error)
+      }
+    })
+  )
+}
 
 function createDefaultAwardConfigs(): ApiBatchAwardConfig[] {
   return [
@@ -475,7 +601,7 @@ function buildAcademicYearOption(value: string): OptionItem<string> {
 
 async function loadAcademicYearOptions(): Promise<void> {
   try {
-    const response = await getEvaluationPage({ current: 1, size: 1000 })
+    const response = await getEvaluationPage({ current: 1, size: LARGE_QUERY_SIZE })
     const pageData = extractApiData<API.PageResponse<ApiEvaluationBatch>>(response)
     const years = Array.from(
       new Set(
@@ -493,14 +619,7 @@ async function loadAcademicYearOptions(): Promise<void> {
 }
 
 function getAwardLevelName(level: number): string {
-  return (
-    {
-      1: '特等奖',
-      2: '一等奖',
-      3: '二等奖',
-      4: '三等奖'
-    }[level] || `第${level}档`
-  )
+  return getAwardLevelConfig(level).text
 }
 
 function buildRuleLabel(rule: ScoreRule): string {
@@ -527,7 +646,7 @@ function resetForm(): void {
 
 async function loadRules(): Promise<void> {
   const [allRuleRes, ...availableRuleResponses] = await Promise.all([
-    getRulePage({ current: 1, size: 500 }),
+    getRulePage({ current: 1, size: LARGE_QUERY_SIZE }),
     ...Object.keys(RULE_TYPE_LABELS).map(type => getAvailableRulesByType(Number(type)))
   ])
 
@@ -589,6 +708,7 @@ async function handleQuery(): Promise<void> {
     const pageData = extractApiData<API.PageResponse<ApiEvaluationBatch>>(response)
     tableData.value = pageData?.records || []
     total.value = pageData?.total || 0
+    await restoreEvaluationTasks(tableData.value)
   } catch (error) {
     console.error('查询失败:', error)
     ElMessage.error('查询失败')
@@ -809,6 +929,11 @@ function handleDialogClose(): void {
 
 onMounted(() => {
   void Promise.allSettled([loadRules(), loadAcademicYearOptions(), handleQuery()])
+})
+
+onUnmounted(() => {
+  pollTimerMap.forEach(timer => clearInterval(timer))
+  pollTimerMap.clear()
 })
 </script>
 

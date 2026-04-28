@@ -17,12 +17,7 @@
     <el-form :inline="true" class="search-form">
       <el-form-item label="规则类型">
         <el-select v-model="queryParams.ruleType" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
-          <el-option label="论文" :value="RULE_TYPE.PAPER" />
-          <el-option label="专利" :value="RULE_TYPE.PATENT" />
-          <el-option label="项目" :value="RULE_TYPE.PROJECT" />
-          <el-option label="竞赛" :value="RULE_TYPE.COMPETITION" />
-          <el-option label="课程" :value="RULE_TYPE.COURSE" />
-          <el-option label="德育" :value="RULE_TYPE.MORAL" />
+          <el-option v-for="opt in RULE_TYPE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -45,12 +40,9 @@
       <el-table-column prop="ruleName" label="规则名称" min-width="200" />
       <el-table-column prop="ruleType" label="规则类型" width="100">
         <template #default="{ row }">
-          <el-tag v-if="row.ruleType === RULE_TYPE.PAPER" type="primary">论文</el-tag>
-          <el-tag v-else-if="row.ruleType === RULE_TYPE.PATENT" type="success">专利</el-tag>
-          <el-tag v-else-if="row.ruleType === RULE_TYPE.PROJECT" type="warning">项目</el-tag>
-          <el-tag v-else-if="row.ruleType === RULE_TYPE.COMPETITION" type="info">竞赛</el-tag>
-          <el-tag v-else-if="row.ruleType === RULE_TYPE.COURSE" type="danger">课程</el-tag>
-          <el-tag v-else-if="row.ruleType === RULE_TYPE.MORAL" type="warning">德育</el-tag>
+          <el-tag :type="RULE_TYPE_TAG_TYPES[row.ruleType] || 'info'">
+            {{ RULE_TYPE_LABELS[row.ruleType] || '未知' }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="score" label="分值" width="80" />
@@ -108,12 +100,7 @@
         </el-form-item>
         <el-form-item label="规则类型" prop="ruleType">
           <el-select v-model="formData.ruleType" style="width: 100%">
-            <el-option label="论文" :value="RULE_TYPE.PAPER" />
-            <el-option label="专利" :value="RULE_TYPE.PATENT" />
-            <el-option label="项目" :value="RULE_TYPE.PROJECT" />
-            <el-option label="竞赛" :value="RULE_TYPE.COMPETITION" />
-            <el-option label="课程" :value="RULE_TYPE.COURSE" />
-            <el-option label="德育" :value="RULE_TYPE.MORAL" />
+            <el-option v-for="opt in RULE_TYPE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="规则编码" prop="ruleCode">
@@ -163,16 +150,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getRulePage, addRule, updateRule, deleteRule, getRuleCategoryList } from '@/api/rule'
-
-// 常量定义
-const RULE_TYPE = {
-  PAPER: 1,       // 论文
-  PATENT: 2,      // 专利
-  PROJECT: 3,     // 项目
-  COMPETITION: 4, // 竞赛
-  COURSE: 5,      // 课程成绩
-  MORAL: 6        // 德育表现
-}
+import { RULE_TYPE, RULE_TYPE_LABELS, RULE_TYPE_OPTIONS, RULE_TYPE_TAG_TYPES } from '@/constants/rule'
 
 const AVAILABILITY = {
   ENABLED: 1,     // 启用
