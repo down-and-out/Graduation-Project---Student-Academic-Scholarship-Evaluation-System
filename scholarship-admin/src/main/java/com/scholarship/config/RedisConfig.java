@@ -18,6 +18,8 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import com.scholarship.common.support.CacheConstants;
+
 import java.time.Duration;
 
 /**
@@ -110,6 +112,30 @@ public class RedisConfig {
                 // 可以针对特定的缓存名称设置不同的过期时间
                 .withCacheConfiguration("users",
                         config.entryTtl(Duration.ofSeconds(USER_CACHE_EXPIRATION_SECONDS)))
+                .withCacheConfiguration(CacheConstants.SYS_SETTING,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_SYS_SETTING)))
+                .withCacheConfiguration(CacheConstants.SYS_SETTING_ACTIVE,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_SYS_SETTING_ACTIVE)))
+                .withCacheConfiguration(CacheConstants.SYS_SETTINGS_ALL,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_SYS_SETTINGS_ALL)))
+                .withCacheConfiguration(CacheConstants.BATCH_AVAILABLE,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_BATCH_AVAILABLE)))
+                .withCacheConfiguration(CacheConstants.TASK_DETAIL,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_TASK_DETAIL)))
+                .withCacheConfiguration(CacheConstants.APP_DETAIL,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_APP_DETAIL)))
+                .withCacheConfiguration(CacheConstants.APP_ACHIEVEMENTS,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_APP_ACHIEVEMENTS)))
+                .withCacheConfiguration(CacheConstants.APP_PAGE,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_APP_PAGE)))
+                .withCacheConfiguration(CacheConstants.EVAL_STUDENT,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_EVAL_STUDENT)))
+                .withCacheConfiguration(CacheConstants.EVAL_PAGE,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_EVAL_PAGE)))
+                .withCacheConfiguration(CacheConstants.EVAL_ADMIN,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_EVAL_ADMIN)))
+                .withCacheConfiguration(CacheConstants.EVAL_RANK,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_EVAL_RANK)))
                 .build();
     }
 
