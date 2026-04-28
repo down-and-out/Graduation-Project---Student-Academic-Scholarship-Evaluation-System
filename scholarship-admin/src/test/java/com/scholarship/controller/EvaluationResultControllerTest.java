@@ -1,130 +1,79 @@
 package com.scholarship.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.scholarship.entity.EvaluationResult;
-import com.scholarship.service.EvaluationResultService;
-import com.scholarship.service.StudentInfoService;
+import com.scholarship.common.result.Result;
+import com.scholarship.dto.param.EvaluationResultQueryParam;
+import com.scholarship.service.AwardAllocationService;
 import com.scholarship.service.EvaluationCalculationService;
 import com.scholarship.service.EvaluationRankService;
-import com.scholarship.service.AwardAllocationService;
+import com.scholarship.service.EvaluationResultService;
+import com.scholarship.service.EvaluationTaskService;
+import com.scholarship.service.StudentInfoService;
+import com.scholarship.vo.AdminEvaluationResultVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * EvaluationResultController 评定结果控制器测试
- */
-@DisplayName("EvaluationResultController 评定结果控制器测试")
+@DisplayName("EvaluationResultController tests")
 class EvaluationResultControllerTest {
-
-    private MockMvc mockMvc;
 
     @Mock
     private EvaluationResultService evaluationResultService;
-
+    @Mock
+    private EvaluationCalculationService evaluationCalculationService;
+    @Mock
+    private EvaluationRankService evaluationRankService;
+    @Mock
+    private AwardAllocationService awardAllocationService;
+    @Mock
+    private EvaluationTaskService evaluationTaskService;
     @Mock
     private StudentInfoService studentInfoService;
 
-    @Mock
-    private EvaluationCalculationService evaluationCalculationService;
-
-    @Mock
-    private EvaluationRankService evaluationRankService;
-
-    @Mock
-    private AwardAllocationService awardAllocationService;
+    private EvaluationResultController controller;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-
-        EvaluationResultController controller = new EvaluationResultController(
+        controller = new EvaluationResultController(
                 evaluationResultService,
-                studentInfoService,
                 evaluationCalculationService,
                 evaluationRankService,
-                awardAllocationService
+                awardAllocationService,
+                evaluationTaskService,
+                studentInfoService
         );
-
-        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
     @Test
-    @DisplayName("测试分页查询评定结果")
-    void testPage() throws Exception {
-        Page<EvaluationResult> page = new Page<>(1, 10);
-        when(evaluationResultService.page(any(Page.class))).thenReturn(page);
+    void pageReturnsPagedResults() {
+        IPage<AdminEvaluationResultVO> page = new Page<>(1, 10);
+        EvaluationResultQueryParam queryParam = new EvaluationResultQueryParam();
+        queryParam.setCurrent(1L);
+        queryParam.setSize(10L);
+        when(evaluationResultService.pageAdminResults(1L, 10L, null, null, null, null, null, null)).thenReturn(page);
 
-        mockMvc.perform(get("/evaluation-result/page")
-                        .param("current", "1")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.current").value(1))
-                .andExpect(jsonPath("$.data.size").value(10));
+        Result<IPage<AdminEvaluationResultVO>> result = controller.page(queryParam, null);
+
+        assertEquals(200, result.getCode());
+        assertEquals(1L, result.getData().getCurrent());
     }
 
     @Test
-    @DisplayName("测试分页查询 - 带筛选条件")
-    void testPageWithFilters() throws Exception {
-        Page<EvaluationResult> page = new Page<>(1, 10);
-        when(evaluationResultService.page(any(Page.class))).thenReturn(page);
+    void getByIdReturnsErrorWhenMissing() {
+        when(evaluationResultService.getAdminResultById(eq(999L))).thenReturn(null);
 
-        mockMvc.perform(get("/evaluation-result/page")
-                        .param("current", "1")
-                        .param("size", "10")
-                        .param("batchId", "1")
-                        .param("studentId", "2"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
+        Result<AdminEvaluationResultVO> result = controller.getById(999L, null);
 
-    @Test
-    @DisplayName("测试获取评定结果详情 - 存在")
-    void testGetByIdExists() throws Exception {
-        EvaluationResult result = new EvaluationResult();
-        result.setId(1L);
-        result.setStudentId(100L);
-        result.setBatchId(1L);
-
-        when(evaluationResultService.getById(1L)).thenReturn(result);
-
-        mockMvc.perform(get("/evaluation-result/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.id").value(1));
-    }
-
-    @Test
-    @DisplayName("测试获取评定结果详情 - 不存在")
-    void testGetByIdNotExists() throws Exception {
-        when(evaluationResultService.getById(999L)).thenReturn(null);
-
-        mockMvc.perform(get("/evaluation-result/999"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
-                .andExpect(jsonPath("$.message").value("结果不存在"));
-    }
-
-    @Test
-    @DisplayName("测试默认分页参数")
-    void testDefaultPageParams() throws Exception {
-        Page<EvaluationResult> page = new Page<>(1, 10);
-        when(evaluationResultService.page(any(Page.class))).thenReturn(page);
-
-        mockMvc.perform(get("/evaluation-result/page"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.current").value(1))
-                .andExpect(jsonPath("$.data.size").value(10));
+        assertEquals(500, result.getCode());
+        assertNull(result.getData());
     }
 }

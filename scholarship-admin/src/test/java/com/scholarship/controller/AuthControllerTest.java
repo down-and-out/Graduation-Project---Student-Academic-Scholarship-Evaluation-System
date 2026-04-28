@@ -111,7 +111,7 @@ class AuthControllerTest {
     @Test
     @DisplayName("测试登录失败 - 密码错误")
     void testLoginFailureBadCredentials() throws Exception {
-        LoginRequest request = new LoginRequest("testuser", "wrongPassword");
+        LoginRequest request = new LoginRequest("testuser", "wrongPass123");
 
         when(loginAttemptService.isLocked(anyString())).thenReturn(false);
         when(authenticationManager.authenticate(any(Authentication.class)))

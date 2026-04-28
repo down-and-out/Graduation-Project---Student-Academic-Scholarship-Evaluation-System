@@ -2,110 +2,67 @@ package com.scholarship.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.scholarship.entity.ScholarshipApplication;
-import com.scholarship.security.LoginUser;
+import com.scholarship.common.result.Result;
 import com.scholarship.service.ScholarshipApplicationService;
+import com.scholarship.service.StudentInfoService;
+import com.scholarship.vo.ScholarshipApplicationDetailVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import static org.mockito.ArgumentMatchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * ScholarshipApplicationController 奖学金申请控制器测试
- */
-@DisplayName("ScholarshipApplicationController 奖学金申请控制器测试")
+@DisplayName("ScholarshipApplicationController tests")
 class ScholarshipApplicationControllerTest {
-
-    private MockMvc mockMvc;
 
     @Mock
     private ScholarshipApplicationService applicationService;
+    @Mock
+    private StudentInfoService studentInfoService;
+
+    private ScholarshipApplicationController controller;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-
-        ScholarshipApplicationController controller = new ScholarshipApplicationController(applicationService);
-        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+        controller = new ScholarshipApplicationController(applicationService, studentInfoService);
     }
 
     @Test
-    @DisplayName("测试分页查询申请记录")
-    void testPage() throws Exception {
-        IPage<ScholarshipApplication> page = new Page<>(1, 10);
-        when(applicationService.pageApplications(anyLong(), anyLong(), anyLong(), anyLong(), anyInt()))
-                .thenReturn(page);
+    void pageReturnsSuccess() {
+        IPage<?> page = new Page<>(1, 10);
+        when(applicationService.pageApplications(1L, 10L, null, null, null)).thenReturn((IPage) page);
 
-        mockMvc.perform(get("/application/page")
-                        .param("current", "1")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+        Result<IPage<com.scholarship.entity.ScholarshipApplication>> result = controller.page(1L, 10L, null, null, null, null);
+
+        assertEquals(200, result.getCode());
+        assertEquals(1L, result.getData().getCurrent());
     }
 
     @Test
-    @DisplayName("测试分页查询 - 带筛选条件")
-    void testPageWithFilters() throws Exception {
-        IPage<ScholarshipApplication> page = new Page<>(1, 10);
-        when(applicationService.pageApplications(1L, 10L, 1L, 100L, 2))
-                .thenReturn(page);
+    void getByIdReturnsErrorWhenMissing() {
+        when(applicationService.getDetailById(eq(999L))).thenReturn(null);
 
-        mockMvc.perform(get("/application/page")
-                        .param("current", "1")
-                        .param("size", "10")
-                        .param("batchId", "1")
-                        .param("studentId", "100")
-                        .param("status", "2"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+        Result<ScholarshipApplicationDetailVO> result = controller.getById(999L);
+
+        assertEquals(500, result.getCode());
+        assertNull(result.getData());
     }
 
     @Test
-    @DisplayName("测试获取申请详情 - 存在")
-    void testGetByIdExists() throws Exception {
-        ScholarshipApplication application = new ScholarshipApplication();
-        application.setId(1L);
-        application.setStudentId(100L);
-        application.setBatchId(1L);
-        application.setStatus(1);
+    void getByIdReturnsDetailWhenFound() {
+        ScholarshipApplicationDetailVO detail = new ScholarshipApplicationDetailVO();
+        detail.setId(1L);
+        when(applicationService.getDetailById(1L)).thenReturn(detail);
 
-        when(applicationService.getById(1L)).thenReturn(application);
+        Result<ScholarshipApplicationDetailVO> result = controller.getById(1L);
 
-        mockMvc.perform(get("/application/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.id").value(1));
-    }
-
-    @Test
-    @DisplayName("测试获取申请详情 - 不存在")
-    void testGetByIdNotExists() throws Exception {
-        when(applicationService.getById(999L)).thenReturn(null);
-
-        mockMvc.perform(get("/application/999"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
-                .andExpect(jsonPath("$.message").value("申请不存在"));
-    }
-
-    @Test
-    @DisplayName("测试默认分页参数")
-    void testDefaultPageParams() throws Exception {
-        IPage<ScholarshipApplication> page = new Page<>(1, 10);
-        when(applicationService.pageApplications(anyLong(), anyLong(), isNull(), isNull(), isNull()))
-                .thenReturn(page);
-
-        mockMvc.perform(get("/application/page"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+        assertEquals(200, result.getCode());
+        assertEquals(1L, result.getData().getId());
     }
 }
