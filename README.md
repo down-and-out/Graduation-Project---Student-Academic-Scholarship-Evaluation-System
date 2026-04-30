@@ -397,3 +397,14 @@ curl -X GET http://localhost:8080/api/auth/current-user \
 ## License
 
 MIT License
+
+---
+
+### Redis MISCONF 排查补充
+
+当 Redis 报错 `MISCONF Redis is configured to save RDB snapshots` 时，说明实例因为 RDB 持久化失败而拒绝写入。
+
+1. 检查 Redis 日志，确认 `bgsave` 失败的具体原因。
+2. 检查 Redis `dir` 目录权限和磁盘空间，确认快照文件可正常落盘。
+3. 检查 `stop-writes-on-bgsave-error` 配置，并结合日志定位是否需要先修复持久化故障。
+4. 当前项目已对退出登录做了降级容错，但在 Redis 恢复前，已退出的旧 Token 可能仍会在自然过期前继续有效。

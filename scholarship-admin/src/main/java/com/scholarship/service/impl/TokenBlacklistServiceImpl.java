@@ -16,13 +16,6 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Token 黑名单服务实现类
- * <p>
- * 使用 Redis 存储已注销的 Token，在 Token 自然过期前拒绝其访问
- * 支持最大容量限制，超过容量时异步清理即将过期的 Token
- * </p>
- *
- * @author Scholarship Development Team
- * @version 1.0.0
  */
 @Slf4j
 @Service
@@ -45,19 +38,20 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
 
     @Override
     public void addToBlacklist(String token, long expireTime) {
-        // 1. 存入 Token
         String key = BLACKLIST_PREFIX + token;
-        redisTemplate.opsForValue().set(key, "BLACKLISTED", expireTime, TimeUnit.SECONDS);
+        try {
+            redisTemplate.opsForValue().set(key, "BLACKLISTED", expireTime, TimeUnit.SECONDS);
+            Long count = redisTemplate.opsForValue().increment(BLACKLIST_COUNT_KEY);
 
-        // 2. 计数器 +1
-        Long count = redisTemplate.opsForValue().increment(BLACKLIST_COUNT_KEY);
+            log.debug("Token added to blacklist, token={}, expireTime={}s, total={}", token, expireTime, count);
 
-        log.debug("Token 已加入黑名单：token={}, expireTime={}s, total={}", token, expireTime, count);
-
-        // 3. 检查是否超过容量，触发异步清理
-        if (count != null && count > maxCapacity) {
-            log.warn("Token 黑名单超过容量限制：current={}, max={}，触发异步清理", count, maxCapacity);
-            asyncCleanupExpiringTokens();
+            if (count != null && count > maxCapacity) {
+                log.warn("Token blacklist capacity exceeded, current={}, max={}", count, maxCapacity);
+                asyncCleanupExpiringTokens();
+            }
+        } catch (Exception e) {
+            log.error("Failed to add token to blacklist, key={}, expireTime={}s", key, expireTime, e);
+            throw e;
         }
     }
 
@@ -74,7 +68,7 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
         Boolean deleted = redisTemplate.delete(key);
         if (Boolean.TRUE.equals(deleted)) {
             redisTemplate.opsForValue().decrement(BLACKLIST_COUNT_KEY);
-            log.debug("Token 已从黑名单移除：token={}", token);
+            log.debug("Token removed from blacklist, token={}", token);
         }
     }
 
@@ -84,19 +78,11 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
         return count != null ? Long.parseLong(count) : 0;
     }
 
-    /**
-     * 异步清理即将过期的 Token
-     * <p>
-     * 使用 @Async 注解实现异步执行，避免阻塞主线程
-     * 清理策略：按 TTL 升序排序，删除即将过期的 cleanupCount 个 Token
-     * </p>
-     */
     @Async
     public void asyncCleanupExpiringTokens() {
-        log.info("开始异步清理 Token 黑名单，目标清理数量：{}", cleanupCount);
+        log.info("Start async token blacklist cleanup, targetCount={}", cleanupCount);
 
         try {
-            // 1. 扫描黑名单 Key 并收集 TTL 信息
             List<TokenTTL> tokenTTLList = new ArrayList<>();
 
             try (Cursor<String> cursor = redisTemplate.scan(
@@ -111,10 +97,8 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
                 }
             }
 
-            // 2. 按 TTL 升序排序（即将过期的在前）
             Collections.sort(tokenTTLList);
 
-            // 3. 删除前 cleanupCount 个
             int deletedCount = 0;
             int toDelete = Math.min(cleanupCount, tokenTTLList.size());
 
@@ -126,21 +110,16 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
                 }
             }
 
-            // 4. 更新计数器
             if (deletedCount > 0) {
                 redisTemplate.opsForValue().decrement(BLACKLIST_COUNT_KEY, deletedCount);
             }
 
-            log.info("Token 黑名单清理完成：删除 {} 个，剩余 {} 个", deletedCount, getBlacklistSize());
-
+            log.info("Token blacklist cleanup finished, deleted={}, remaining={}", deletedCount, getBlacklistSize());
         } catch (Exception e) {
-            log.error("Token 黑名单清理失败", e);
+            log.error("Token blacklist cleanup failed", e);
         }
     }
 
-    /**
-     * Token TTL 辅助类
-     */
     private static class TokenTTL implements Comparable<TokenTTL> {
         final String key;
         final long ttl;

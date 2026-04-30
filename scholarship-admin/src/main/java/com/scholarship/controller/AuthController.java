@@ -111,7 +111,12 @@ public class AuthController {
             if (token != null) {
                 long expireTime = jwtUtil.extractExpiration(token).getTime() - System.currentTimeMillis();
                 if (expireTime > 0) {
-                    tokenBlacklistService.addToBlacklist(token, expireTime / 1000);
+                    try {
+                        tokenBlacklistService.addToBlacklist(token, expireTime / 1000);
+                    } catch (Exception e) {
+                        log.warn("Logout blacklist fallback triggered, username={}, userId={}, message={}",
+                                loginUser.getUsername(), loginUser.getUserId(), e.getMessage(), e);
+                    }
                 }
             }
         }
