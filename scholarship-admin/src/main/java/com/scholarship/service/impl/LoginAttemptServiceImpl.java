@@ -1,116 +1,131 @@
 package com.scholarship.service.impl;
 
+import com.scholarship.common.support.LockConstants;
 import com.scholarship.service.LoginAttemptService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 登录限流服务实现类
- * <p>
- * 使用 Redis 记录登录失败次数，防止暴力破解
- * </p>
- *
- * @author Scholarship Development Team
- * @version 1.0.0
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class LoginAttemptServiceImpl implements LoginAttemptService {
 
-    private static final String ATTEMPT_KEY_PREFIX = "login:attempt:";
-    private static final String LOCK_KEY_PREFIX = "login:lock:";
+    private static final DefaultRedisScript<Long> INCR_WITH_EXPIRE_SCRIPT = new DefaultRedisScript<>(
+            "local count = redis.call('INCR', KEYS[1]) " +
+            "if count == 1 then " +
+            "    redis.call('EXPIRE', KEYS[1], ARGV[1]) " +
+            "end " +
+            "return count",
+            Long.class
+    );
 
-    /**
-     * 最大失败尝试次数
-     */
     @Value("${security.login.max-attempts:5}")
-    private int maxAttempts;
+    private int accountMaxAttempts;
 
-    /**
-     * 锁定时长（分钟）
-     */
     @Value("${security.login.lock-duration:30}")
-    private int lockDuration;
+    private int accountLockDurationMinutes;
 
-    /**
-     * 失败记录过期时间（小时）
-     */
     @Value("${security.login.attempt-expire:24}")
-    private int attemptExpire;
+    private int accountAttemptExpireHours;
+
+    @Value("${security.login.ip-max-attempts:20}")
+    private int ipMaxAttempts;
+
+    @Value("${security.login.ip-lock-duration:10}")
+    private int ipLockDurationMinutes;
+
+    @Value("${security.login.ip-attempt-expire:1}")
+    private int ipAttemptExpireHours;
 
     private final StringRedisTemplate redisTemplate;
 
     @Override
-    public void recordFailure(String identifier) {
-        String attemptKey = ATTEMPT_KEY_PREFIX + identifier;
-        String lockKey = LOCK_KEY_PREFIX + identifier;
+    public void recordFailure(String username, String clientIp) {
+        incrementAndMaybeLock(
+                LockConstants.LOGIN_ATTEMPT_ACCOUNT + username,
+                LockConstants.LOGIN_LOCK_ACCOUNT + username,
+                accountAttemptExpireHours,
+                accountMaxAttempts,
+                accountLockDurationMinutes,
+                "account",
+                username
+        );
+        incrementAndMaybeLock(
+                LockConstants.LOGIN_ATTEMPT_IP + clientIp,
+                LockConstants.LOGIN_LOCK_IP + clientIp,
+                ipAttemptExpireHours,
+                ipMaxAttempts,
+                ipLockDurationMinutes,
+                "ip",
+                clientIp
+        );
+    }
 
-        // 检查是否已被锁定
+    @Override
+    public void resetFailures(String username, String clientIp) {
+        redisTemplate.delete(LockConstants.LOGIN_ATTEMPT_ACCOUNT + username);
+        redisTemplate.delete(LockConstants.LOGIN_LOCK_ACCOUNT + username);
+        redisTemplate.delete(LockConstants.LOGIN_ATTEMPT_IP + clientIp);
+        redisTemplate.delete(LockConstants.LOGIN_LOCK_IP + clientIp);
+        log.info("Login failure counters reset, username={}, clientIp={}", username, clientIp);
+    }
+
+    @Override
+    public boolean isAccountLocked(String username) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(LockConstants.LOGIN_LOCK_ACCOUNT + username));
+    }
+
+    @Override
+    public boolean isIpLocked(String clientIp) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(LockConstants.LOGIN_LOCK_IP + clientIp));
+    }
+
+    @Override
+    public long getAccountRemainingLockTime(String username) {
+        return getRemainingLockTime(LockConstants.LOGIN_LOCK_ACCOUNT + username);
+    }
+
+    @Override
+    public long getIpRemainingLockTime(String clientIp) {
+        return getRemainingLockTime(LockConstants.LOGIN_LOCK_IP + clientIp);
+    }
+
+    private void incrementAndMaybeLock(String attemptKey,
+                                       String lockKey,
+                                       int attemptExpireHours,
+                                       int maxAttempts,
+                                       int lockDurationMinutes,
+                                       String scope,
+                                       String identifier) {
         if (Boolean.TRUE.equals(redisTemplate.hasKey(lockKey))) {
-            log.warn("账户已被锁定：identifier={}", identifier);
+            log.warn("Login scope already locked, scope={}, identifier={}", scope, identifier);
             return;
         }
 
-        // 增加失败次数
-        Long attempts = redisTemplate.opsForValue().increment(attemptKey);
+        Long attempts = redisTemplate.execute(INCR_WITH_EXPIRE_SCRIPT,
+                Collections.singletonList(attemptKey),
+                String.valueOf(TimeUnit.HOURS.toSeconds(attemptExpireHours)));
         if (attempts == null) {
             attempts = 1L;
-            redisTemplate.opsForValue().set(attemptKey, "1", attemptExpire, TimeUnit.HOURS);
         }
 
-        log.info("登录失败：identifier={}, attempts={}", identifier, attempts);
-
-        // 检查是否达到锁定阈值
+        log.info("Login failure recorded, scope={}, identifier={}, attempts={}", scope, identifier, attempts);
         if (attempts >= maxAttempts) {
-            lockAccount(identifier, attempts);
+            redisTemplate.opsForValue().set(lockKey, "LOCKED", lockDurationMinutes, TimeUnit.MINUTES);
+            redisTemplate.delete(attemptKey);
+            log.warn("Login scope locked, scope={}, identifier={}, durationMinutes={}", scope, identifier, lockDurationMinutes);
         }
     }
 
-    @Override
-    public void resetFailures(String identifier) {
-        String attemptKey = ATTEMPT_KEY_PREFIX + identifier;
-        String lockKey = LOCK_KEY_PREFIX + identifier;
-
-        redisTemplate.delete(attemptKey);
-        redisTemplate.delete(lockKey);
-        log.info("登录失败次数已重置：identifier={}", identifier);
-    }
-
-    @Override
-    public boolean isLocked(String identifier) {
-        String lockKey = LOCK_KEY_PREFIX + identifier;
-        return Boolean.TRUE.equals(redisTemplate.hasKey(lockKey));
-    }
-
-    @Override
-    public long getRemainingLockTime(String identifier) {
-        String lockKey = LOCK_KEY_PREFIX + identifier;
+    private long getRemainingLockTime(String lockKey) {
         Long ttl = redisTemplate.getExpire(lockKey, TimeUnit.SECONDS);
         return ttl != null && ttl > 0 ? ttl : 0;
-    }
-
-    /**
-     * 锁定账户
-     *
-     * @param identifier 标识符
-     * @param attempts 失败次数
-     */
-    private void lockAccount(String identifier, Long attempts) {
-        String lockKey = LOCK_KEY_PREFIX + identifier;
-        String attemptKey = ATTEMPT_KEY_PREFIX + identifier;
-
-        // 设置锁定
-        redisTemplate.opsForValue().set(lockKey, "LOCKED", lockDuration, TimeUnit.MINUTES);
-        // 重置失败次数
-        redisTemplate.delete(attemptKey);
-
-        log.warn("账户已被锁定：identifier={}, attempts={}, lockDuration={}min",
-                identifier, attempts, lockDuration);
     }
 }
