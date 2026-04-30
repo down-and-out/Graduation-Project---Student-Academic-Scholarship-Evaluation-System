@@ -297,7 +297,7 @@ import { getRuleById, getRulePage, type ScoreRule } from '@/api/rule'
 import { RULE_TYPE_LABELS } from '@/constants/rule'
 import { EVALUATION_TASK_STATUS } from '@/constants/review'
 import { getAwardLevelConfig } from '@/constants/evaluationResult'
-import { batchExecute, extractApiData, formatAcademicYearLabel } from '@/utils/helpers'
+import { batchExecute, extractApiData, formatAcademicYearLabel, isRequestCanceled } from '@/utils/helpers'
 import { LARGE_QUERY_SIZE } from '@/constants'
 
 defineOptions({ name: 'AdminEvaluation' })
@@ -733,6 +733,7 @@ async function handleQuery(): Promise<void> {
     await restoreEvaluationTasks(tableData.value)
   } catch (error) {
     console.error('查询失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('查询失败')
   } finally {
     loading.value = false

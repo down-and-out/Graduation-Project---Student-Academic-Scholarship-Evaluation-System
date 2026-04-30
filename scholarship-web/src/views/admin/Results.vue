@@ -209,7 +209,7 @@ import {
   getResultPage,
   type EvaluationResult
 } from '@/api/result'
-import { extractApiData, formatAcademicYearLabel } from '@/utils/helpers'
+import { extractApiData, formatAcademicYearLabel, isRequestCanceled } from '@/utils/helpers'
 import {
   getAwardLevelConfig,
   getResultStatusConfig,
@@ -369,6 +369,7 @@ async function handleQuery(): Promise<void> {
     updateStats(records)
   } catch (error) {
     console.error('查询失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('查询失败')
     tableData.value = []
     total.value = 0

@@ -152,7 +152,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { getRulePage, addRule, updateRule, deleteRule, getRuleCategoryList } from '@/api/rule'
 import { clearApiCache } from '@/utils/apiCache'
 import { RULE_TYPE, RULE_TYPE_LABELS, RULE_TYPE_OPTIONS, RULE_TYPE_TAG_TYPES } from '@/constants/rule'
-import { optimisticUpdate } from '@/utils/helpers'
+import { isRequestCanceled, optimisticUpdate } from '@/utils/helpers'
 
 defineOptions({ name: 'AdminRules' })
 
@@ -208,6 +208,7 @@ async function loadCategories() {
     const res = await getRuleCategoryList()
     categoryOptions.value = res.data?.data || []
   } catch (error) {
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载规则分类失败：' + (error.message || '未知错误'))
   }
 }
@@ -224,6 +225,7 @@ async function handleQuery() {
     tableData.value = res.data?.data?.records || []
     total.value = res.data?.data?.total || 0
   } catch (error) {
+    if (isRequestCanceled(error)) return
     ElMessage.error('查询失败：' + (error.message || '未知错误'))
   } finally {
     loading.value = false

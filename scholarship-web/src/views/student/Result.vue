@@ -141,7 +141,7 @@ import { DocumentAdd, Download, Medal } from '@element-plus/icons-vue'
 import { submitAppeal } from '@/api/appeal'
 import { getMyResult, getResultDetail, getResultPage } from '@/api/result'
 import type { EvaluationResult } from '@/api/result'
-import { extractApiData, extractPageData } from '@/utils/helpers'
+import { extractApiData, extractPageData, isRequestCanceled } from '@/utils/helpers'
 import {
   AWARD_LEVEL_MAX,
   AWARD_LEVEL_MIN,
@@ -245,6 +245,7 @@ async function loadResult(): Promise<void> {
     result.value = raw ? normalizeResult(raw) : null
   } catch (error) {
     console.error('加载评定结果失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载评定结果失败')
   }
 }
@@ -256,6 +257,7 @@ async function loadHistory(): Promise<void> {
     historyList.value = (pageData?.records || []).map(normalizeResult)
   } catch (error) {
     console.error('加载历史记录失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载历史记录失败')
   }
 }

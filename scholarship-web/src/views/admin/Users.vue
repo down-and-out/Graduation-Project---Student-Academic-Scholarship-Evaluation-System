@@ -327,7 +327,7 @@ import {
   USER_TYPE,
   USER_TYPE_MAP
 } from '@/constants/user'
-import { debounce, deepClone, isValidEmail, isValidPhone, isValidUsername } from '@/utils/helpers'
+import { debounce, deepClone, isRequestCanceled, isValidEmail, isValidPhone, isValidUsername } from '@/utils/helpers'
 import { LARGE_QUERY_SIZE } from '@/constants'
 
 defineOptions({ name: 'AdminUsers' })
@@ -563,6 +563,7 @@ async function loadDepartmentOptions() {
     departmentOptions.value = data.map(item => ({ label: item, value: item }))
   } catch (error) {
     console.error('加载院系列表失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载院系列表失败')
   }
 }
@@ -588,6 +589,7 @@ async function loadEnrollmentYearOptions() {
     )
   } catch (error) {
     console.error('加载入学年份选项失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载入学年份选项失败')
     enrollmentYearOptions.value = Array.from({ length: ENROLLMENT_YEAR_RANGE }, (_, index) => currentYear - index)
   }
@@ -602,6 +604,7 @@ async function loadData() {
     total.value = pageData.total || 0
   } catch (error) {
     console.error('查询失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('查询失败，请稍后重试')
   } finally {
     loading.value = false

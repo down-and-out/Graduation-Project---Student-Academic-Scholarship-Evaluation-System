@@ -127,7 +127,7 @@ import { getEvaluationPage, type EvaluationBatch } from '@/api/evaluation'
 import { getOperationLogPage, getSetting, updateSetting } from '@/api/system'
 import { LOG_TYPE_LABELS, LOG_TYPE_OPTIONS } from '@/constants/operationLog'
 import type { BasicSetting, OperationLog, WeightSetting } from '@/api/system'
-import { extractApiData, formatAcademicYearLabel } from '@/utils/helpers'
+import { extractApiData, formatAcademicYearLabel, isRequestCanceled } from '@/utils/helpers'
 import { LARGE_QUERY_SIZE } from '@/constants'
 
 type AlertType = 'success' | 'warning' | 'info' | 'error'
@@ -346,6 +346,7 @@ async function handleQueryLog(): Promise<void> {
     logTotal.value = pageData?.total || 0
   } catch (error) {
     console.error('查询操作日志失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('查询失败')
     logData.value = []
     logTotal.value = 0
@@ -369,6 +370,7 @@ async function loadSettings(): Promise<void> {
     ensureCurrentSemesterOption()
   } catch (error) {
     console.error('加载设置失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载系统设置失败')
   }
 }

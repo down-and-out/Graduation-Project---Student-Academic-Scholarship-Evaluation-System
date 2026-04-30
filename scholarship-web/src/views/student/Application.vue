@@ -186,7 +186,7 @@ import {
   getAvailableApplicationAchievements,
   submitApplication
 } from '@/api/application'
-import { extractApiData, extractPageData } from '@/utils/helpers'
+import { extractApiData, extractPageData, isRequestCanceled } from '@/utils/helpers'
 import type {
   Application,
   ApplicationAchievementItem,
@@ -335,6 +335,7 @@ async function loadBatchInfo(): Promise<void> {
     batchInfo.value = normalizeBatchInfo(batches[0])
   } catch (error) {
     console.error('加载批次信息失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载批次信息失败')
   }
 }
@@ -347,6 +348,7 @@ async function loadMyApplication(): Promise<void> {
     myApplication.value = pageData?.records?.[0] || null
   } catch (error) {
     console.error('加载申请信息失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载申请信息失败')
   } finally {
     loading.value = false

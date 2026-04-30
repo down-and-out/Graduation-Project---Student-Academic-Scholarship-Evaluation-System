@@ -172,7 +172,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getStudentPage, updateStudent, deleteStudent } from '@/api/student'
 import { getDepartments } from '@/api/basicData'
-import { debounce } from '@/utils/helpers'
+import { debounce, isRequestCanceled } from '@/utils/helpers'
 import {
   EDUCATION_LEVEL,
   EDUCATION_LEVEL_OPTIONS,
@@ -287,6 +287,7 @@ async function handleQuery() {
     tableData.value = res.data?.data?.records || []
     total.value = res.data?.data?.total || 0
   } catch (error) {
+    if (isRequestCanceled(error)) return
     ElMessage.error(error.message || '查询失败')
   } finally {
     loading.value = false

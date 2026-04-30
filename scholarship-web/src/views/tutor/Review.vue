@@ -178,7 +178,7 @@ import {
   type CompetitionAward,
   type CompetitionPageParams
 } from '@/api/competition'
-import { extractPageData } from '@/utils/helpers'
+import { extractPageData, isRequestCanceled } from '@/utils/helpers'
 import {
   ACHIEVEMENT_TYPE_OPTIONS,
   COMPETITION_LEVEL_LABELS,
@@ -395,6 +395,7 @@ async function fetchTableData() {
     total.value = pageData?.total || 0
   } catch (error) {
     console.error('查询审核列表失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('查询失败，请稍后重试')
     tableData.value = []
     total.value = 0

@@ -139,7 +139,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { getMyInfo, updateMyInfo } from '@/api/student'
 import type { Student } from '@/api/student'
 import { EDUCATION_LEVEL_TEXT_MAP, GENDER_TEXT_MAP } from '@/constants/user'
-import { extractApiData, isValidIdCard, maskIdCard } from '@/utils/helpers'
+import { extractApiData, isRequestCanceled, isValidIdCard, maskIdCard } from '@/utils/helpers'
 
 const isEdit = ref(false)
 const saving = ref(false)
@@ -202,6 +202,7 @@ async function loadInfo(): Promise<void> {
     })
   } catch (error) {
     console.error('加载学生信息失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载学生信息失败')
   }
 }

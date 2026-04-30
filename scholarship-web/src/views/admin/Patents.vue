@@ -219,6 +219,7 @@ import {
   type ResearchPatent,
   updatePatent
 } from '@/api/patent'
+import { isRequestCanceled } from '@/utils/helpers'
 import {
   AUDIT_STATUS,
   AUDIT_STATUS_LABELS,
@@ -364,6 +365,7 @@ async function fetchData() {
     tableData.value = data.records || []
     total.value = data.total || 0
   } catch (error: any) {
+    if (isRequestCanceled(error)) return
     ElMessage.error(`获取专利列表失败：${error?.message || '未知错误'}`)
   } finally {
     loading.value = false

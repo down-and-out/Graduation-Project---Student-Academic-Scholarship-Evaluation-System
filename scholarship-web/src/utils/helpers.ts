@@ -308,6 +308,17 @@ export function optimisticUpdate<T extends { id?: number }>(
 }
 
 /**
+ * 判断错误是否为请求取消（AbortController / Axios CancelToken 触发）
+ * @param error - catch 块捕获的错误对象
+ * @returns 是否为取消错误
+ */
+export function isRequestCanceled(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const e = error as Record<string, unknown>
+  return e.code === 'ERR_CANCELED' || e.name === 'AbortError' || e.name === 'CanceledError'
+}
+
+/**
  * 序列化查询参数对象为 URLSearchParams 字符串
  * - 过滤 undefined / null / 空字符串
  * - 数组值用逗号 join

@@ -126,6 +126,7 @@ import { ElMessage } from 'element-plus'
 import { getTutorStudentPage } from '@/api/student'
 import { GENDER_TEXT_MAP } from '@/constants/user'
 import { LARGE_QUERY_SIZE } from '@/constants'
+import { isRequestCanceled } from '@/utils/helpers'
 
 defineOptions({ name: 'TutorStudents' })
 
@@ -218,6 +219,7 @@ async function handleQuery() {
     total.value = res.data?.data?.total || 0
   } catch (error) {
     console.error('查询学生列表失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('查询失败，请稍后重试')
     tableData.value = []
     total.value = 0

@@ -110,7 +110,7 @@ import type { UploadFile, UploadFiles } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { getMyCourseScorePage, importMyCourseScores } from '@/api/courseScore'
 import type { CourseScore, CourseScoreImportResult, CourseScorePageParams } from '@/api/courseScore'
-import { extractApiData, extractPageData } from '@/utils/helpers'
+import { extractApiData, extractPageData, isRequestCanceled } from '@/utils/helpers'
 import {
   COURSE_SCORE_SEMESTER_LABELS,
   COURSE_SCORE_SEMESTER_OPTIONS,
@@ -184,6 +184,7 @@ async function handleQuery(): Promise<void> {
     total.value = pageData?.total || 0
   } catch (error) {
     console.error('加载课程成绩失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载课程成绩失败')
   } finally {
     loading.value = false

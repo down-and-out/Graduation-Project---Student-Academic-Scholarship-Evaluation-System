@@ -454,7 +454,8 @@ import {
   APPLICATION_AUDIT_STATUS,
   APPLICATION_AUDIT_STATUS_LABELS,
   APPLICATION_AUDIT_STATUS_TYPES,
-  extractPageData
+  extractPageData,
+  isRequestCanceled
 } from '@/utils/helpers'
 import {
   ACHIEVEMENT_TYPE_OPTIONS,
@@ -926,6 +927,7 @@ async function fetchTableData(): Promise<void> {
     total.value = pageData?.total || 0
   } catch (error) {
     console.error('加载科研成果失败:', error)
+    if (isRequestCanceled(error)) return
     ElMessage.error('加载科研成果失败')
   } finally {
     loading.value = false
