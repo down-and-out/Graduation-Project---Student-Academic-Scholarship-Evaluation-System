@@ -45,6 +45,10 @@ dist-ssr/
 logs/
 *.log
 
+# Stress test generated data
+stress-test/results/
+stress-test/data/
+
 # Claude
 .claude/
 
