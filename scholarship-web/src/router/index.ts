@@ -7,6 +7,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { tokenStore, userInfoStore } from '@/utils/secureStorage'
 import type { UserInfo } from '@/utils/secureStorage'
+import { setCurrentRoute, abortStaleRequests } from '@/utils/request'
 
 // 存储前缀，与 secureStorage.ts 保持一致
 const STORAGE_PREFIX = 'scholarship_'
@@ -19,6 +20,7 @@ export interface RouteMeta {
   icon?: string
   requiresAuth?: boolean
   role?: App.UserRole
+  keepAlive?: boolean
 }
 
 /**
@@ -123,13 +125,13 @@ const routes: RouteRecordRaw[] = [
             path: 'achievements',
             name: 'StudentAchievements',
             component: () => import('@/views/student/Achievements.vue'),
-            meta: { title: '科研成果管理' }
+            meta: { title: '科研成果管理', keepAlive: true }
           },
           {
             path: 'course-scores',
             name: 'StudentCourseScores',
             component: () => import('@/views/student/CourseScores.vue'),
-            meta: { title: '课程成绩' }
+            meta: { title: '课程成绩', keepAlive: true }
           },
           {
             path: 'application',
@@ -160,13 +162,13 @@ const routes: RouteRecordRaw[] = [
             path: 'review',
             name: 'TutorReview',
             component: () => import('@/views/tutor/Review.vue'),
-            meta: { title: '科研成果审核' }
+            meta: { title: '科研成果审核', keepAlive: true }
           },
           {
             path: 'students',
             name: 'TutorStudents',
             component: () => import('@/views/tutor/Students.vue'),
-            meta: { title: '指导学生管理' }
+            meta: { title: '指导学生管理', keepAlive: true }
           }
         ]
       },
@@ -185,31 +187,31 @@ const routes: RouteRecordRaw[] = [
             path: 'users',
             name: 'AdminUsers',
             component: () => import('@/views/admin/Users.vue'),
-            meta: { title: '用户管理' }
+            meta: { title: '用户管理', keepAlive: true }
           },
           {
             path: 'students',
             name: 'AdminStudents',
             component: () => import('@/views/admin/Students.vue'),
-            meta: { title: '研究生信息管理' }
+            meta: { title: '研究生信息管理', keepAlive: true }
           },
           {
             path: 'rules',
             name: 'AdminRules',
             component: () => import('@/views/admin/Rules.vue'),
-            meta: { title: '评分规则管理' }
+            meta: { title: '评分规则管理', keepAlive: true }
           },
           {
             path: 'evaluation',
             name: 'AdminEvaluation',
             component: () => import('@/views/admin/Evaluation.vue'),
-            meta: { title: '评定管理' }
+            meta: { title: '评定管理', keepAlive: true }
           },
           {
             path: 'results',
             name: 'AdminResults',
             component: () => import('@/views/admin/Results.vue'),
-            meta: { title: '结果管理' }
+            meta: { title: '结果管理', keepAlive: true }
           },
           {
             path: 'system',
@@ -253,6 +255,12 @@ router.beforeEach((to, from, next) => {
     document.title = `${to.meta.title} - 研究生学业奖学金评定系统`
   } else {
     document.title = '研究生学业奖学金评定系统'
+  }
+
+  // 导航切换时取消上一页面的在途 GET 请求
+  setCurrentRoute(to.path)
+  if (from.path && from.path !== to.path) {
+    abortStaleRequests(from.path)
   }
 
   // 检查是否已登录（同时验证 token 和用户信息）

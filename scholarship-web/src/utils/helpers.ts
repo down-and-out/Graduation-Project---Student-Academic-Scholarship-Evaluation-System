@@ -22,19 +22,26 @@ export function generateUUID(): string {
  * 防抖函数
  * @param fn - 需要防抖的函数
  * @param delay - 延迟时间（毫秒）
- * @returns 防抖后的函数
+ * @returns 防抖后的函数（带 cancel 方法）
  */
 export function debounce<T extends (...args: any[]) => any>(
   fn: T,
   delay = 300
-): (...args: Parameters<T>) => void {
+): ((...args: Parameters<T>) => void) & { cancel: () => void } {
   let timer: ReturnType<typeof setTimeout> | null = null
-  return function (this: any, ...args: Parameters<T>) {
+  const debounced = function (this: any, ...args: Parameters<T>) {
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
       fn.apply(this, args)
     }, delay)
+  } as ((...args: Parameters<T>) => void) & { cancel: () => void }
+  debounced.cancel = () => {
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
   }
+  return debounced
 }
 
 /**
@@ -192,6 +199,27 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
+ * 批量执行异步任务，控制并发上限
+ * @param items - 输入数组
+ * @param fn - 对每个元素执行的异步函数
+ * @param concurrency - 最大并发数（默认 4）
+ * @returns 按输入顺序排列的结果数组
+ */
+export async function batchExecute<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+  concurrency = 4
+): Promise<R[]> {
+  const results: R[] = []
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency)
+    const batchResults = await Promise.all(batch.map(fn))
+    results.push(...batchResults)
+  }
+  return results
+}
+
+/**
  * 深拷贝
  * @param obj - 需要拷贝的对象
  * @returns 拷贝后的对象
@@ -260,6 +288,61 @@ export function extractPageData<T>(payload: unknown): API.PageResponse<T> | null
     return pageData
   }
   return null
+}
+
+/**
+ * 乐观更新列表中的某一项（按 id 匹配）
+ * @returns 是否找到并更新成功
+ */
+export function optimisticUpdate<T extends { id?: number }>(
+  list: T[],
+  updatedItem: T,
+  idField: keyof T = 'id'
+): boolean {
+  const idx = list.findIndex(item => item[idField] === updatedItem[idField])
+  if (idx >= 0) {
+    list[idx] = { ...list[idx], ...updatedItem }
+    return true
+  }
+  return false
+}
+
+/**
+ * 序列化查询参数对象为 URLSearchParams 字符串
+ * - 过滤 undefined / null / 空字符串
+ * - 数组值用逗号 join
+ */
+export function serializeQueryParams(params: Record<string, unknown>): string {
+  const searchParams = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') {
+      return
+    }
+    if (Array.isArray(value)) {
+      const normalized = value
+        .filter(item => item !== undefined && item !== null && item !== '')
+        .map(item => String(item))
+      if (normalized.length > 0) {
+        searchParams.append(key, normalized.join(','))
+      }
+      return
+    }
+    searchParams.append(key, String(value))
+  })
+  return searchParams.toString()
+}
+
+/**
+ * 格式化学年标签
+ * @param academicYear - 学年起始年份（如 "2024"）
+ * @returns 格式化后的学年标签（如 "2024-2025学年"）
+ */
+export function formatAcademicYearLabel(academicYear: string): string {
+  const startYear = Number(academicYear)
+  if (Number.isNaN(startYear)) {
+    return academicYear
+  }
+  return `${startYear}-${startYear + 1}学年`
 }
 
 // ============ 申请审核状态常量 ============

@@ -118,6 +118,8 @@ import {
 } from '@/constants/courseScore'
 import { LARGE_QUERY_SIZE } from '@/constants'
 
+defineOptions({ name: 'StudentCourseScores' })
+
 const loading = ref(false)
 const uploading = ref(false)
 const total = ref(0)

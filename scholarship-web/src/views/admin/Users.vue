@@ -60,6 +60,7 @@
       :data="tableData"
       border
       stripe
+      empty-text="暂无数据"
       style="width: 100%"
       @selection-change="handleSelectionChange"
     >
@@ -308,7 +309,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Plus, RefreshLeft, View } from '@element-plus/icons-vue'
 import { batchDeleteUsers, addUser, deleteUser, getUserPage, resetPassword, updateUser } from '@/api/user'
@@ -328,6 +329,8 @@ import {
 } from '@/constants/user'
 import { debounce, deepClone, isValidEmail, isValidPhone, isValidUsername } from '@/utils/helpers'
 import { LARGE_QUERY_SIZE } from '@/constants'
+
+defineOptions({ name: 'AdminUsers' })
 
 const ENROLLMENT_YEAR_RANGE = 10
 const currentYear = new Date().getFullYear()
@@ -819,6 +822,10 @@ function handleDialogClose() {
 
 onMounted(() => {
   void Promise.allSettled([loadDepartmentOptions(), loadEnrollmentYearOptions(), loadData()])
+})
+
+onUnmounted(() => {
+  debouncedQuery.cancel()
 })
 </script>
 

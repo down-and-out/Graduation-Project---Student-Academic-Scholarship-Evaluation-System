@@ -124,7 +124,7 @@
         </el-form-item>
 
         <el-form-item v-if="isEdit">
-          <el-button type="primary" @click="handleSave">保存修改</el-button>
+          <el-button type="primary" :loading="saving" @click="handleSave">保存修改</el-button>
           <el-button @click="handleCancel">取消</el-button>
         </el-form-item>
       </el-form>
@@ -139,9 +139,10 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { getMyInfo, updateMyInfo } from '@/api/student'
 import type { Student } from '@/api/student'
 import { EDUCATION_LEVEL_TEXT_MAP, GENDER_TEXT_MAP } from '@/constants/user'
-import { extractApiData, maskIdCard } from '@/utils/helpers'
+import { extractApiData, isValidIdCard, maskIdCard } from '@/utils/helpers'
 
 const isEdit = ref(false)
+const saving = ref(false)
 const formRef = ref<FormInstance | null>(null)
 const formData = reactive<Student>({
   id: 0,
@@ -168,7 +169,19 @@ const rules: FormRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   phone: [{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }],
   email: [{ type: 'email' as const, message: '请输入正确的邮箱地址', trigger: 'blur' }],
-  idCard: [{ pattern: /(^\d{15}$)|(^\d{18}$)|(^\d{17}(\d|X|x)$)/, message: '请输入正确的身份证号', trigger: 'blur' }],
+  idCard: [
+    {
+      validator: (_rule, value, callback) => {
+        if (!value) { callback(); return }
+        if (!isValidIdCard(value as string)) {
+          callback(new Error('请输入正确的身份证号'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ],
   nativePlace: [{ required: true, message: '请输入籍贯', trigger: 'blur' }],
   address: [{ required: true, message: '请输入家庭住址', trigger: 'blur' }]
 }
@@ -199,6 +212,7 @@ async function handleSave(): Promise<void> {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
+  saving.value = true
   try {
     await updateMyInfo({
       phone: formData.phone,
@@ -214,6 +228,8 @@ async function handleSave(): Promise<void> {
   } catch (error) {
     console.error('保存失败:', error)
     ElMessage.error('保存失败')
+  } finally {
+    saving.value = false
   }
 }
 

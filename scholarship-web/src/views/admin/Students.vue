@@ -44,6 +44,7 @@
       :data="tableData"
       border
       stripe
+      empty-text="暂无数据"
       style="width: 100%"
     >
       <el-table-column type="selection" width="55" />
@@ -73,7 +74,7 @@
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-          <el-button link type="danger" :loading="deleteLoading" @click="handleDelete(row)">删除</el-button>
+          <el-button link type="danger" :loading="deletingIds.has(row.id)" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -160,17 +161,18 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">确定</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getStudentPage, updateStudent, deleteStudent } from '@/api/student'
 import { getDepartments } from '@/api/basicData'
+import { debounce } from '@/utils/helpers'
 import {
   EDUCATION_LEVEL,
   EDUCATION_LEVEL_OPTIONS,
@@ -183,6 +185,8 @@ import {
   STUDENT_STATUS_TEXT_MAP
 } from '@/constants/user'
 
+defineOptions({ name: 'AdminStudents' })
+
 const CURRENT_YEAR = new Date().getFullYear()
 
 // 院系选项
@@ -190,11 +194,12 @@ const departmentOptions = ref([])
 
 // 状态
 const loading = ref(false)
-const deleteLoading = ref(false)
+const deletingIds = ref(new Set())
 const tableData = ref([])
 const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
+const submitting = ref(false)
 const formRef = ref(null)
 
 // 查询参数（使用 'all' 作为"全部"选项的值，避免 Element Plus 空字符串 bug）
@@ -300,13 +305,9 @@ async function loadDepartmentOptions() {
 }
 
 // 防抖查询
-let debounceTimer = null
-function debouncedQuery() {
-  if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => {
-    handleQuery()
-  }, 300)
-}
+const debouncedQuery = debounce(() => {
+  handleQuery()
+}, 300)
 
 // 监听关键字变化
 watch(
@@ -368,7 +369,7 @@ async function handleDelete(row) {
         confirmButtonClass: 'el-button--danger'
       }
     )
-    deleteLoading.value = true
+    deletingIds.value.add(row.id)
     await deleteStudent(row.id)
     ElMessage.success('删除成功')
     handleQuery()
@@ -377,7 +378,7 @@ async function handleDelete(row) {
       ElMessage.error(error.message || '删除失败')
     }
   } finally {
-    deleteLoading.value = false
+    deletingIds.value.delete(row.id)
   }
 }
 
@@ -388,6 +389,7 @@ async function handleSubmit() {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
+  submitting.value = true
   try {
     // 添加功能已禁用，只允许编辑
     if (isEdit.value) {
@@ -398,6 +400,8 @@ async function handleSubmit() {
     }
   } catch (error) {
     ElMessage.error(error.message || '提交失败')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -411,6 +415,10 @@ function handleDialogClose() {
 // 生命周期
 onMounted(() => {
   void Promise.allSettled([loadDepartmentOptions(), handleQuery()])
+})
+
+onUnmounted(() => {
+  debouncedQuery.cancel()
 })
 </script>
 

@@ -109,7 +109,9 @@
       <el-main class="app-main">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <keep-alive :include="cachedViewNames">
+              <component :is="Component" :key="$route.path" />
+            </keep-alive>
           </transition>
         </router-view>
       </el-main>
@@ -170,6 +172,16 @@ const isTutor = computed(() => userType.value === 2)
  * 是否为管理员角色
  */
 const isAdmin = computed(() => userType.value === 3)
+
+/**
+ * 需要 keep-alive 缓存的路由组件名称列表
+ * 从路由配置中收集所有 meta.keepAlive 为 true 的路由 name
+ */
+const cachedViewNames = computed(() => {
+  return router.getRoutes()
+    .filter(r => r.meta.keepAlive && r.name)
+    .map(r => r.name as string)
+})
 
 /**
  * 切换侧边栏折叠状态

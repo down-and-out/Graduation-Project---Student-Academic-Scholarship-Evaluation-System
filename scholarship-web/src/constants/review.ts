@@ -41,3 +41,15 @@ export function toSubmitReviewStatus(status?: number | null): number {
   }
   return status ?? REVIEW_SUBMIT_STATUS.PENDING
 }
+
+export type ReviewDisplayStatus = typeof REVIEW_DISPLAY_STATUS[keyof typeof REVIEW_DISPLAY_STATUS]
+
+/** 评定任务异步执行状态 */
+export const EVALUATION_TASK_STATUS = {
+  PENDING: 0,
+  RUNNING: 1,
+  SUCCESS: 2,
+  FAILED: 3
+} as const
+
+export type EvaluationTaskStatus = typeof EVALUATION_TASK_STATUS[keyof typeof EVALUATION_TASK_STATUS]

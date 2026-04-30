@@ -24,7 +24,7 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
+    <el-table v-loading="loading" :data="tableData" border stripe empty-text="暂无数据" style="width: 100%">
       <el-table-column type="index" label="序号" width="60" />
       <el-table-column prop="studentNo" label="学号" width="120" />
       <el-table-column prop="name" label="姓名" width="100" />
@@ -122,9 +122,13 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { getTutorStudentPage } from '@/api/student'
 import { GENDER_TEXT_MAP } from '@/constants/user'
 import { LARGE_QUERY_SIZE } from '@/constants'
+
+defineOptions({ name: 'TutorStudents' })
+
 const GRADE_FALLBACK_COUNT = 10
 
 const loading = ref(false)
@@ -212,6 +216,11 @@ async function handleQuery() {
     })
     tableData.value = res.data?.data?.records || []
     total.value = res.data?.data?.total || 0
+  } catch (error) {
+    console.error('查询学生列表失败:', error)
+    ElMessage.error('查询失败，请稍后重试')
+    tableData.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
