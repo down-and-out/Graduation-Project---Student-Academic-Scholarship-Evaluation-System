@@ -14,7 +14,9 @@
 - `mysql`
 - `jmeter`
 - `curl`
-- `python3`
+- `bash`
+- `java`（JDK 17+）
+- `python3`（可选，缺失时报告会降级）
 - `redis-cli`（可选，但建议有）
 
 在 PowerShell 里可以这样检查：
@@ -22,11 +24,45 @@
 ```powershell
 mysql --version
 jmeter --version
+bash --version
+java -version
 python3 --version
 redis-cli --version
 ```
 
 如果 `jmeter` 没配到环境变量，也可以后面改用它的绝对路径。
+
+建议环境变量准备方式：
+
+```powershell
+$env:BASE_URL="http://localhost:8080/api"
+$env:JMETER_BIN="D:\learning\apache-jmeter-5.6.3\bin\jmeter.bat"
+# 如果数据库或 Redis 需要密码，再补这些
+# $env:MYSQL_PASSWORD="your_mysql_password"
+# $env:REDIS_PASSWORD="your_redis_password"
+```
+
+### 启动后端（推荐使用压测专用 profile）
+
+压测时建议使用 `stress` profile 启动后端，它会自动关闭限流、放宽登录限制、扩大线程池：
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE="stress"
+cd scholarship-admin
+mvn spring-boot:run
+```
+
+如果不需要 stress profile（保持 dev 默认配置），正常启动即可：
+
+```powershell
+cd scholarship-admin
+mvn spring-boot:run
+```
+
+> **说明**：`application-stress.yml` 继承 `application-dev.yml`，仅覆盖压测相关配置：
+> - `rate-limit.enabled: false` — 关闭接口限流
+> - `security.login.max-attempts: 99999` — 放宽登录锁定阈值
+> - 线程池（evaluation/export/batch-import）适度扩大
 
 ## 1. 进入项目目录
 
@@ -74,12 +110,16 @@ Get-ChildItem stress-test\data\tokens-student.csv
 bash stress-test/scripts/preflight-check.sh
 ```
 
-如果这一步失败，先不要继续跑压测，先修复：
+preflight-check 使用三级体系（**CRITICAL** / **WARN** / **PASS**）：
 
-- token 文件缺失
-- Actuator 指标不可访问
-- Druid 不可访问
-- `PT-*` 批次不存在
+- **CRITICAL**（阻断执行）：JMeter 不存在、Token CSV 为空、Token CSV 文件缺失
+- **WARN**（仅提示，不阻断）：`/actuator/health` 不可达、个别 metric 不可用、Druid 不可达、批次解析失败
+- 只有 CRITICAL 级别的问题才会阻止后续压测
+
+如果这一步报告 CRITICAL 问题，先修复后再跑压测：
+
+- token 文件缺失 → 重新执行步骤 3、4
+- JMeter 命令不可用 → 检查环境变量或使用绝对路径
 
 ## 6. 执行完整压测
 
@@ -97,8 +137,27 @@ stress-test\results\<时间戳>\
 
 - `summary-report.md`
 - `summary-report.json`
-- `slow-sql.json`
+- `slow-sql.json`（统合报告）
+- `slow-sql_phase*.json`（每个 Phase 独立采集）
 - `monitor_*.csv`
+- `manifest.csv`
+
+> **Phase 6/7 说明**：Phase 6（混合流量）失败不会阻断 Phase 7（稳定性测试），两者均可独立执行。
+> JMeter 默认堆内存已设为 `-Xms512m -Xmx2g`，避免高并发时 JVM segfault。
+
+如果你只想跑某几个阶段，可以在 PowerShell 里先设置环境变量：
+
+```powershell
+$env:ONLY_PHASES="phase5_result_export"
+bash stress-test/scripts/run-benchmark.sh
+```
+
+如果你想跳过高风险阶段，例如混合流量：
+
+```powershell
+$env:SKIP_PHASES="phase6_mixed_workload,phase7_stability_mixed"
+bash stress-test/scripts/run-benchmark.sh
+```
 
 ## 7. 打开结果目录
 
@@ -243,10 +302,26 @@ C:\tools\apache-jmeter-5.6.3\bin\jmeter.bat --version
 
 优先检查：
 
-- 后端服务是否已启动
-- `/actuator/health` 是否可访问
-- `/druid/datasource.json` 是否可访问
-- token 文件是否真的生成成功
+- CRITICAL 级别问题（阻止执行）：JMeter 不存在、Token CSV 为空
+- WARN 级别问题（不阻止执行）：`/actuator/health` 不可达、Druid 不可达、批次不存在
+- 如果用 stress profile 启动后端，`/actuator/health` 已放行匿名访问，无需 Token
+
+### 登录限流问题
+
+如果 Token 生成过程中遇到 429 限流：
+
+```powershell
+# 方案 A：使用 stress profile 重启后端（推荐，一劳永逸）
+$env:SPRING_PROFILES_ACTIVE="stress"
+cd scholarship-admin
+mvn spring-boot:run
+
+# 方案 B：手动设置环境变量（dev profile）
+$env:RATE_LIMIT_ENABLED="false"
+$env:LOGIN_MAX_ATTEMPTS="99999"
+$env:LOGIN_IP_MAX_ATTEMPTS="99999"
+bash stress-test/scripts/cleanup-redis.sh
+```
 
 ### 不知道 `PT-*` 批次真实 ID
 
@@ -261,7 +336,7 @@ bash stress-test/scripts/resolve-batch-ids.sh
 压测结束后优先看：
 
 1. `summary-report.md`
-2. `slow-sql.json`
+2. `slow-sql.json`（统合）以及各 Phase 独立报告 `slow-sql_phase*.json`
 3. `monitor_*.csv`
 
 如果 `summary-report.md` 里出现：

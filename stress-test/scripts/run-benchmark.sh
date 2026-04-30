@@ -4,17 +4,25 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+STRESS_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BASE_URL="${BASE_URL:-http://localhost:8080/api}"
 JMETER_BIN="${JMETER_BIN:-jmeter}"
-ADMIN_TOKEN_CSV="${ADMIN_TOKEN_CSV:-${SCRIPT_DIR}/../data/tokens-admin.csv}"
-STUDENT_TOKEN_CSV="${STUDENT_TOKEN_CSV:-${SCRIPT_DIR}/../data/tokens-student.csv}"
-JMETER_DIR="${SCRIPT_DIR}/../jmeter"
-RESULT_DIR="${SCRIPT_DIR}/../results/$(date +%Y%m%d_%H%M%S)"
+# JMeter JVM heap: prevent segfault under high concurrency (Phase 6/7 mixed workload)
+export JVM_ARGS="${JVM_ARGS:--Xms512m -Xmx2g}"
+ADMIN_TOKEN_CSV="${ADMIN_TOKEN_CSV:-${STRESS_ROOT}/data/tokens-admin.csv}"
+STUDENT_TOKEN_CSV="${STUDENT_TOKEN_CSV:-${STRESS_ROOT}/data/tokens-student.csv}"
+JMETER_DIR="${STRESS_ROOT}/jmeter"
+RESULT_ROOT="${STRESS_ROOT}/results"
+RESULT_DIR="${RESULT_ROOT}/$(date +%Y%m%d_%H%M%S)"
 LOG_DIR="${RESULT_DIR}/logs"
+MANIFEST_FILE="${RESULT_DIR}/manifest.csv"
+ONLY_PHASES="${ONLY_PHASES:-}"
+SKIP_PHASES="${SKIP_PHASES:-}"
 
 mkdir -p "$RESULT_DIR" "$LOG_DIR"
+echo "phase,start_time,end_time,status,exit_code,jmx,jtl,monitor_csv" > "$MANIFEST_FILE"
 
-source <(bash "${SCRIPT_DIR}/resolve-batch-ids.sh")
+source <(bash "${SCRIPT_DIR}/resolve-batch-ids.sh" --format=env)
 bash "${SCRIPT_DIR}/preflight-check.sh"
 
 ADMIN_TOKEN=$(tail -n +2 "$ADMIN_TOKEN_CSV" | head -n 1 | cut -d',' -f1)
@@ -30,6 +38,15 @@ CONFLICT_TOKEN_CSV="${RESULT_DIR}/tokens-student-conflict.csv"
 } > "$CONFLICT_TOKEN_CSV"
 
 MONITOR_PID=""
+CURRENT_PHASE=""
+CURRENT_MONITOR_CSV=""
+
+cleanup() {
+    stop_monitor
+}
+
+trap cleanup EXIT
+trap 'echo "Interrupted."; exit 130' INT TERM
 
 start_monitor() {
     local phase_name="$1"
@@ -49,14 +66,48 @@ stop_monitor() {
     MONITOR_PID=""
 }
 
-run_jmeter() {
+should_run_phase() {
     local phase="$1"
-    local jmx_file="$2"
-    local token_csv="$3"
-    shift 3
 
-    local jtl_file="${RESULT_DIR}/${phase}_$(basename "$jmx_file" .jmx).jtl"
-    local log_file="${LOG_DIR}/${phase}_$(basename "$jmx_file" .jmx).log"
+    if [ -n "$ONLY_PHASES" ]; then
+        case ",${ONLY_PHASES}," in
+            *,"${phase}",*) ;;
+            *)
+                return 1
+                ;;
+        esac
+    fi
+
+    if [ -n "$SKIP_PHASES" ]; then
+        case ",${SKIP_PHASES}," in
+            *,"${phase}",*)
+                return 1
+                ;;
+        esac
+    fi
+
+    return 0
+}
+
+append_manifest() {
+    local phase="$1"
+    local start_time="$2"
+    local end_time="$3"
+    local status="$4"
+    local exit_code="$5"
+    local jmx_file="$6"
+    local jtl_file="$7"
+    local monitor_csv="$8"
+    printf '%s,%s,%s,%s,%s,%s,%s,%s\n' \
+        "$phase" "$start_time" "$end_time" "$status" "$exit_code" "$jmx_file" "$jtl_file" "$monitor_csv" >> "$MANIFEST_FILE"
+}
+
+run_jmeter() {
+    local jmx_file="$1"
+    local token_csv="$2"
+    local jtl_file="$3"
+    local log_file="$4"
+    shift 4
 
     echo ">>> run ${jmx_file} -> ${jtl_file}"
     "$JMETER_BIN" -n \
@@ -76,10 +127,45 @@ run_jmeter() {
 
 run_phase() {
     local phase="$1"
-    shift
+    local jmx_file="$2"
+    local token_csv="$3"
+    shift 3
+
+    local start_time end_time exit_code
+    local jtl_file="${RESULT_DIR}/${phase}_$(basename "$jmx_file" .jmx).jtl"
+    local log_file="${LOG_DIR}/${phase}_$(basename "$jmx_file" .jmx).log"
+    local monitor_csv="${RESULT_DIR}/monitor_${phase}.csv"
+
+    if ! should_run_phase "$phase"; then
+        echo ">>> skip ${phase}"
+        append_manifest "$phase" "$(date +%Y-%m-%dT%H:%M:%S)" "$(date +%Y-%m-%dT%H:%M:%S)" "SKIPPED" "0" "$jmx_file" "$jtl_file" "$monitor_csv"
+        return 0
+    fi
+
+    CURRENT_PHASE="$phase"
+    CURRENT_MONITOR_CSV="$monitor_csv"
+    start_time="$(date +%Y-%m-%dT%H:%M:%S)"
     start_monitor "$phase"
-    "$@"
-    stop_monitor
+
+    if run_jmeter "$jmx_file" "$token_csv" "$jtl_file" "$log_file" "$@"; then
+        exit_code=0
+        stop_monitor
+        end_time="$(date +%Y-%m-%dT%H:%M:%S)"
+        append_manifest "$phase" "$start_time" "$end_time" "SUCCESS" "$exit_code" "$jmx_file" "$jtl_file" "$monitor_csv"
+        bash "${SCRIPT_DIR}/slow-sql-monitor.sh" "${RESULT_DIR}/slow-sql_${phase}.json" > "${LOG_DIR}/slow-sql_${phase}.log" 2>&1 || true
+        CURRENT_PHASE=""
+        CURRENT_MONITOR_CSV=""
+        return 0
+    else
+        exit_code=$?
+        stop_monitor
+        end_time="$(date +%Y-%m-%dT%H:%M:%S)"
+        append_manifest "$phase" "$start_time" "$end_time" "FAILED" "$exit_code" "$jmx_file" "$jtl_file" "$monitor_csv"
+        bash "${SCRIPT_DIR}/slow-sql-monitor.sh" "${RESULT_DIR}/slow-sql_${phase}.json" > "${LOG_DIR}/slow-sql_${phase}.log" 2>&1 || true
+        CURRENT_PHASE=""
+        CURRENT_MONITOR_CSV=""
+        return "$exit_code"
+    fi
 }
 
 echo "======================================"
@@ -94,32 +180,36 @@ echo "PT-QUERY:     $BATCH_QUERY"
 echo "======================================"
 
 run_phase "phase1_submit_normal" \
-    run_jmeter "phase1_submit_normal" "application-submit-normal.jmx" "$STUDENT_TOKEN_CSV"
+    "application-submit-normal.jmx" "$STUDENT_TOKEN_CSV"
 
 run_phase "phase2_submit_conflict" \
-    run_jmeter "phase2_submit_conflict" "application-submit-conflict.jmx" "$CONFLICT_TOKEN_CSV"
+    "application-submit-conflict.jmx" "$CONFLICT_TOKEN_CSV"
 
 run_phase "phase3_evaluate" \
-    run_jmeter "phase3_evaluate" "evaluation-execute.jmx" "$ADMIN_TOKEN_CSV"
+    "evaluation-execute.jmx" "$ADMIN_TOKEN_CSV"
 
 run_phase "phase4_result_page" \
-    run_jmeter "phase4_result_page" "result-page.jmx" "$ADMIN_TOKEN_CSV"
+    "result-page.jmx" "$ADMIN_TOKEN_CSV"
 
 run_phase "phase5_result_export" \
-    run_jmeter "phase5_result_export" "result-export.jmx" "$ADMIN_TOKEN_CSV"
+    "result-export.jmx" "$ADMIN_TOKEN_CSV"
 
 run_phase "phase6_mixed_workload" \
-    run_jmeter "phase6_mixed_workload" "mixed-workload.jmx" "$ADMIN_TOKEN_CSV" -Jstudent_token_csv="$STUDENT_TOKEN_CSV"
+    "mixed-workload.jmx" "$ADMIN_TOKEN_CSV" -Jstudent_token_csv="$STUDENT_TOKEN_CSV" || true
 
 run_phase "phase7_stability_mixed" \
-    run_jmeter "phase7_stability_mixed" "mixed-workload.jmx" "$ADMIN_TOKEN_CSV" \
+    "mixed-workload.jmx" "$ADMIN_TOKEN_CSV" \
         -Jstudent_token_csv="$STUDENT_TOKEN_CSV" -Jrun_seconds=1800 -Jpage_threads=30 -Jsubmit_threads=8 -Jevaluate_threads=2 -Jexport_threads=2
 
+# Merge per-phase slow SQL files into a unified report
+echo ">>> merging per-phase slow SQL reports..."
 bash "${SCRIPT_DIR}/slow-sql-monitor.sh" "${RESULT_DIR}/slow-sql.json" > "${LOG_DIR}/slow-sql.log" 2>&1 || true
+
 bash "${SCRIPT_DIR}/analyze-results.sh" "${RESULT_DIR}" > "${LOG_DIR}/analyze-results.log" 2>&1 || true
 
 echo "Completed. Results: $RESULT_DIR"
 echo "Summary report: ${RESULT_DIR}/summary-report.md"
+echo "Manifest: ${MANIFEST_FILE}"
 echo ""
 echo "Suggested cleanup steps:"
 echo "  mysql -u root -p < stress-test/scripts/cleanup-data.sql"

@@ -3,6 +3,14 @@
 
 set -euo pipefail
 
+FORMAT="shell"
+if [ "${1:-}" = "--format=env" ]; then
+    FORMAT="env"
+elif [ -n "${1:-}" ]; then
+    echo "Unsupported argument: $1" >&2
+    exit 1
+fi
+
 MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
 MYSQL_USER="${MYSQL_USER:-root}"
@@ -35,14 +43,15 @@ while IFS=$'\t' read -r batch_code batch_id; do
 done <<< "$query_result"
 
 if [ -z "$batch_small" ] || [ -z "$batch_medium" ] || [ -z "$batch_large" ] || [ -z "$batch_query" ]; then
-    echo "echo 'Missing PT batch ids in evaluation_batch' >&2"
-    echo "return 1 2>/dev/null || exit 1"
-    exit 0
+    echo "Missing PT batch ids in evaluation_batch" >&2
+    exit 1
 fi
 
+if [ "$FORMAT" = "shell" ] || [ "$FORMAT" = "env" ]; then
 cat <<EOF
 BATCH_SMALL=${batch_small}
 BATCH_MEDIUM=${batch_medium}
 BATCH_LARGE=${batch_large}
 BATCH_QUERY=${batch_query}
 EOF
+fi

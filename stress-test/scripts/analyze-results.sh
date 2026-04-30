@@ -18,6 +18,83 @@ fi
 REPORT_MD="${RESULT_DIR}/summary-report.md"
 REPORT_JSON="${RESULT_DIR}/summary-report.json"
 
+write_shell_fallback_report() {
+    local result_dir="$1"
+    local report_md="$2"
+    local report_json="$3"
+    local tmp_md
+    tmp_md="$(mktemp)"
+
+    {
+        echo "# Stress Test Summary"
+        echo ""
+        echo "- Result dir: \`${result_dir}\`"
+        echo "- Report mode: shell-fallback"
+        echo ""
+        echo "## JTL Summary"
+        echo ""
+        echo "| File | Samples | Error % | 429 % |"
+        echo "|------|---------|---------|-------|"
+    } > "$tmp_md"
+
+    printf '{\n  "result_dir": "%s",\n  "report_mode": "shell-fallback",\n  "jtl": [\n' "$result_dir" > "$report_json"
+
+    local first_json=1
+    local found_jtl=0
+    local jtl
+    for jtl in "$result_dir"/*.jtl; do
+        if [ ! -f "$jtl" ]; then
+            continue
+        fi
+        found_jtl=1
+        local file_name total samples errors error_pct code_429 rate_429
+        file_name="$(basename "$jtl")"
+        total=$(tail -n +2 "$jtl" 2>/dev/null | wc -l | tr -d ' ')
+        samples="${total:-0}"
+        errors=$(awk -F',' 'NR > 1 && tolower($8) != "true" { count++ } END { print count + 0 }' "$jtl")
+        code_429=$(awk -F',' 'NR > 1 && $4 == "429" { count++ } END { print count + 0 }' "$jtl")
+        if [ "${samples}" -gt 0 ]; then
+            error_pct=$(awk -v e="$errors" -v t="$samples" 'BEGIN { printf "%.2f", (e * 100) / t }')
+            rate_429=$(awk -v c="$code_429" -v t="$samples" 'BEGIN { printf "%.2f", (c * 100) / t }')
+        else
+            error_pct="0.00"
+            rate_429="0.00"
+        fi
+
+        printf '| %s | %s | %s | %s |\n' "$file_name" "$samples" "$error_pct" "$rate_429" >> "$tmp_md"
+
+        if [ "$first_json" -eq 0 ]; then
+            printf ',\n' >> "$report_json"
+        fi
+        first_json=0
+        printf '    {"file":"%s","samples":%s,"error_rate_pct":%s,"http_429_rate_pct":%s}' \
+            "$file_name" "$samples" "$error_pct" "$rate_429" >> "$report_json"
+    done
+
+    if [ "$found_jtl" -eq 0 ]; then
+        echo "| No JTL files found | 0 | 0.00 | 0.00 |" >> "$tmp_md"
+    fi
+
+    {
+        echo ""
+        echo "## Notes"
+        echo ""
+        echo "- Python3 not available, generated a reduced shell-based summary."
+        echo "- Detailed percentiles and monitor aggregation are omitted in fallback mode."
+        echo ""
+    } >> "$tmp_md"
+
+    printf '\n  ],\n  "monitor": [],\n  "slow_sql_top10": [],\n  "findings": ["Python3 not available, generated a reduced shell-based summary."]\n}\n' >> "$report_json"
+    mv "$tmp_md" "$report_md"
+    echo "Generated summary: $report_md"
+    echo "Generated json: $report_json"
+}
+
+if ! command -v python3 >/dev/null 2>&1; then
+    write_shell_fallback_report "$RESULT_DIR" "$REPORT_MD" "$REPORT_JSON"
+    exit 0
+fi
+
 python3 - "$RESULT_DIR" "$REPORT_MD" "$REPORT_JSON" <<'PY'
 import csv
 import glob
@@ -45,6 +122,8 @@ def percentile(values, pct):
 
 def parse_number(value, default=0.0):
     try:
+        if value in (None, "", "NA", "N/A"):
+            return default
         return float(value)
     except Exception:
         return default

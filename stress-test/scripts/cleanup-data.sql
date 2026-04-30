@@ -129,6 +129,19 @@ WHERE id IN (SELECT id FROM tmp_stress_user_ids)
    OR username LIKE 'pt_test_%';
 
 -- ========================================
+-- 2.5 清理压测操作日志与通知
+-- ========================================
+
+-- 系统操作日志：按 operator_id（FK → sys_user.id）
+DELETE FROM sys_operation_log
+WHERE operator_id IN (SELECT id FROM tmp_stress_user_ids);
+
+-- 系统通知：按 sender_id / receiver_id
+DELETE FROM sys_notification
+WHERE sender_id IN (SELECT id FROM tmp_stress_user_ids)
+   OR receiver_id IN (SELECT id FROM tmp_stress_user_ids);
+
+-- ========================================
 -- 3. 清理压测批次
 -- ========================================
 
@@ -171,7 +184,26 @@ UNION ALL
 
 SELECT 'remaining_pt_results' AS metric, COUNT(*) AS cnt
 FROM evaluation_result
-WHERE student_no LIKE 'PT-%';
+WHERE student_no LIKE 'PT-%'
+
+UNION ALL
+
+SELECT 'remaining_pt_operation_logs' AS metric, COUNT(*) AS cnt
+FROM sys_operation_log
+WHERE operator_id IN (
+    SELECT id FROM sys_user WHERE username LIKE 'pt_test_%'
+)
+
+UNION ALL
+
+SELECT 'remaining_pt_notifications' AS metric, COUNT(*) AS cnt
+FROM sys_notification
+WHERE sender_id IN (
+    SELECT id FROM sys_user WHERE username LIKE 'pt_test_%'
+)
+   OR receiver_id IN (
+    SELECT id FROM sys_user WHERE username LIKE 'pt_test_%'
+);
 
 -- ========================================
 -- 5. 清理临时表

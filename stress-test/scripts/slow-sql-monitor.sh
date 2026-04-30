@@ -5,10 +5,28 @@
 # 使用方式：bash slow-sql-monitor.sh [输出文件]
 # ========================================
 
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+STRESS_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 BASE_URL="${BASE_URL:-http://localhost:8080/api}"
-OUTPUT_FILE="${1:-../results/slow-sql-$(date +%Y%m%d_%H%M%S).json}"
+OUTPUT_FILE="${1:-${STRESS_ROOT}/results/slow-sql-$(date +%Y%m%d_%H%M%S).json}"
 DRUID_AUTH="admin:admin"
 
+resolve_path() {
+    local path="$1"
+    case "$path" in
+        [A-Za-z]:/*|[A-Za-z]:\\*|/*|\\\\*)
+            printf '%s\n' "$path"
+            ;;
+        *)
+            printf '%s/%s\n' "$(pwd)" "$path"
+            ;;
+    esac
+}
+
+OUTPUT_FILE="$(resolve_path "$OUTPUT_FILE")"
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 
 echo ">>> 从 Druid /druid/sql.json 导出慢 SQL 统计..."

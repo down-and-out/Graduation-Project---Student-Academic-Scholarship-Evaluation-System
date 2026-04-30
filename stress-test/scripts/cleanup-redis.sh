@@ -25,15 +25,25 @@ if ! command -v redis-cli >/dev/null 2>&1; then
     exit 1
 fi
 
+# Lua script: server-side SCAN + batch DEL to work around
+# redis-cli --scan returning empty results in some environments
+read -r -d '' SCAN_DEL_LUA << 'LUA_EOF'
+local cursor = "0"
+local total = 0
+repeat
+    local result = redis.call("SCAN", cursor, "MATCH", KEYS[1], "COUNT", 1000)
+    cursor = result[1]
+    local keys = result[2]
+    if #keys > 0 then
+        total = total + redis.call("DEL", unpack(keys))
+    end
+until cursor == "0"
+return total
+LUA_EOF
+
 scan_delete() {
     local pattern="$1"
-    local count=0
-    while IFS= read -r key; do
-        [ -z "$key" ] && continue
-        redis-cli "${REDIS_ARGS[@]}" DEL "$key" >/dev/null
-        count=$((count + 1))
-    done < <(redis-cli "${REDIS_ARGS[@]}" --scan --pattern "$pattern")
-    echo "$count"
+    redis-cli "${REDIS_ARGS[@]}" EVAL "$SCAN_DEL_LUA" 1 "$pattern"
 }
 
 echo "======================================"
@@ -54,12 +64,23 @@ declare -a PATTERNS=(
     "lock:evaluation:task:create:*"
     "lock:evaluation:task:execute:*"
     "lock:evaluation:batch:*"
-    "scholarship:app:*"
-    "scholarship:eval:*"
-    "scholarship:batch:*"
-    "scholarship:rule:*"
-    "scholarship:sys-setting:*"
     "token:blacklist:*"
+    # Spring Cache 实际 key 前缀（替代之前错误的 scholarship:* 前缀）
+    "app:detail::*"
+    "app:achievements::*"
+    "app:page::*"
+    "eval:student::*"
+    "eval:page::*"
+    "eval:admin::*"
+    "eval:rank::*"
+    "batch:available::*"
+    "batch:detail::*"
+    "rule:available::*"
+    "rule:detail::*"
+    "sys:settings::*"
+    "sys:settings:active::*"
+    "sys:settings:all::*"
+    "task:detail::*"
 )
 
 total_deleted=0

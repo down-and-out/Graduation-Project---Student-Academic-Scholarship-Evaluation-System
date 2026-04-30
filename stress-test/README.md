@@ -50,9 +50,15 @@ stress-test/
 - 后端服务已启动，默认地址为 `http://localhost:8080/api`
 - MySQL 中已导入测试数据，且存在 `PT-SMALL`、`PT-MEDIUM`、`PT-LARGE`、`PT-QUERY`
 - JMeter 已安装，且 `jmeter` 命令可执行
-- `mysql`、`curl` 可执行
-- `python3` 可执行，用于生成结果汇总报告
-- 如需 Redis RTT 指标，建议本机可执行 `redis-cli`
+- `mysql`、`curl`、`bash` 可执行
+- `python3` 可选。
+  没有 `python3` 时，`analyze-results.sh` 会自动退化为 shell 简版报告，仍会生成 `summary-report.md` 和 `summary-report.json`
+- `jq` 可选。
+  有 `jq` 时，token 脚本优先用它解析登录返回 JSON
+- `redis-cli` 可选。
+  没有 `redis-cli` 时，监控脚本会把 `redis_rtt_ms` 记为 `NA`
+- `jps`、`ps` 可选。
+  缺失时 `monitor.sh` 会把 `cpu_pct`、`mem_pct` 记为 `NA`
 
 ## 第一步：准备测试数据
 
@@ -86,6 +92,8 @@ bash stress-test/scripts/generate-student-tokens.sh
 
 - [tokens-admin.csv](/D:/learning/bishe_project/stress-test/data/tokens-admin.csv)
 - [tokens-student.csv](/D:/learning/bishe_project/stress-test/data/tokens-student.csv)
+- [tokens-admin-failures.csv](/D:/learning/bishe_project/stress-test/data/tokens-admin-failures.csv)
+- [tokens-student-failures.csv](/D:/learning/bishe_project/stress-test/data/tokens-student-failures.csv)
 
 说明：
 
@@ -93,6 +101,8 @@ bash stress-test/scripts/generate-student-tokens.sh
 - `application-submit-conflict.jmx` 使用学生 token
 - `evaluation-execute.jmx`、`result-page.jmx`、`result-export.jmx` 使用管理员 token
 - 冲突提交场景会在运行时自动抽取单学生 token，专门测试同一学生重复提交
+- token 脚本现在默认基于脚本目录解析输出路径，不再依赖当前执行目录
+- 如果登录失败，会把失败详情写入 `*-failures.csv`，便于区分 `401`、`429` 和响应结构异常
 
 ## 第三步：运行前校验
 
@@ -106,10 +116,12 @@ bash stress-test/scripts/preflight-check.sh
 
 - 管理员和学生 token 文件是否存在且不为空
 - `jmeter` 是否可执行
+- `curl` 是否可执行
 - `/actuator/health` 是否可访问
 - `/druid/datasource.json` 是否可访问
 - 关键 Actuator 指标是否存在
 - `PT-*` 批次 ID 是否能从数据库解析出来
+- 检查结果会按 `PASS/FAIL` 汇总输出，而不是遇到第一项失败就中断
 
 ## 第四步：自动解析批次 ID
 
@@ -140,6 +152,17 @@ bash stress-test/scripts/run-benchmark.sh
 
 ```text
 stress-test/results/<YYYYMMDD_HHMMSS>/
+```
+
+脚本额外行为：
+
+- 自动生成 `manifest.csv`，记录每个 phase 的开始时间、结束时间、状态、退出码和对应结果文件
+- 通过 `trap` 自动清理后台 `monitor.sh` 进程，减少 phase 失败后的遗留监控进程
+- 支持通过环境变量筛选场景：
+
+```bash
+ONLY_PHASES=phase5_result_export bash stress-test/scripts/run-benchmark.sh
+SKIP_PHASES=phase6_mixed_workload,phase7_stability_mixed bash stress-test/scripts/run-benchmark.sh
 ```
 
 ## 当前场景编排
@@ -272,6 +295,7 @@ jmeter -n -t stress-test/jmeter/mixed-workload.jmx \
 - `monitor_<phase>.csv`
 - `<phase>_<scenario>.jtl`
 - `logs/*.log`
+- `manifest.csv`
 - `slow-sql.json`
 - `summary-report.md`
 - `summary-report.json`
@@ -300,6 +324,12 @@ bash stress-test/scripts/analyze-results.sh stress-test/results/<timestamp>
 
 - `summary-report.md`
 - `summary-report.json`
+
+补充说明：
+
+- 有 `python3` 时，生成完整版汇总，包含 `RPS / Avg / P50 / P95 / P99 / Max`
+- 没有 `python3` 时，自动退化为 shell 简版汇总，至少保留 `Samples / Error% / 429%`
+- `monitor.sh` 中的 `NA` 值会被分析脚本安全忽略，不会导致报告生成失败
 
 ## 结果解读建议
 
@@ -363,6 +393,7 @@ bash stress-test/scripts/analyze-results.sh stress-test/results/<timestamp>
 - `prepare-data.sql` 是否已经执行
 - `pt_test_0000` 等学生账号是否真的存在
 - 登录限流是否触发
+- 查看 `stress-test/data/*-failures.csv` 中记录的 `http_code` 和返回体
 
 ### 3. 批次 ID 解析失败
 
@@ -381,6 +412,16 @@ bash stress-test/scripts/analyze-results.sh stress-test/results/<timestamp>
 - 整体错误率
 
 一起判断。
+
+### 5. `summary-report.md` 只有简版字段
+
+这说明当前机器上没有可用的 `python3`，脚本已自动降级为 shell 汇总。
+
+这不会阻止压测完成，但报告中不会包含：
+
+- `P50 / P95 / P99`
+- 监控 CSV 聚合
+- 慢 SQL Top 10 结构化分析
 
 ## 建议执行顺序
 

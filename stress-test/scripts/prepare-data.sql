@@ -16,7 +16,7 @@ USE `scholarship`;
 -- ========================================
 INSERT IGNORE INTO sys_user (username, password, real_name, user_type, status, version, deleted, create_time, update_time)
 VALUES ('admin',
-        '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EHs',  -- BCrypt hash for 'a123456789'
+        '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EHs',  -- BCrypt("a123456789"), 生成方式: new BCryptPasswordEncoder().encode("a123456789")
         '系统管理员', 3, 1, 0, 0, NOW(), NOW());
 
 -- ========================================
@@ -48,7 +48,8 @@ BEGIN
     DECLARE v_major VARCHAR(50);
     DECLARE v_bcrypt_pwd VARCHAR(200);
 
-    -- BCrypt hash for 'a123456789'
+    -- BCrypt("a123456789"), 生成方式: new BCryptPasswordEncoder().encode("a123456789")
+    -- 如果密码变更, 需要用上述 Java 代码重新生成 hash 并替换此值
     SET v_bcrypt_pwd = '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EHs';
 
     WHILE i < student_count DO
