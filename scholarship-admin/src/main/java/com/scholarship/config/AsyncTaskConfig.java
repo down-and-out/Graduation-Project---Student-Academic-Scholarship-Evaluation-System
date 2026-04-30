@@ -1,11 +1,14 @@
 package com.scholarship.config;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.MeterBinder;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.Locale;
-import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -19,21 +22,49 @@ public class AsyncTaskConfig {
     }
 
     @Bean("evaluationTaskExecutor")
-    public Executor evaluationTaskExecutor() {
+    public ThreadPoolTaskExecutor evaluationTaskExecutor() {
         return buildExecutor(scholarshipProperties.getAsync().getEvaluation());
     }
 
     @Bean("exportTaskExecutor")
-    public Executor exportTaskExecutor() {
+    public ThreadPoolTaskExecutor exportTaskExecutor() {
         return buildExecutor(scholarshipProperties.getAsync().getExport());
     }
 
     @Bean("batchImportTaskExecutor")
-    public Executor batchImportTaskExecutor() {
+    public ThreadPoolTaskExecutor batchImportTaskExecutor() {
         return buildExecutor(scholarshipProperties.getAsync().getBatchImport());
     }
 
-    private Executor buildExecutor(ScholarshipProperties.ExecutorConfig config) {
+    @Bean
+    public MeterBinder executorMetrics(
+            @Qualifier("evaluationTaskExecutor") ThreadPoolTaskExecutor evaluationExecutor,
+            @Qualifier("exportTaskExecutor") ThreadPoolTaskExecutor exportExecutor,
+            @Qualifier("batchImportTaskExecutor") ThreadPoolTaskExecutor batchImportExecutor) {
+        return registry -> {
+            registerExecutorMetrics(registry, evaluationExecutor, "evaluation");
+            registerExecutorMetrics(registry, exportExecutor, "export");
+            registerExecutorMetrics(registry, batchImportExecutor, "batch-import");
+        };
+    }
+
+    private void registerExecutorMetrics(MeterRegistry registry, ThreadPoolTaskExecutor executor, String name) {
+        ThreadPoolExecutor tpe = executor.getThreadPoolExecutor();
+        Gauge.builder("executor." + name + ".active.count", tpe, ThreadPoolExecutor::getActiveCount)
+                .description("Current active threads in " + name + " executor")
+                .register(registry);
+        Gauge.builder("executor." + name + ".queue.size", tpe, e -> e.getQueue().size())
+                .description("Current queue size in " + name + " executor")
+                .register(registry);
+        Gauge.builder("executor." + name + ".pool.size", tpe, ThreadPoolExecutor::getPoolSize)
+                .description("Current pool size in " + name + " executor")
+                .register(registry);
+        Gauge.builder("executor." + name + ".completed.tasks", tpe, ThreadPoolExecutor::getCompletedTaskCount)
+                .description("Completed tasks in " + name + " executor")
+                .register(registry);
+    }
+
+    private ThreadPoolTaskExecutor buildExecutor(ScholarshipProperties.ExecutorConfig config) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(config.getCorePoolSize());
         executor.setMaxPoolSize(config.getMaxPoolSize());

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="压测-登录Token片段" enabled="true">
+      <stringProp name="TestPlan.comments">可复用的登录Token管理片段。使用预生成的tokens.csv读取Token。</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="BASE_URL" elementType="Argument">
+            <stringProp name="Argument.name">BASE_URL</stringProp>
+            <stringProp name="Argument.value">${__P(base_url,http://localhost:8080/api)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="TOKEN_CSV" elementType="Argument">
+            <stringProp name="Argument.name">TOKEN_CSV</stringProp>
+            <stringProp name="Argument.value">${__P(token_csv,../data/tokens.csv)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <!-- CSV Data Set Config - 读取预生成的Token -->
+      <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Token读取器" enabled="true">
+        <stringProp name="delimiter">,</stringProp>
+        <stringProp name="fileEncoding">UTF-8</stringProp>
+        <stringProp name="filename">${TOKEN_CSV}</stringProp>
+        <boolProp name="ignoreFirstLine">true</boolProp>
+        <boolProp name="quotedData">false</boolProp>
+        <boolProp name="recycle">true</boolProp>
+        <stringProp name="shareMode">shareMode.all</stringProp>
+        <boolProp name="stopThread">false</boolProp>
+        <stringProp name="variableNames">TOKEN,TOKEN_USERNAME,TOKEN_USER_ID,TOKEN_USER_TYPE</stringProp>
+      </CSVDataSet>
+      <hashTree/>
+
+      <!-- HTTP Header Manager - 全局请求头 -->
+      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="全局请求头" enabled="true">
+        <collectionProp name="HeaderManager.headers">
+          <elementProp name="" elementType="Header">
+            <stringProp name="Header.name">Authorization</stringProp>
+            <stringProp name="Header.value">Bearer ${TOKEN}</stringProp>
+          </elementProp>
+          <elementProp name="" elementType="Header">
+            <stringProp name="Header.name">Content-Type</stringProp>
+            <stringProp name="Header.value">application/json</stringProp>
+          </elementProp>
+        </collectionProp>
+      </HeaderManager>
+      <hashTree/>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
