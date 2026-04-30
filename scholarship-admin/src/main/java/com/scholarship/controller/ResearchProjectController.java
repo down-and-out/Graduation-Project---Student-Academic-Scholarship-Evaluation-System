@@ -117,11 +117,15 @@ public class ResearchProjectController {
     @GetMapping("/count")
     @Operation(summary = "统计当前学生审核通过的项目数量")
     public Result<Long> count(@AuthenticationPrincipal LoginUser loginUser) {
+        log.debug("统计项目数量, userId={}", loginUser.getUserId());
         StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
         if (studentInfo == null) {
+            log.debug("统计项目数量失败：学生信息不存在, userId={}", loginUser.getUserId());
             return Result.success(0L);
         }
-        return Result.success(researchProjectService.countByStudentId(studentInfo.getId()));
+        long count = researchProjectService.countByStudentId(studentInfo.getId());
+        log.debug("统计项目数量结果, userId={}, studentId={}, count={}", loginUser.getUserId(), studentInfo.getId(), count);
+        return Result.success(count);
     }
 
     public record AuditRequest(Integer auditStatus, String auditComment) {

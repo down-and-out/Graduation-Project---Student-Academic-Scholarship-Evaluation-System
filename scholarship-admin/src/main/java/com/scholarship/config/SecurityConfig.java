@@ -58,6 +58,7 @@ public class SecurityConfig {
                         .requestMatchers("/test/**").permitAll()
                         .requestMatchers("/doc.html", "/webjars/**", "/swagger-resources/**", "/v3/api-docs/**", "/favicon.ico").permitAll()
                         .requestMatchers("/druid/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/static/**", "/assets/**").permitAll()
                         .anyRequest().authenticated()
                 )

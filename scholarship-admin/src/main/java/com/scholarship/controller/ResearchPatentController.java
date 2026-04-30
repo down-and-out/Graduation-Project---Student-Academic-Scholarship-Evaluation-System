@@ -96,11 +96,15 @@ public class ResearchPatentController {
     @GetMapping("/count")
     @Operation(summary = "统计当前学生审核通过的专利数量")
     public Result<Long> count(@AuthenticationPrincipal LoginUser loginUser) {
+        log.debug("统计专利数量, userId={}", loginUser.getUserId());
         StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
         if (studentInfo == null) {
+            log.debug("统计专利数量失败：学生信息不存在, userId={}", loginUser.getUserId());
             return Result.success(0L);
         }
-        return Result.success(researchPatentService.countByStudentId(studentInfo.getId()));
+        long count = researchPatentService.countByStudentId(studentInfo.getId());
+        log.debug("统计专利数量结果, userId={}, studentId={}, count={}", loginUser.getUserId(), studentInfo.getId(), count);
+        return Result.success(count);
     }
 
     @PutMapping("/audit/{id}")
