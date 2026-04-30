@@ -50,6 +50,9 @@ public class MyMetaObjectHandler implements MetaObjectHandler {
         // 填充乐观锁版本号（严格填充策略：只有字段值为 null 时才填充为 1）
         this.strictInsertFill(metaObject, "version", Integer.class, 1);
 
+        // 填充逻辑删除标记（严格填充策略：只有字段值为 null 时才填充为 0）
+        this.strictInsertFill(metaObject, "deleted", Integer.class, 0);
+
         log.debug("插入自动填充完成: createTime={}, updateTime={}, version={}",
                 this.getFieldValByName("createTime", metaObject),
                 this.getFieldValByName("updateTime", metaObject),

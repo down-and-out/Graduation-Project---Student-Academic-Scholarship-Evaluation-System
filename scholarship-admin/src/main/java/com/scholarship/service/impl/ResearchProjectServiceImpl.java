@@ -119,6 +119,8 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
         if (project.getScore() == null) {
             project.setScore(BigDecimal.ZERO);
         }
+        project.setDeleted(0);
+        project.setCreateTime(LocalDateTime.now());
         return save(project);
     }
 

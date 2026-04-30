@@ -88,6 +88,8 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
         if (patent.getScore() == null) {
             patent.setScore(BigDecimal.ZERO);
         }
+        patent.setDeleted(0);
+        patent.setCreateTime(LocalDateTime.now());
         return save(patent);
     }
 
