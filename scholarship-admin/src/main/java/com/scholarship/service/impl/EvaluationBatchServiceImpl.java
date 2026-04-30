@@ -2,20 +2,89 @@ package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.scholarship.entity.EvaluationBatch;
-import com.scholarship.enums.BatchStatusEnum;
+import com.scholarship.common.event.CacheEvictionEvent;
+import com.scholarship.common.event.CacheEvictionOperation;
 import com.scholarship.common.exception.BusinessException;
+import com.scholarship.common.support.CacheConstants;
+import com.scholarship.entity.EvaluationBatch;
+import com.scholarship.entity.EvaluationTask;
+import com.scholarship.enums.BatchStatusEnum;
 import com.scholarship.mapper.EvaluationBatchMapper;
+import com.scholarship.mapper.EvaluationTaskMapper;
 import com.scholarship.service.EvaluationBatchService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.Serializable;
 import java.util.List;
 
 @Slf4j
 @Service
-public class EvaluationBatchServiceImpl extends ServiceImpl<EvaluationBatchMapper, EvaluationBatch> implements EvaluationBatchService {
+public class EvaluationBatchServiceImpl extends ServiceImpl<EvaluationBatchMapper, EvaluationBatch>
+        implements EvaluationBatchService {
+
+    private static final String TASK_TYPE_BATCH_EVALUATION = "BATCH_EVALUATION";
+    private static final int TASK_STATUS_PENDING = 0;
+    private static final int TASK_STATUS_RUNNING = 1;
+
+    private final EvaluationTaskMapper evaluationTaskMapper;
+    private final ApplicationEventPublisher eventPublisher;
+
+    public EvaluationBatchServiceImpl(EvaluationTaskMapper evaluationTaskMapper,
+                                      ApplicationEventPublisher eventPublisher) {
+        this.evaluationTaskMapper = evaluationTaskMapper;
+        this.eventPublisher = eventPublisher;
+    }
+
+    @Override
+    public void validateForEvaluation(Long batchId) {
+        EvaluationBatch batch = getById(batchId);
+        if (batch == null) {
+            throw new BusinessException("批次不存在");
+        }
+        if (!BatchStatusEnum.REVIEWING.getCode().equals(batch.getBatchStatus())) {
+            throw new BusinessException("当前批次状态不允许评定");
+        }
+    }
+
+    @Override
+    @Cacheable(value = CacheConstants.BATCH_DETAIL, key = "#id")
+    public EvaluationBatch getById(Serializable id) {
+        return super.getById(id);
+    }
+
+    @Override
+    @Transactional
+    public boolean save(EvaluationBatch entity) {
+        boolean success = super.save(entity);
+        if (success) {
+            evictBatchCaches(entity.getId());
+        }
+        return success;
+    }
+
+    @Override
+    @Transactional
+    public boolean updateById(EvaluationBatch entity) {
+        boolean success = super.updateById(entity);
+        if (success) {
+            evictBatchCaches(entity.getId());
+        }
+        return success;
+    }
+
+    @Override
+    @Transactional
+    public boolean removeById(Serializable id) {
+        boolean success = super.removeById(id);
+        if (success && id instanceof Long batchId) {
+            evictBatchCaches(batchId);
+        }
+        return success;
+    }
 
     @Override
     @Transactional
@@ -48,6 +117,7 @@ public class EvaluationBatchServiceImpl extends ServiceImpl<EvaluationBatchMappe
     }
 
     @Override
+    @Cacheable(value = CacheConstants.BATCH_AVAILABLE, key = "'available'", sync = true)
     public List<EvaluationBatch> listAvailableForApplication() {
         log.debug("查询申请中的批次列表");
 
@@ -74,11 +144,27 @@ public class EvaluationBatchServiceImpl extends ServiceImpl<EvaluationBatchMappe
             throw new BusinessException("当前状态不允许执行" + actionName + "：" + currentStatus.getDescription() + " -> " + targetStatus.getDescription());
         }
 
+        if (BatchStatusEnum.PUBLICITY == targetStatus && hasActiveEvaluationTask(id)) {
+            throw new BusinessException("当前批次仍有评定任务执行中，暂不能开始公示");
+        }
+
         if (currentStatus == targetStatus) {
             return true;
         }
 
         batch.setBatchStatus(targetStatus.getCode());
         return updateById(batch);
+    }
+
+    private boolean hasActiveEvaluationTask(Long batchId) {
+        Long activeCount = evaluationTaskMapper.selectCount(new LambdaQueryWrapper<EvaluationTask>()
+                .eq(EvaluationTask::getBatchId, batchId)
+                .eq(EvaluationTask::getTaskType, TASK_TYPE_BATCH_EVALUATION)
+                .in(EvaluationTask::getStatus, TASK_STATUS_PENDING, TASK_STATUS_RUNNING));
+        return activeCount != null && activeCount > 0;
+    }
+
+    private void evictBatchCaches(Long batchId) {
+        eventPublisher.publishEvent(new CacheEvictionEvent(this, CacheEvictionOperation.EVICT_BATCH_CACHES, batchId));
     }
 }

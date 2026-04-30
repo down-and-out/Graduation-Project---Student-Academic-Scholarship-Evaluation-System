@@ -1,4 +1,6 @@
 import request from '@/utils/request'
+import { cachedRequest } from '@/utils/apiCache'
+import { serializeQueryParams } from '@/utils/helpers'
 
 export interface EvaluationBatch {
   id?: number
@@ -49,35 +51,6 @@ export interface CreateEvaluationData {
   selectedRuleIds: number[]
 }
 
-function buildParamsSerializer() {
-  return {
-    serialize: (rawParams: Record<string, unknown>) => {
-      const searchParams = new URLSearchParams()
-
-      Object.entries(rawParams).forEach(([key, value]) => {
-        if (value === undefined || value === null || value === '') {
-          return
-        }
-
-        if (Array.isArray(value)) {
-          const normalized = value
-            .filter(item => item !== undefined && item !== null && item !== '')
-            .map(item => String(item))
-
-          if (normalized.length > 0) {
-            searchParams.append(key, normalized.join(','))
-          }
-          return
-        }
-
-        searchParams.append(key, String(value))
-      })
-
-      return searchParams.toString()
-    }
-  }
-}
-
 export function getEvaluationPage(
   params: EvaluationPageParams
 ): Promise<API.Response<API.PageResponse<EvaluationBatch>>> {
@@ -85,7 +58,7 @@ export function getEvaluationPage(
     url: '/evaluation-batch/page',
     method: 'get',
     params,
-    paramsSerializer: buildParamsSerializer()
+    paramsSerializer: { serialize: serializeQueryParams }
   })
 }
 
@@ -95,6 +68,21 @@ export function getEvaluationDetail(id: number): Promise<API.Response<Evaluation
     method: 'get'
   })
 }
+
+/**
+ * 获取评定学年列表（缓存 1 小时）
+ */
+const _getEvaluationAcademicYears = (): Promise<API.Response<string[]>> => {
+  return request({
+    url: '/evaluation-batch/meta/years',
+    method: 'get'
+  })
+}
+export const getEvaluationAcademicYears = cachedRequest(
+  _getEvaluationAcademicYears,
+  'evaluation_academic_years',
+  60 * 60 * 1000
+)
 
 export function createEvaluation(data: CreateEvaluationData): Promise<API.Response<null>> {
   return request({
@@ -157,6 +145,7 @@ export function getAvailableBatches(): Promise<API.Response<EvaluationBatch[]>> 
 export default {
   getEvaluationPage,
   getEvaluationDetail,
+  getEvaluationAcademicYears,
   createEvaluation,
   startEvaluationApplication,
   startEvaluationReview,

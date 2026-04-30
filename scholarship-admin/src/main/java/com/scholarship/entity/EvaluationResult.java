@@ -149,6 +149,14 @@ public class EvaluationResult implements Serializable {
     private LocalDateTime confirmDate;
 
     /**
+     * 乐观锁版本号
+     */
+    @Version
+    @TableField(fill = FieldFill.INSERT)
+    @Schema(description = "乐观锁版本号")
+    private Integer version;
+
+    /**
      * 逻辑删除标记
      * 0-未删除 1-已删除
      */

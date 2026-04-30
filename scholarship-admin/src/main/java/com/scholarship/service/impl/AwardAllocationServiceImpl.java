@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +62,21 @@ public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapp
         int secondQuota = quotaConfig.get(3).getMaxCount();
         int thirdQuota = quotaConfig.get(4).getMaxCount();
 
+        // 按院系分组计算院内排名
+        Map<Long, Integer> deptRankMap = new HashMap<>();
+        Map<String, List<EvaluationResult>> deptGroups = new LinkedHashMap<>();
+        for (EvaluationResult er : results) {
+            String dept = er.getDepartment() != null ? er.getDepartment() : "";
+            deptGroups.computeIfAbsent(dept, k -> new ArrayList<>()).add(er);
+        }
+        for (List<EvaluationResult> deptResults : deptGroups.values()) {
+            int deptRank = 0;
+            for (EvaluationResult er : deptResults) {
+                deptRank++;
+                deptRankMap.put(er.getId(), deptRank);
+            }
+        }
+
         int currentRank = 0;
         int specialCount = 0;
         int firstCount = 0;
@@ -100,7 +116,7 @@ public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapp
             updateEntity.setId(evalResult.getId());
             updateEntity.setAwardLevel(awardLevel);
             updateEntity.setAwardAmount(awardAmount);
-            updateEntity.setDepartmentRank(currentRank);
+            updateEntity.setDepartmentRank(deptRankMap.getOrDefault(evalResult.getId(), currentRank));
             updateEntities.add(updateEntity);
 
             if (awardLevel != 5) {

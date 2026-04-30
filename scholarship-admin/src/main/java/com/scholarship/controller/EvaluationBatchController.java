@@ -192,6 +192,24 @@ public class EvaluationBatchController {
         return Result.success(batches);
     }
 
+    @GetMapping("/meta/years")
+    @Operation(summary = "获取评定批次学年选项", description = "返回已存在批次的学年列表，用于筛选项加载")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "查询成功")
+    })
+    public Result<List<String>> getAcademicYears() {
+        LambdaQueryWrapper<EvaluationBatch> wrapper = new LambdaQueryWrapper<EvaluationBatch>()
+                .select(EvaluationBatch::getAcademicYear)
+                .isNotNull(EvaluationBatch::getAcademicYear)
+                .orderByDesc(EvaluationBatch::getAcademicYear);
+        List<String> years = evaluationBatchService.list(wrapper).stream()
+                .map(EvaluationBatch::getAcademicYear)
+                .filter(year -> year != null && !year.isBlank())
+                .distinct()
+                .toList();
+        return Result.success(years);
+    }
+
     @PutMapping("/publish/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "发布批次", description = "校验批次处于未开始状态，兼容旧入口")

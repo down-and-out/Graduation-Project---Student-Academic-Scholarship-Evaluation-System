@@ -3,7 +3,6 @@ package com.scholarship.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.scholarship.dto.param.EvaluationResultAdjustRequest;
-import com.scholarship.dto.query.EvaluationResultQuery;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.vo.AdminEvaluationResultVO;
 import com.scholarship.vo.EvaluationResultExportVO;
@@ -36,14 +35,6 @@ public interface EvaluationResultService extends IService<EvaluationResult> {
 
     IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, String academicYear,
                                                     Integer semester, Long studentId, Integer status, String keyword);
-
-    /**
-     * 根据查询参数分页查询
-     *
-     * @param query 查询参数
-     * @return 分页结果
-     */
-    IPage<EvaluationResult> queryPage(EvaluationResultQuery query);
 
     /**
      * 获取学生的评定结果

@@ -1,10 +1,10 @@
 package com.scholarship.service;
 
+import com.scholarship.dto.BatchCalculationSummary;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.entity.ScholarshipApplication;
 
 import java.math.BigDecimal;
-import java.util.Map;
 
 /**
  * 评定计算服务接口
@@ -37,7 +37,7 @@ public interface EvaluationCalculationService {
      * @param batchId 批次 ID
      * @return 计算结果 map，key 为申请 ID，value 为 EvaluationResult
      */
-    Map<Long, EvaluationResult> calculateBatchApplications(Long batchId);
+    BatchCalculationSummary calculateBatchApplications(Long batchId);
 
     /**
      * 计算课程成绩分数

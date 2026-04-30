@@ -116,6 +116,7 @@
             <el-button
               link
               type="warning"
+              :disabled="isEvaluating(row.id)"
               @click="handleStartPublicity(row)"
             >
               开始公示
@@ -277,6 +278,7 @@ import {
   completeEvaluation,
   createEvaluation,
   deleteEvaluation,
+  getEvaluationAcademicYears,
   getEvaluationDetail,
   getEvaluationPage,
   startEvaluationApplication,
@@ -291,11 +293,14 @@ import {
   getLatestEvaluationTask,
   type EvaluationTaskResponse
 } from '@/api/result'
-import { getAvailableRulesByType, getRuleById, getRulePage, type ScoreRule } from '@/api/rule'
+import { getRuleById, getRulePage, type ScoreRule } from '@/api/rule'
 import { RULE_TYPE_LABELS } from '@/constants/rule'
+import { EVALUATION_TASK_STATUS } from '@/constants/review'
 import { getAwardLevelConfig } from '@/constants/evaluationResult'
-import { extractApiData } from '@/utils/helpers'
+import { batchExecute, extractApiData, formatAcademicYearLabel } from '@/utils/helpers'
 import { LARGE_QUERY_SIZE } from '@/constants'
+
+defineOptions({ name: 'AdminEvaluation' })
 
 type BatchStatus = 1 | 2 | 3 | 4 | 5
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
@@ -392,64 +397,91 @@ const queryParams = reactive<QueryParams>({
 })
 
 const EVALUATION_POLL_INTERVAL_MS = 2000
+const EVALUATION_POLL_FAILURE_LIMIT = 3
 const evaluationTaskMap = reactive<Record<number, EvaluationTaskResponse | null>>({})
-const pollTimerMap = new Map<number, ReturnType<typeof setInterval>>()
+const pollTimerMap = new Map<number, ReturnType<typeof setTimeout>>()
+const pollLockMap = new Map<number, boolean>()
+const pollFailureCountMap = reactive<Record<number, number>>({})
 
 function isEvaluating(batchId?: number): boolean {
   if (!batchId) return false
   const task = evaluationTaskMap[batchId]
-  return task !== undefined && task !== null && (task.status === 0 || task.status === 1)
+  return task !== undefined && task !== null && (task.status === EVALUATION_TASK_STATUS.PENDING || task.status === EVALUATION_TASK_STATUS.RUNNING)
 }
 
 function getEvaluateButtonText(batchId?: number): string {
   if (!batchId) return '一键评定'
   const task = evaluationTaskMap[batchId]
   if (!task) return '一键评定'
-  if (task.status === 0) return '等待执行...'
-  if (task.status === 1) return '评定中...'
+  if (task.status === EVALUATION_TASK_STATUS.PENDING) return '等待执行...'
+  if (task.status === EVALUATION_TASK_STATUS.RUNNING) return '评定中...'
   return '一键评定'
 }
 
 function stopPolling(batchId: number): void {
   const timer = pollTimerMap.get(batchId)
   if (timer !== undefined) {
-    clearInterval(timer)
+    clearTimeout(timer)
     pollTimerMap.delete(batchId)
   }
+  pollLockMap.delete(batchId)
+  delete pollFailureCountMap[batchId]
+}
+
+function schedulePoll(batchId: number, taskId: number): void {
+  const timer = setTimeout(async () => {
+    pollTimerMap.delete(batchId)
+    await pollTaskStatus(batchId, taskId)
+  }, EVALUATION_POLL_INTERVAL_MS)
+  pollTimerMap.set(batchId, timer)
 }
 
 async function pollTaskStatus(batchId: number, taskId: number): Promise<void> {
-  stopPolling(batchId)
+  // 请求锁：防止同一 batchId 并发轮询
+  if (pollLockMap.get(batchId)) return
+  pollLockMap.set(batchId, true)
 
-  const poll = async () => {
-    try {
-      const response = await getEvaluationTask(taskId)
-      const task = extractApiData<EvaluationTaskResponse>(response)
-      if (!task) return
-      evaluationTaskMap[batchId] = task
-
-      if (task.status === 2) {
-        // SUCCESS
-        stopPolling(batchId)
-        ElMessage.success('评定执行成功，页面即将刷新')
-        setTimeout(() => handleQuery(), 500)
-      } else if (task.status === 3) {
-        // FAILED
-        stopPolling(batchId)
-        ElMessage.error(task.errorMessage || '评定执行失败，请稍后重试')
-      }
-    } catch (error) {
-      console.error('轮询任务状态失败:', error)
+  try {
+    const response = await getEvaluationTask(taskId)
+    const task = extractApiData<EvaluationTaskResponse>(response)
+    if (!task) {
+      pollLockMap.delete(batchId)
+      return
     }
-  }
+    pollFailureCountMap[batchId] = 0
+    evaluationTaskMap[batchId] = task
 
-  // 立即查询一次
-  await poll()
+    if (task.status === EVALUATION_TASK_STATUS.SUCCESS) {
+      // SUCCESS
+      stopPolling(batchId)
+      ElMessage.success('评定执行成功，页面即将刷新')
+      setTimeout(() => handleQuery(), 500)
+      return
+    } else if (task.status === EVALUATION_TASK_STATUS.FAILED) {
+      // FAILED
+      stopPolling(batchId)
+      ElMessage.error(task.errorMessage || '评定执行失败，请稍后重试')
+      return
+    }
 
-  // 如果仍未结束，开始定时轮询
-  const task = evaluationTaskMap[batchId]
-  if (task && (task.status === 0 || task.status === 1)) {
-    pollTimerMap.set(batchId, setInterval(poll, EVALUATION_POLL_INTERVAL_MS))
+    // 仍未结束，释放锁并排定下一次轮询
+    pollLockMap.delete(batchId)
+    if (task.status === EVALUATION_TASK_STATUS.PENDING || task.status === EVALUATION_TASK_STATUS.RUNNING) {
+      schedulePoll(batchId, taskId)
+    }
+  } catch (error) {
+    pollLockMap.delete(batchId)
+    const nextFailureCount = (pollFailureCountMap[batchId] || 0) + 1
+    pollFailureCountMap[batchId] = nextFailureCount
+    if (nextFailureCount >= EVALUATION_POLL_FAILURE_LIMIT) {
+      stopPolling(batchId)
+      evaluationTaskMap[batchId] = null
+      ElMessage.error('评定状态查询连续失败，请刷新页面后重试')
+      return
+    }
+    console.error('轮询任务状态失败:', error)
+    // 失败后继续排定下一次轮询
+    schedulePoll(batchId, taskId)
   }
 }
 
@@ -486,20 +518,22 @@ async function restoreEvaluationTasks(records: ApiEvaluationBatch[]): Promise<vo
   )
   if (reviewingBatches.length === 0) return
 
-  await Promise.all(
-    reviewingBatches.map(async item => {
+  await batchExecute(
+    reviewingBatches,
+    async item => {
       const batchId = item.id as number
       try {
         const response = await getLatestEvaluationTask(batchId)
         const task = extractApiData<EvaluationTaskResponse>(response)
-        if (task && (task.status === 0 || task.status === 1)) {
+        if (task && (task.status === EVALUATION_TASK_STATUS.PENDING || task.status === EVALUATION_TASK_STATUS.RUNNING)) {
           evaluationTaskMap[batchId] = task
           pollTaskStatus(batchId, task.taskId)
         }
       } catch (error) {
         console.error(`恢复批次 ${batchId} 任务状态失败:`, error)
       }
-    })
+    },
+    4
   )
 }
 
@@ -584,34 +618,23 @@ function formatSemester(semester: number | null | undefined): string {
 
 function formatAcademicYearSemester(academicYear: string | null | undefined, semester: number | null | undefined): string {
   if (!academicYear) return formatSemester(semester)
-  const nextYear = Number.parseInt(academicYear, 10) + 1
-  return `${academicYear}-${nextYear}学年${formatSemester(semester)}`
+  return `${formatAcademicYearLabel(academicYear)}${formatSemester(semester)}`
 }
 
 function buildAcademicYearOption(value: string): OptionItem<string> {
-  const numericYear = Number.parseInt(value, 10)
-  if (Number.isNaN(numericYear)) {
-    return { label: value, value }
-  }
   return {
-    label: `${numericYear}-${numericYear + 1}学年`,
+    label: formatAcademicYearLabel(value),
     value
   }
 }
 
 async function loadAcademicYearOptions(): Promise<void> {
   try {
-    const response = await getEvaluationPage({ current: 1, size: LARGE_QUERY_SIZE })
-    const pageData = extractApiData<API.PageResponse<ApiEvaluationBatch>>(response)
-    const years = Array.from(
-      new Set(
-        (pageData?.records || [])
-          .map(item => item.academicYear)
-          .filter((item): item is string => Boolean(item))
-      )
-    ).sort((left, right) => right.localeCompare(left))
-
-    academicYearOptions.value = years.map(buildAcademicYearOption)
+    const response = await getEvaluationAcademicYears()
+    const years = extractApiData<string[]>(response) || []
+    academicYearOptions.value = [...years]
+      .sort((left, right) => right.localeCompare(left))
+      .map(buildAcademicYearOption)
   } catch (error) {
     console.error('加载学年选项失败:', error)
     academicYearOptions.value = []
@@ -645,18 +668,15 @@ function resetForm(): void {
 }
 
 async function loadRules(): Promise<void> {
-  const [allRuleRes, ...availableRuleResponses] = await Promise.all([
-    getRulePage({ current: 1, size: LARGE_QUERY_SIZE }),
-    ...Object.keys(RULE_TYPE_LABELS).map(type => getAvailableRulesByType(Number(type)))
-  ])
-
+  const allRuleRes = await getRulePage({ current: 1, size: LARGE_QUERY_SIZE })
   const allRulePage = extractApiData<API.PageResponse<ScoreRule>>(allRuleRes)
   allRules.value = allRulePage?.records || []
 
+  // 从全量规则中按 type 过滤，替代逐个调用 getAvailableRulesByType
   const nextRulesByType: Record<number, ScoreRule[]> = {}
-  Object.keys(RULE_TYPE_LABELS).forEach((type, index) => {
-    nextRulesByType[Number(type)] = extractApiData<ScoreRule[]>(availableRuleResponses[index]) || []
-  })
+  for (const type of Object.keys(RULE_TYPE_LABELS).map(Number)) {
+    nextRulesByType[type] = allRules.value.filter(rule => rule.ruleType === type)
+  }
   availableRulesByType.value = nextRulesByType
 }
 
@@ -666,8 +686,9 @@ async function ensureRulesLoaded(ruleIds: number[]): Promise<void> {
     return
   }
 
-  const fetchedRules = await Promise.all(
-    missingRuleIds.map(async id => {
+  const fetchedRules = await batchExecute(
+    missingRuleIds,
+    async id => {
       try {
         const response = await getRuleById(id)
         return extractApiData<ScoreRule>(response)
@@ -675,7 +696,8 @@ async function ensureRulesLoaded(ruleIds: number[]): Promise<void> {
         console.error(`加载规则 ${id} 失败:`, error)
         return null
       }
-    })
+    },
+    4
   )
 
   const appendedRules = fetchedRules.filter((rule): rule is ScoreRule => Boolean(rule?.id))
@@ -819,6 +841,10 @@ async function handleStartReview(row: ApiEvaluationBatch): Promise<void> {
 
 async function handleStartPublicity(row: ApiEvaluationBatch): Promise<void> {
   if (!row.id) return
+  if (isEvaluating(row.id)) {
+    ElMessage.warning('当前批次仍有评定任务执行中，暂不能开始公示')
+    return
+  }
   try {
     await ElMessageBox.confirm('确定开始公示吗？批次将进入公示中。', '提示', {
       confirmButtonText: '确定',
@@ -932,8 +958,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  pollTimerMap.forEach(timer => clearInterval(timer))
+  pollTimerMap.forEach(timer => clearTimeout(timer))
   pollTimerMap.clear()
+  pollLockMap.clear()
 })
 </script>
 

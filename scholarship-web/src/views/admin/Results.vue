@@ -201,7 +201,7 @@ import { onMounted, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
-import { getEvaluationPage, type EvaluationBatch } from '@/api/evaluation'
+import { getEvaluationAcademicYears } from '@/api/evaluation'
 import {
   adjustResult,
   exportResult,
@@ -209,8 +209,7 @@ import {
   getResultPage,
   type EvaluationResult
 } from '@/api/result'
-import { extractApiData } from '@/utils/helpers'
-import { LARGE_QUERY_SIZE } from '@/constants'
+import { extractApiData, formatAcademicYearLabel } from '@/utils/helpers'
 import {
   getAwardLevelConfig,
   getResultStatusConfig,
@@ -218,6 +217,8 @@ import {
   RESULT_STATUS_OPTIONS,
   type ResultTagType
 } from '@/constants/evaluationResult'
+
+defineOptions({ name: 'AdminResults' })
 
 interface SemesterOption {
   label: string
@@ -304,14 +305,6 @@ function getDisplayRank(row: EvaluationResult): number | string {
   return '-'
 }
 
-function formatAcademicYearLabel(academicYear: string): string {
-  const startYear = Number(academicYear)
-  if (Number.isNaN(startYear)) {
-    return academicYear
-  }
-  return `${startYear}-${startYear + 1}学年`
-}
-
 function updateStats(records: EvaluationResult[]): void {
   const nextStats = records.reduce(
     (acc, item) => {
@@ -349,14 +342,9 @@ function downloadBlob(blob: Blob, fileName: string): void {
 
 async function loadAcademicYearOptions(): Promise<void> {
   try {
-    const response = await getEvaluationPage({ current: 1, size: LARGE_QUERY_SIZE })
-    const pageData = extractApiData<API.PageResponse<EvaluationBatch>>(response)
-    const years = new Set(
-      (pageData?.records || [])
-        .map(item => item.academicYear)
-        .filter((item): item is string => Boolean(item))
-    )
-    academicYearOptions.value = Array.from(years).sort((left, right) => right.localeCompare(left))
+    const response = await getEvaluationAcademicYears()
+    const years = extractApiData<string[]>(response) || []
+    academicYearOptions.value = [...years].sort((left, right) => right.localeCompare(left))
   } catch (error) {
     console.error('加载评定批次失败:', error)
     academicYearOptions.value = []

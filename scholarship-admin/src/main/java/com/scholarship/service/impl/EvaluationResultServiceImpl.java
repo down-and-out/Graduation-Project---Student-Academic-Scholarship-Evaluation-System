@@ -4,7 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.common.event.CacheEvictionEvent;
+import com.scholarship.common.event.CacheEvictionOperation;
 import com.scholarship.common.support.CacheConstants;
+import com.scholarship.common.support.CursorPageHelper;
+import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.param.EvaluationResultAdjustRequest;
 
 import com.scholarship.entity.EvaluationBatch;
@@ -13,7 +17,6 @@ import com.scholarship.enums.AwardLevelEnum;
 import com.scholarship.enums.ResultStatusEnum;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.EvaluationResultMapper;
-import com.scholarship.service.CacheEvictionService;
 import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.EvaluationResultService;
 import com.scholarship.vo.AdminEvaluationResultVO;
@@ -22,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,11 +50,13 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
 
     private final EvaluationResultMapper evaluationResultMapper;
     private final EvaluationBatchService evaluationBatchService;
-    private final CacheEvictionService cacheEvictionService;
+    private final ApplicationEventPublisher eventPublisher;
+    private final ScholarshipProperties scholarshipProperties;
 
     @Override
     public IPage<EvaluationResult> pageResults(Long current, Long size, Long batchId, String academicYear,
                                                Integer semester, Long studentId, Integer status, String keyword) {
+        CursorPageHelper.validateOffset(current, size, scholarshipProperties.getEvaluation().getMaxOffsetRows());
         Page<EvaluationResult> page = new Page<>(current, size);
         LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
 
@@ -110,7 +116,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     }
 
     @Override
-    @Cacheable(value = CacheConstants.EVAL_STUDENT, key = "'student:' + #studentId + ':batch:' + (#batchId != null ? #batchId.toString() : 'latest')", unless = "#result == null")
+    @Cacheable(value = CacheConstants.EVAL_STUDENT, key = "'student:' + #studentId + ':batch:' + (#batchId != null ? #batchId.toString() : 'latest')")
     public EvaluationResult getStudentResult(Long studentId, Long batchId) {
         log.debug("获取学生评定结果，studentId={}, batchId={}", studentId, batchId);
 
@@ -128,7 +134,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     }
 
     @Override
-    @Cacheable(value = CacheConstants.EVAL_ADMIN, key = "#id", unless = "#result == null")
+    @Cacheable(value = CacheConstants.EVAL_ADMIN, key = "#id")
     public AdminEvaluationResultVO getAdminResultById(Long id) {
         EvaluationResult result = getById(id);
         if (result == null) {
@@ -149,9 +155,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
 
         result.setResultStatus(ResultStatusEnum.CONFIRMED.getCode());
         boolean success = updateById(result);
-        // 确认结果后清除该批次所有评定缓存
-        cacheEvictionService.evictEvaluationResultsForBatch(result.getBatchId());
-        cacheEvictionService.evictAdminResult(id);
+        evictResultCaches(result.getBatchId(), id);
         return success;
     }
 
@@ -166,11 +170,13 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         }
 
         result.setResultStatus(ResultStatusEnum.OBJECTED.getCode());
-        return updateById(result);
+        boolean success = updateById(result);
+        evictResultCaches(result.getBatchId(), id);
+        return success;
     }
 
     @Override
-    @Cacheable(value = CacheConstants.EVAL_RANK, key = "#batchId + ':' + #type", unless = "#result == null || #result.isEmpty()")
+    @Cacheable(value = CacheConstants.EVAL_RANK, key = "#batchId + ':' + #type", unless = "#result.isEmpty()")
     public List<EvaluationResult> getBatchRanks(Long batchId, String type) {
         log.debug("获取批次排名列表，batchId={}, type={}", batchId, type);
 
@@ -242,9 +248,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         result.setAwardLevel(request.getAwardLevel());
         result.setRemark(request.getReason().trim());
         boolean success = updateById(result);
-        // 调整结果后清除该批次所有评定缓存
-        cacheEvictionService.evictEvaluationResultsForBatch(result.getBatchId());
-        cacheEvictionService.evictAdminResult(id);
+        evictResultCaches(result.getBatchId(), id);
         return success;
     }
 
@@ -277,6 +281,13 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
                 .collect(Collectors.toMap(EvaluationBatch::getId, EvaluationBatch::getBatchName, (left, right) -> left, HashMap::new));
     }
 
+    private void evictResultCaches(Long batchId, Long resultId) {
+        eventPublisher.publishEvent(new CacheEvictionEvent(this,
+                CacheEvictionOperation.EVICT_EVALUATION_RESULTS_FOR_BATCH, batchId));
+        eventPublisher.publishEvent(new CacheEvictionEvent(this,
+                CacheEvictionOperation.EVICT_ADMIN_RESULT, resultId));
+    }
+
     private AdminEvaluationResultVO toAdminVO(EvaluationResult result, Map<Long, String> batchNameMap) {
         AdminEvaluationResultVO vo = new AdminEvaluationResultVO();
         vo.setId(result.getId());
@@ -304,4 +315,5 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         vo.setUpdateTime(result.getUpdateTime());
         return vo;
     }
+
 }

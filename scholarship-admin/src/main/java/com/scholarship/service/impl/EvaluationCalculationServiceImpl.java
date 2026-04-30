@@ -2,6 +2,10 @@ package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.common.exception.BusinessException;
+import com.scholarship.config.ScholarshipProperties;
+import com.scholarship.dto.BatchCalculationSummary;
+import com.scholarship.dto.WeightSetting;
 import com.scholarship.entity.CompetitionAward;
 import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.entity.EvaluationResult;
@@ -22,13 +26,13 @@ import com.scholarship.service.ResearchPatentService;
 import com.scholarship.service.ResearchProjectService;
 import com.scholarship.service.ScholarshipApplicationService;
 import com.scholarship.service.ScoreRuleService;
-import com.scholarship.dto.WeightSetting;
 import com.scholarship.service.StudentInfoService;
 import com.scholarship.service.SysSettingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -37,7 +41,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -45,6 +48,29 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResultMapper, EvaluationResult>
         implements EvaluationCalculationService {
+
+    private static final BigDecimal PAPER_FIRST_AUTHOR_RATIO = new BigDecimal("1.0");
+    private static final BigDecimal PAPER_SECOND_AUTHOR_RATIO = new BigDecimal("0.7");
+    private static final BigDecimal PAPER_THIRD_AUTHOR_RATIO = new BigDecimal("0.5");
+    private static final BigDecimal PAPER_OTHER_AUTHOR_RATIO = new BigDecimal("0.3");
+
+    private static final BigDecimal PATENT_FIRST_RATIO = new BigDecimal("1.0");
+    private static final BigDecimal PATENT_SECOND_RATIO = new BigDecimal("0.6");
+    private static final BigDecimal PATENT_THIRD_RATIO = new BigDecimal("0.4");
+    private static final BigDecimal PATENT_OTHER_RATIO = new BigDecimal("0.2");
+
+    private static final BigDecimal PROJECT_FIRST_RATIO = new BigDecimal("1.0");
+    private static final BigDecimal PROJECT_SECOND_RATIO = new BigDecimal("0.7");
+    private static final BigDecimal PROJECT_THIRD_RATIO = new BigDecimal("0.5");
+    private static final BigDecimal PROJECT_OTHER_RATIO = new BigDecimal("0.3");
+
+    private static final int RULE_TYPE_COURSE = 5;
+    private static final int RULE_TYPE_QUALITY = 6;
+
+    private static final BigDecimal TEAM_FIRST_RATIO = new BigDecimal("1.0");
+    private static final BigDecimal TEAM_SECOND_RATIO = new BigDecimal("0.8");
+    private static final BigDecimal TEAM_THIRD_RATIO = new BigDecimal("0.6");
+    private static final BigDecimal TEAM_OTHER_RATIO = new BigDecimal("0.4");
 
     private final ScoreRuleService scoreRuleService;
     private final ResearchPaperService researchPaperService;
@@ -57,31 +83,8 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
     private final MoralPerformanceService moralPerformanceService;
     private final EvaluationBatchService evaluationBatchService;
     private final SysSettingService sysSettingService;
-
-    // ========== 参与因子系数 ==========
-    // 论文作者排名系数
-    private static final BigDecimal PAPER_FIRST_AUTHOR_RATIO = new BigDecimal("1.0");
-    private static final BigDecimal PAPER_SECOND_AUTHOR_RATIO = new BigDecimal("0.7");
-    private static final BigDecimal PAPER_THIRD_AUTHOR_RATIO = new BigDecimal("0.5");
-    private static final BigDecimal PAPER_OTHER_AUTHOR_RATIO = new BigDecimal("0.3");
-
-    // 专利申请人排名系数
-    private static final BigDecimal PATENT_FIRST_RATIO = new BigDecimal("1.0");
-    private static final BigDecimal PATENT_SECOND_RATIO = new BigDecimal("0.6");
-    private static final BigDecimal PATENT_THIRD_RATIO = new BigDecimal("0.4");
-    private static final BigDecimal PATENT_OTHER_RATIO = new BigDecimal("0.2");
-
-    // 项目成员排名系数
-    private static final BigDecimal PROJECT_FIRST_RATIO = new BigDecimal("1.0");
-    private static final BigDecimal PROJECT_SECOND_RATIO = new BigDecimal("0.7");
-    private static final BigDecimal PROJECT_THIRD_RATIO = new BigDecimal("0.5");
-    private static final BigDecimal PROJECT_OTHER_RATIO = new BigDecimal("0.3");
-
-    // 竞赛团队成员排名系数
-    private static final BigDecimal TEAM_FIRST_RATIO = new BigDecimal("1.0");
-    private static final BigDecimal TEAM_SECOND_RATIO = new BigDecimal("0.8");
-    private static final BigDecimal TEAM_THIRD_RATIO = new BigDecimal("0.6");
-    private static final BigDecimal TEAM_OTHER_RATIO = new BigDecimal("0.4");
+    private final ScholarshipProperties scholarshipProperties;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     public EvaluationResult calculateApplication(ScholarshipApplication application) {
@@ -118,93 +121,51 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Map<Long, EvaluationResult> calculateBatchApplications(Long batchId) {
+    public BatchCalculationSummary calculateBatchApplications(Long batchId) {
         log.info("开始计算批次申请评分，batchId={}", batchId);
-
-        List<ScholarshipApplication> applications = scholarshipApplicationService.list(
-                new LambdaQueryWrapper<ScholarshipApplication>()
-                        .eq(ScholarshipApplication::getBatchId, batchId)
-                        .eq(ScholarshipApplication::getStatus, 3)
-        );
-
-        if (applications.isEmpty()) {
-            return Map.of();
-        }
-
-        List<Long> studentIds = applications.stream()
-                .map(ScholarshipApplication::getStudentId)
-                .distinct()
-                .collect(Collectors.toList());
 
         BatchRuleSelection batchRuleSelection = loadBatchRuleSelection(batchId);
         Map<Integer, List<ScoreRule>> rulesByType = batchRuleSelection.rulesByType();
-
-        Map<Long, StudentInfo> studentInfoMap = studentInfoService.mapByIds(studentIds);
-        Map<Long, List<ResearchPaper>> papersByStudent = researchPaperService.mapByStudentIds(studentIds);
-        Map<Long, List<ResearchPatent>> patentsByStudent = researchPatentService.mapByStudentIds(studentIds);
-        Map<Long, List<ResearchProject>> projectsByStudent = researchProjectService.mapByStudentIds(studentIds);
-        Map<Long, List<CompetitionAward>> awardsByStudent = competitionAwardService.mapByStudentIds(studentIds);
-        Map<Long, BigDecimal> courseScoresByStudent = courseScoreService.mapWeightedAverageByStudentIds(studentIds, batchId);
-        Map<Long, BigDecimal> moralScoresByStudent = moralPerformanceService.mapTotalScoreByStudentIds(studentIds, batchId);
-
-        List<ScoreRule> courseRules = rulesByType.getOrDefault(5, List.of());
-        List<ScoreRule> qualityRules = rulesByType.getOrDefault(6, List.of());
+        List<ScoreRule> courseRules = rulesByType.getOrDefault(RULE_TYPE_COURSE, List.of());
+        List<ScoreRule> qualityRules = rulesByType.getOrDefault(RULE_TYPE_QUALITY, List.of());
         BigDecimal maxCourseScore = getMaxScoreFromRules(courseRules);
         BigDecimal maxQualityScore = getMaxScoreFromRules(qualityRules);
 
-        Map<Long, EvaluationResult> results = new HashMap<>();
-        for (ScholarshipApplication application : applications) {
-            Long studentId = application.getStudentId();
+        BatchCalculationSummary summary = new BatchCalculationSummary();
+        summary.setBatchId(batchId);
 
-            BigDecimal courseScore = courseRules.isEmpty()
-                    ? BigDecimal.ZERO
-                    : courseScoresByStudent.getOrDefault(studentId, BigDecimal.ZERO);
-            BigDecimal researchScore = calculateResearchScoreFromMemory(
-                    studentId, rulesByType, papersByStudent, patentsByStudent, projectsByStudent);
-            BigDecimal competitionScore = calculateCompetitionScoreFromMemory(
-                    studentId, rulesByType, awardsByStudent);
-            BigDecimal qualityScore = qualityRules.isEmpty()
-                    ? BigDecimal.ZERO
-                    : moralScoresByStudent.getOrDefault(studentId, BigDecimal.ZERO);
+        clearBatchResults(batchId);
 
-            if (maxCourseScore != null && courseScore.compareTo(maxCourseScore) > 0) {
-                courseScore = maxCourseScore;
-            }
-            if (maxQualityScore != null && qualityScore.compareTo(maxQualityScore) > 0) {
-                qualityScore = maxQualityScore;
+        Long lastId = null;
+        long readPageSize = scholarshipProperties.getEvaluation().getReadPageSize();
+        int writeBatchSize = scholarshipProperties.getEvaluation().getWriteBatchSize();
+
+        while (true) {
+            List<ScholarshipApplication> applications = scholarshipApplicationService
+                    .listApprovedBatchPage(batchId, lastId, readPageSize);
+            if (applications.isEmpty()) {
+                break;
             }
 
-            BigDecimal totalScore = calculateTotalScore(courseScore, researchScore, competitionScore, qualityScore);
-            StudentInfo studentInfo = studentInfoMap.get(studentId);
+            List<EvaluationResult> resultList = buildBatchResults(
+                    batchId,
+                    applications,
+                    rulesByType,
+                    courseRules,
+                    qualityRules,
+                    maxCourseScore,
+                    maxQualityScore
+            );
 
-            EvaluationResult result = new EvaluationResult();
-            result.setBatchId(batchId);
-            result.setApplicationId(application.getId());
-            result.setStudentId(studentId);
-            if (studentInfo != null) {
-                result.setStudentName(studentInfo.getName());
-                result.setStudentNo(studentInfo.getStudentNo());
-                result.setDepartment(studentInfo.getDepartment());
-                result.setMajor(studentInfo.getMajor());
-            }
-            result.setCourseScore(courseScore);
-            result.setResearchScore(researchScore);
-            result.setCompetitionScore(competitionScore);
-            result.setQualityScore(qualityScore);
-            result.setTotalScore(totalScore);
+            saveBatchResults(resultList, writeBatchSize);
 
-            results.put(application.getId(), result);
+            summary.setProcessedCount(summary.getProcessedCount() + applications.size());
+            summary.setWrittenCount(summary.getWrittenCount() + resultList.size());
+            summary.setPageCount(summary.getPageCount() + 1);
+            lastId = applications.get(applications.size() - 1).getId();
         }
 
-        if (!results.isEmpty()) {
-            List<EvaluationResult> resultList = new ArrayList<>(results.values());
-            remove(new LambdaQueryWrapper<EvaluationResult>()
-                    .eq(EvaluationResult::getBatchId, batchId));
-            saveBatch(resultList);
-        }
-
-        return results;
+        return summary;
     }
 
     @Override
@@ -324,8 +285,11 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
                 competitionWeight = weightToDecimal(weightSetting.getCompetitionWeight());
                 qualityWeight = weightToDecimal(weightSetting.getComprehensiveWeight());
             }
-        } catch (Exception e) {
+        } catch (DataAccessException | IllegalArgumentException e) {
             log.warn("读取权重设置失败，使用默认权重", e);
+        } catch (Exception e) {
+            log.error("读取权重设置异常", e);
+            throw new BusinessException("权重配置读取失败，无法计算综合得分", e);
         }
 
         return courseScore.multiply(courseWeight)
@@ -333,6 +297,85 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
                 .add(competitionScore.multiply(competitionWeight))
                 .add(qualityScore.multiply(qualityWeight))
                 .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private List<EvaluationResult> buildBatchResults(Long batchId,
+                                                     List<ScholarshipApplication> applications,
+                                                     Map<Integer, List<ScoreRule>> rulesByType,
+                                                     List<ScoreRule> courseRules,
+                                                     List<ScoreRule> qualityRules,
+                                                     BigDecimal maxCourseScore,
+                                                     BigDecimal maxQualityScore) {
+        List<Long> studentIds = applications.stream()
+                .map(ScholarshipApplication::getStudentId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Long, StudentInfo> studentInfoMap = studentInfoService.mapByIds(studentIds);
+        Map<Long, List<ResearchPaper>> papersByStudent = researchPaperService.mapByStudentIds(studentIds);
+        Map<Long, List<ResearchPatent>> patentsByStudent = researchPatentService.mapByStudentIds(studentIds);
+        Map<Long, List<ResearchProject>> projectsByStudent = researchProjectService.mapByStudentIds(studentIds);
+        Map<Long, List<CompetitionAward>> awardsByStudent = competitionAwardService.mapByStudentIds(studentIds);
+        Map<Long, BigDecimal> courseScoresByStudent = courseScoreService.mapWeightedAverageByStudentIds(studentIds, batchId);
+        Map<Long, BigDecimal> moralScoresByStudent = moralPerformanceService.mapTotalScoreByStudentIds(studentIds, batchId);
+
+        List<EvaluationResult> results = new ArrayList<>(applications.size());
+        for (ScholarshipApplication application : applications) {
+            Long studentId = application.getStudentId();
+
+            BigDecimal courseScore = courseRules.isEmpty()
+                    ? BigDecimal.ZERO
+                    : courseScoresByStudent.getOrDefault(studentId, BigDecimal.ZERO);
+            BigDecimal researchScore = calculateResearchScoreFromMemory(
+                    studentId, rulesByType, papersByStudent, patentsByStudent, projectsByStudent);
+            BigDecimal competitionScore = calculateCompetitionScoreFromMemory(
+                    studentId, rulesByType, awardsByStudent);
+            BigDecimal qualityScore = qualityRules.isEmpty()
+                    ? BigDecimal.ZERO
+                    : moralScoresByStudent.getOrDefault(studentId, BigDecimal.ZERO);
+
+            if (maxCourseScore != null && courseScore.compareTo(maxCourseScore) > 0) {
+                courseScore = maxCourseScore;
+            }
+            if (maxQualityScore != null && qualityScore.compareTo(maxQualityScore) > 0) {
+                qualityScore = maxQualityScore;
+            }
+
+            BigDecimal totalScore = calculateTotalScore(courseScore, researchScore, competitionScore, qualityScore);
+            StudentInfo studentInfo = studentInfoMap.get(studentId);
+
+            EvaluationResult result = new EvaluationResult();
+            result.setBatchId(batchId);
+            result.setApplicationId(application.getId());
+            result.setStudentId(studentId);
+            if (studentInfo != null) {
+                result.setStudentName(studentInfo.getName());
+                result.setStudentNo(studentInfo.getStudentNo());
+                result.setDepartment(studentInfo.getDepartment());
+                result.setMajor(studentInfo.getMajor());
+            }
+            result.setCourseScore(courseScore);
+            result.setResearchScore(researchScore);
+            result.setCompetitionScore(competitionScore);
+            result.setQualityScore(qualityScore);
+            result.setTotalScore(totalScore);
+            results.add(result);
+        }
+        return results;
+    }
+
+    private void clearBatchResults(Long batchId) {
+        transactionTemplate.executeWithoutResult(status ->
+                remove(new LambdaQueryWrapper<EvaluationResult>()
+                        .eq(EvaluationResult::getBatchId, batchId))
+        );
+    }
+
+    private void saveBatchResults(List<EvaluationResult> resultList, int writeBatchSize) {
+        if (resultList.isEmpty()) {
+            return;
+        }
+        transactionTemplate.executeWithoutResult(status -> saveBatch(resultList, writeBatchSize));
     }
 
     private BatchRuleSelection loadBatchRuleSelection(Long batchId) {
@@ -425,7 +468,7 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
 
         BigDecimal score = matchedRule.getScore();
         if (paper.getAuthorRank() != null) {
-            score = score.multiply(getAuthorRankRatio(paper.getAuthorRank()));
+            score = score.multiply(getRankRatio(paper.getAuthorRank(), PAPER_FIRST_AUTHOR_RATIO, PAPER_SECOND_AUTHOR_RATIO, PAPER_THIRD_AUTHOR_RATIO, PAPER_OTHER_AUTHOR_RATIO));
         }
         if (matchedRule.getMaxScore() != null) {
             score = score.min(matchedRule.getMaxScore());
@@ -447,7 +490,7 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
 
         BigDecimal score = matchedRule.getScore();
         if (patent.getApplicantRank() != null) {
-            score = score.multiply(getApplicantRankRatio(patent.getApplicantRank()));
+            score = score.multiply(getRankRatio(patent.getApplicantRank(), PATENT_FIRST_RATIO, PATENT_SECOND_RATIO, PATENT_THIRD_RATIO, PATENT_OTHER_RATIO));
         }
         if (matchedRule.getMaxScore() != null) {
             score = score.min(matchedRule.getMaxScore());
@@ -469,7 +512,7 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
 
         BigDecimal score = matchedRule.getScore();
         if (project.getMemberRank() != null) {
-            score = score.multiply(getMemberRankRatio(project.getMemberRank()));
+            score = score.multiply(getRankRatio(project.getMemberRank(), PROJECT_FIRST_RATIO, PROJECT_SECOND_RATIO, PROJECT_THIRD_RATIO, PROJECT_OTHER_RATIO));
         }
         if (matchedRule.getMaxScore() != null) {
             score = score.min(matchedRule.getMaxScore());
@@ -492,7 +535,7 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
 
         BigDecimal score = matchedRule.getScore();
         if (award.getAwardType() == 2 && award.getMemberRank() != null) {
-            score = score.multiply(getTeamMemberRatio(award.getMemberRank()));
+            score = score.multiply(getRankRatio(award.getMemberRank(), TEAM_FIRST_RATIO, TEAM_SECOND_RATIO, TEAM_THIRD_RATIO, TEAM_OTHER_RATIO));
         }
         if (matchedRule.getMaxScore() != null) {
             score = score.min(matchedRule.getMaxScore());
@@ -500,51 +543,16 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         return score;
     }
 
-    private BigDecimal getAuthorRankRatio(Integer authorRank) {
-        if (authorRank == null) {
+    private BigDecimal getRankRatio(Integer rank, BigDecimal first, BigDecimal second,
+                                     BigDecimal third, BigDecimal other) {
+        if (rank == null) {
             return BigDecimal.ONE;
         }
-        return switch (authorRank) {
-            case 1 -> PAPER_FIRST_AUTHOR_RATIO;
-            case 2 -> PAPER_SECOND_AUTHOR_RATIO;
-            case 3 -> PAPER_THIRD_AUTHOR_RATIO;
-            default -> PAPER_OTHER_AUTHOR_RATIO;
-        };
-    }
-
-    private BigDecimal getApplicantRankRatio(Integer applicantRank) {
-        if (applicantRank == null) {
-            return BigDecimal.ONE;
-        }
-        return switch (applicantRank) {
-            case 1 -> PATENT_FIRST_RATIO;
-            case 2 -> PATENT_SECOND_RATIO;
-            case 3 -> PATENT_THIRD_RATIO;
-            default -> PATENT_OTHER_RATIO;
-        };
-    }
-
-    private BigDecimal getMemberRankRatio(Integer memberRank) {
-        if (memberRank == null) {
-            return BigDecimal.ONE;
-        }
-        return switch (memberRank) {
-            case 1 -> PROJECT_FIRST_RATIO;
-            case 2 -> PROJECT_SECOND_RATIO;
-            case 3 -> PROJECT_THIRD_RATIO;
-            default -> PROJECT_OTHER_RATIO;
-        };
-    }
-
-    private BigDecimal getTeamMemberRatio(Integer memberRank) {
-        if (memberRank == null) {
-            return BigDecimal.ONE;
-        }
-        return switch (memberRank) {
-            case 1 -> TEAM_FIRST_RATIO;
-            case 2 -> TEAM_SECOND_RATIO;
-            case 3 -> TEAM_THIRD_RATIO;
-            default -> TEAM_OTHER_RATIO;
+        return switch (rank) {
+            case 1 -> first;
+            case 2 -> second;
+            case 3 -> third;
+            default -> other;
         };
     }
 

@@ -54,6 +54,14 @@ public interface EvaluationBatchService extends IService<EvaluationBatch> {
     boolean startPublicity(Long id);
 
     /**
+     * 校验批次是否可评定
+     *
+     * @param batchId 批次 ID
+     * @throws com.scholarship.common.exception.BusinessException 批次不存在或状态不允许评定时抛出
+     */
+    void validateForEvaluation(Long batchId);
+
+    /**
      * 获取申请中的批次列表
      *
      * @return 批次列表
