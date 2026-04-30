@@ -405,7 +405,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">确定</el-button>
+        <el-button type="primary" :loading="saving" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
 
@@ -423,7 +423,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -476,6 +476,8 @@ import {
   GENERIC_AUDIT_TYPES as SHARED_GENERIC_AUDIT_TYPES
 } from '@/constants/achievementReview'
 import { PATENT_STATUS_OPTIONS, PATENT_TYPE_OPTIONS } from '@/constants/patent'
+
+defineOptions({ name: 'StudentAchievements' })
 
 type AchievementType = 'paper' | 'patent' | 'project' | 'competition'
 type NormalizedPaper = Paper & {
@@ -551,6 +553,7 @@ const achievementTypeOptions = [...ACHIEVEMENT_TYPE_OPTIONS] as Array<{ label: s
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
+const saving = ref(false)
 const total = ref(0)
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
@@ -1209,7 +1212,12 @@ function handleDelete(row: AchievementRow): void {
       ElMessage.success('删除成功')
       await fetchTableData()
     })
-    .catch(() => undefined)
+    .catch((error) => {
+      if (error !== 'cancel' && error !== 'close') {
+        console.error('删除失败:', error)
+        ElMessage.error('删除失败，请稍后重试')
+      }
+    })
 }
 
 async function handleSubmit(): Promise<void> {
@@ -1221,6 +1229,7 @@ async function handleSubmit(): Promise<void> {
   const config = TYPE_FIELD_CONFIG[activeType.value]
   if (!config) return
 
+  saving.value = true
   try {
     const payload = config.getFormPayload(config.formModel, isEdit.value)
     const id = config.formModel.id
@@ -1237,6 +1246,8 @@ async function handleSubmit(): Promise<void> {
   } catch (error) {
     console.error('提交科研成果失败:', error)
     ElMessage.error('提交科研成果失败，请稍后重试')
+  } finally {
+    saving.value = false
   }
 }
 
@@ -1251,7 +1262,7 @@ function getRouteType(): AchievementType {
   return achievementTypeOptions.some(item => item.value === type) ? (type as AchievementType) : 'paper'
 }
 
-watch(
+const stopTypeWatcher = watch(
   () => route.query.type,
   () => {
     const routeType = getRouteType()
@@ -1273,6 +1284,10 @@ onMounted(async () => {
   } else {
     syncRouteQuery()
   }
+})
+
+onUnmounted(() => {
+  stopTypeWatcher()
 })
 </script>
 

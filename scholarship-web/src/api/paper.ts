@@ -2,6 +2,7 @@
  * 科研论文相关 API 接口
  */
 import request from '@/utils/request'
+import type { ReviewDisplayStatus } from '@/constants/review'
 
 /**
  * 科研论文
@@ -99,7 +100,7 @@ export function updatePaper(id: number, data: Omit<Paper, 'id'>): Promise<API.Re
  * 审核论文参数
  */
 export interface ReviewPaperParams {
-  status: number
+  status: ReviewDisplayStatus
   reviewComment?: string
 }
 

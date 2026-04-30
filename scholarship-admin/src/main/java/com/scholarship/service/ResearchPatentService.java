@@ -44,4 +44,12 @@ public interface ResearchPatentService extends IService<ResearchPatent> {
      * 审核专利。
      */
     boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId, boolean isAdmin);
+
+    /**
+     * 统计指定学生的审核通过专利数量。
+     *
+     * @param studentId 学生 ID
+     * @return 审核通过数量
+     */
+    long countByStudentId(Long studentId);
 }

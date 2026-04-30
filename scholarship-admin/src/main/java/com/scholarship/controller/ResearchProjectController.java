@@ -5,9 +5,11 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ResearchProject;
+import com.scholarship.entity.StudentInfo;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.ResearchProjectService;
+import com.scholarship.service.StudentInfoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ResearchProjectController {
 
     private final ResearchProjectService researchProjectService;
+    private final StudentInfoService studentInfoService;
 
     @GetMapping("/page")
     @Operation(summary = "分页查询项目", description = "支持按学生、审核状态和关键词筛选，并按当前角色限制数据范围")
@@ -112,9 +115,13 @@ public class ResearchProjectController {
     }
 
     @GetMapping("/count")
-    @Operation(summary = "统计项目总数")
-    public Result<Long> count() {
-        return Result.success(researchProjectService.count());
+    @Operation(summary = "统计当前学生审核通过的项目数量")
+    public Result<Long> count(@AuthenticationPrincipal LoginUser loginUser) {
+        StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
+        if (studentInfo == null) {
+            return Result.success(0L);
+        }
+        return Result.success(researchProjectService.countByStudentId(studentInfo.getId()));
     }
 
     public record AuditRequest(Integer auditStatus, String auditComment) {

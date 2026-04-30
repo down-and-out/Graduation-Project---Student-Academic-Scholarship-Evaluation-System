@@ -5,7 +5,9 @@ import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
 import com.scholarship.entity.ResearchPaper;
 import com.scholarship.security.LoginUser;
+import com.scholarship.entity.StudentInfo;
 import com.scholarship.service.ResearchPaperService;
+import com.scholarship.service.StudentInfoService;
 import com.scholarship.vo.ResearchPaperVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -38,6 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ResearchPaperController {
 
     private final ResearchPaperService researchPaperService;
+    private final StudentInfoService studentInfoService;
 
     /**
      * 分页查询论文
@@ -179,8 +182,12 @@ public class ResearchPaperController {
     }
 
     @GetMapping("/count")
-    @Operation(summary = "统计论文总数")
-    public Result<Long> count() {
-        return Result.success(researchPaperService.count());
+    @Operation(summary = "统计当前学生审核通过的论文数量")
+    public Result<Long> count(@AuthenticationPrincipal LoginUser loginUser) {
+        StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
+        if (studentInfo == null) {
+            return Result.success(0L);
+        }
+        return Result.success(researchPaperService.countByStudentId(studentInfo.getId()));
     }
 }

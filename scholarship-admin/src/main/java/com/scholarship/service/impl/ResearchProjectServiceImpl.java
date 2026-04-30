@@ -70,6 +70,13 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
     }
 
     @Override
+    public long countByStudentId(Long studentId) {
+        return count(new LambdaQueryWrapper<ResearchProject>()
+                .eq(ResearchProject::getStudentId, studentId)
+                .eq(ResearchProject::getAuditStatus, 1));
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId, boolean isAdmin) {
         ResearchProject project = getById(id);

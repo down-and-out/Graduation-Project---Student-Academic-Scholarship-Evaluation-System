@@ -343,6 +343,9 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
             Map<Long, StudentInfo> studentSnapshotCache = new HashMap<>();
             studentSnapshotCache.put(studentInfo.getId(), studentInfo);
             Map<String, TermScoreCache> termScoreCache = new HashMap<>();
+            List<CourseScore> newScores = new ArrayList<>();
+            List<CourseScore> updateScores = new ArrayList<>();
+            List<Long> duplicateIdsToRemove = new ArrayList<>();
             for (int rowIndex = headerRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
                 if (row == null || isBlankRow(row, formatter)) {
@@ -382,7 +385,7 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                         buildTermCacheKey(studentInfo.getId(), academicTerm),
                         key -> loadTermScoreCache(studentInfo.getId(), academicTerm)
                 );
-                CourseScore score = findExistingScore(normalizedCourseName, courseCode, cachedTermScores);
+                CourseScore score = findExistingScore(normalizedCourseName, courseCode, cachedTermScores, duplicateIdsToRemove);
                 boolean exists = score != null && score.getId() != null;
                 if (score == null) {
                     score = new CourseScore();
@@ -409,13 +412,24 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 fillStudentSnapshot(score, studentSnapshotCache);
 
                 if (exists) {
-                    updateImportedScore(score, hasGpaColumn, studentSnapshotCache);
+                    updateScores.add(score);
                     updatedCount++;
                 } else {
-                    super.save(score);
+                    newScores.add(score);
                     importedCount++;
                 }
                 cachedTermScores.put(score);
+            }
+
+            // 循环结束后批量写入
+            if (!newScores.isEmpty()) {
+                super.saveBatch(newScores, 200);
+            }
+            if (!updateScores.isEmpty()) {
+                super.updateBatchById(updateScores, 200);
+            }
+            if (!duplicateIdsToRemove.isEmpty()) {
+                super.removeBatchByIds(duplicateIdsToRemove, 200);
             }
 
             CourseScoreImportResult result = new CourseScoreImportResult();
@@ -686,12 +700,13 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         return new TermScoreCache(list(wrapper));
     }
 
-    private CourseScore findExistingScore(String courseName, String courseCode, TermScoreCache termScoreCache) {
+    private CourseScore findExistingScore(String courseName, String courseCode, TermScoreCache termScoreCache,
+                                          List<Long> duplicateIdsToRemove) {
         CourseScore codeMatched = termScoreCache.findByCourseCode(courseCode);
         CourseScore nameMatched = termScoreCache.findByCourseName(courseName);
 
         if (codeMatched != null && nameMatched != null && !Objects.equals(codeMatched.getId(), nameMatched.getId())) {
-            mergeDuplicateScore(codeMatched, nameMatched, termScoreCache);
+            mergeDuplicateScore(codeMatched, nameMatched, termScoreCache, duplicateIdsToRemove);
             return codeMatched;
         }
         if (codeMatched != null) {
@@ -707,12 +722,13 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 .eq(CourseScore::getSemester, term.semester());
     }
 
-    private void mergeDuplicateScore(CourseScore codeMatched, CourseScore nameMatched, TermScoreCache termScoreCache) {
+    private void mergeDuplicateScore(CourseScore codeMatched, CourseScore nameMatched, TermScoreCache termScoreCache,
+                                     List<Long> duplicateIdsToRemove) {
         String normalizedCode = codeMatched.getCourseCode() == null ? null : codeMatched.getCourseCode().trim();
         String duplicateCode = nameMatched.getCourseCode() == null ? null : nameMatched.getCourseCode().trim();
         boolean removableLegacy = duplicateCode == null || duplicateCode.isBlank() || Objects.equals(duplicateCode, normalizedCode);
         if (removableLegacy) {
-            removeById(nameMatched.getId());
+            duplicateIdsToRemove.add(nameMatched.getId());
             termScoreCache.remove(nameMatched);
         }
     }

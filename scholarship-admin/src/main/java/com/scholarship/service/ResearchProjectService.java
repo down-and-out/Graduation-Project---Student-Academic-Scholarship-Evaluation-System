@@ -44,4 +44,12 @@ public interface ResearchProjectService extends IService<ResearchProject> {
      * 批量查询学生的审核通过项目。
      */
     Map<Long, List<ResearchProject>> mapByStudentIds(List<Long> studentIds);
+
+    /**
+     * 统计指定学生的审核通过项目数量。
+     *
+     * @param studentId 学生 ID
+     * @return 审核通过数量
+     */
+    long countByStudentId(Long studentId);
 }
