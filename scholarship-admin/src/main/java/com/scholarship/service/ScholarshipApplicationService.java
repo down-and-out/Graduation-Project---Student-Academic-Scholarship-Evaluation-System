@@ -2,6 +2,7 @@ package com.scholarship.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.scholarship.dto.ScholarshipApplicationSubmitResponse;
 import com.scholarship.dto.param.ScholarshipApplicationSubmitRequest;
 import com.scholarship.entity.ScholarshipApplication;
 import com.scholarship.vo.ApplicationAchievementVO;
@@ -16,7 +17,9 @@ public interface ScholarshipApplicationService extends IService<ScholarshipAppli
 
     IPage<ScholarshipApplication> pageApplications(Long current, Long size, Long batchId, Long studentId, Integer status);
 
-    boolean submitApplication(ScholarshipApplicationSubmitRequest request, Long userId);
+    List<ScholarshipApplication> listApprovedBatchPage(Long batchId, Long lastId, Long size);
+
+    ScholarshipApplicationSubmitResponse submitApplication(ScholarshipApplicationSubmitRequest request, Long userId);
 
     ScholarshipApplicationDetailVO getDetailById(Long applicationId);
 

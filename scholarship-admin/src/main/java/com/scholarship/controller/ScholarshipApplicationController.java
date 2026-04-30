@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
+import com.scholarship.dto.ScholarshipApplicationSubmitResponse;
 import com.scholarship.dto.param.ScholarshipApplicationSubmitRequest;
 import com.scholarship.entity.ScholarshipApplication;
 import com.scholarship.entity.StudentInfo;
@@ -45,7 +46,7 @@ public class ScholarshipApplicationController {
     private final StudentInfoService studentInfoService;
 
     @GetMapping("/page")
-    @Operation(summary = "分页查询申请记录", description = "支持按批次 ID、学生 ID、状态筛选")
+    @Operation(summary = "分页查询申请记录", description = "支持按批次ID、学生ID、状态筛选")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "查询成功")
     })
@@ -54,9 +55,9 @@ public class ScholarshipApplicationController {
             @RequestParam(defaultValue = "1") Long current,
             @Parameter(description = "每页大小", example = "10")
             @RequestParam(defaultValue = "10") Long size,
-            @Parameter(description = "批次 ID", example = "1")
+            @Parameter(description = "批次ID", example = "1")
             @RequestParam(required = false) Long batchId,
-            @Parameter(description = "学生 ID", example = "1")
+            @Parameter(description = "学生ID", example = "1")
             @RequestParam(required = false) Long studentId,
             @Parameter(description = "状态", example = "1")
             @RequestParam(required = false) Integer status,
@@ -104,11 +105,14 @@ public class ScholarshipApplicationController {
             @ApiResponse(responseCode = "200", description = "提交成功"),
             @ApiResponse(responseCode = "400", description = "参数错误")
     })
-    public Result<Void> submit(
+    public Result<ScholarshipApplicationSubmitResponse> submit(
             @Valid @RequestBody ScholarshipApplicationSubmitRequest application,
             @AuthenticationPrincipal LoginUser loginUser) {
-        boolean success = applicationService.submitApplication(application, loginUser.getUserId());
-        return success ? Result.success("提交成功") : Result.error("提交失败");
+        ScholarshipApplicationSubmitResponse response = applicationService.submitApplication(
+                application,
+                loginUser.getUserId()
+        );
+        return Result.success(response.getMessage(), response);
     }
 
     @PutMapping("/review/{id}")

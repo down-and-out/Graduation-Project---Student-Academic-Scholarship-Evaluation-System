@@ -23,7 +23,10 @@ public final class CacheConstants {
     public static final String SYS_SETTING_ACTIVE = "sys:settings:active";
     public static final String SYS_SETTINGS_ALL = "sys:settings:all";
     public static final String BATCH_AVAILABLE = "batch:available";
+    public static final String BATCH_DETAIL = "batch:detail";
     public static final String TASK_DETAIL = "task:detail";
+    public static final String RULE_AVAILABLE = "rule:available";
+    public static final String RULE_DETAIL = "rule:detail";
     public static final String APP_DETAIL = "app:detail";
     public static final String APP_ACHIEVEMENTS = "app:achievements";
     public static final String APP_PAGE = "app:page";
@@ -38,14 +41,18 @@ public final class CacheConstants {
     public static final long TTL_SYS_SETTING_ACTIVE = 3600L;
     public static final long TTL_SYS_SETTINGS_ALL = 3600L;
     public static final long TTL_BATCH_AVAILABLE = 300L;
+    public static final long TTL_BATCH_DETAIL = 300L;
     public static final long TTL_TASK_DETAIL = 10L;
+    public static final long TTL_RULE_AVAILABLE = 600L;
+    public static final long TTL_RULE_DETAIL = 600L;
     public static final long TTL_APP_DETAIL = 300L;
     public static final long TTL_APP_ACHIEVEMENTS = 300L;
-    public static final long TTL_APP_PAGE = 120L;
-    public static final long TTL_EVAL_STUDENT = 120L;
-    public static final long TTL_EVAL_PAGE = 120L;
-    public static final long TTL_EVAL_ADMIN = 120L;
-    public static final long TTL_EVAL_RANK = 120L;
+    // TTL 差异化设计：避免同时过期导致缓存雪崩
+    public static final long TTL_APP_PAGE = 150L;
+    public static final long TTL_EVAL_STUDENT = 150L;
+    public static final long TTL_EVAL_PAGE = 180L;
+    public static final long TTL_EVAL_ADMIN = 90L;
+    public static final long TTL_EVAL_RANK = 300L;
 
     // ======================== Key Builders (for @Cacheable SpEL) ========================
 
@@ -122,6 +129,22 @@ public final class CacheConstants {
 
     public static String batchAvailablePrefix() {
         return BATCH_AVAILABLE + "::";
+    }
+
+    public static String batchDetailPrefix() {
+        return BATCH_DETAIL + "::";
+    }
+
+    public static String ruleAvailableKey(Integer ruleType) {
+        return "type:" + ruleType;
+    }
+
+    public static String ruleAvailablePrefix() {
+        return RULE_AVAILABLE + "::";
+    }
+
+    public static String ruleDetailPrefix() {
+        return RULE_DETAIL + "::";
     }
 
     // ======================== internal helpers ========================

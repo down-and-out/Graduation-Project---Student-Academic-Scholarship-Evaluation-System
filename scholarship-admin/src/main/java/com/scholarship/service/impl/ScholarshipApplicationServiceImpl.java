@@ -1,13 +1,21 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.common.enums.ApplicationStatusEnum;
 import com.scholarship.common.enums.ReviewOpinionEnum;
+import com.scholarship.common.enums.ReviewStageEnum;
 import com.scholarship.common.exception.BusinessException;
+import com.scholarship.common.result.ResultCode;
+import com.scholarship.common.support.CacheConstants;
+import com.scholarship.common.support.CursorPageHelper;
+import com.scholarship.common.support.LockConstants;
+import com.scholarship.common.support.RedisLockSupport;
 import com.scholarship.config.ScholarshipProperties;
+import com.scholarship.dto.ScholarshipApplicationSubmitResponse;
 import com.scholarship.dto.param.ApplicationAchievementSubmitItem;
 import com.scholarship.dto.param.ScholarshipApplicationSubmitRequest;
 import com.scholarship.entity.ApplicationAchievement;
@@ -23,6 +31,7 @@ import com.scholarship.mapper.ResearchPatentMapper;
 import com.scholarship.mapper.ResearchProjectMapper;
 import com.scholarship.mapper.ScholarshipApplicationMapper;
 import com.scholarship.service.ApplicationAchievementService;
+import com.scholarship.service.CacheEvictionService;
 import com.scholarship.service.ReviewRecordService;
 import com.scholarship.service.ScholarshipApplicationService;
 import com.scholarship.service.StudentInfoService;
@@ -30,6 +39,8 @@ import com.scholarship.vo.ApplicationAchievementVO;
 import com.scholarship.vo.ScholarshipApplicationDetailVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -43,6 +54,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -62,23 +74,27 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final String APP_NO_COUNTER_KEY = "app:no:counter:";
-
     private final ScholarshipApplicationMapper applicationMapper;
     private final ScholarshipProperties scholarshipProperties;
     private final StringRedisTemplate redisTemplate;
+    private final RedisLockSupport redisLockSupport;
     private final StudentInfoService studentInfoService;
     private final ApplicationAchievementService applicationAchievementService;
     private final ReviewRecordService reviewRecordService;
+    private final CacheEvictionService cacheEvictionService;
     private final ResearchPaperMapper researchPaperMapper;
     private final ResearchPatentMapper researchPatentMapper;
     private final ResearchProjectMapper researchProjectMapper;
     private final CompetitionAwardMapper competitionAwardMapper;
 
     @Override
+    @Cacheable(value = CacheConstants.APP_PAGE,
+            key = "T(com.scholarship.common.support.CacheConstants).appPageKey(#current, #size, #batchId, #studentId, #status)",
+            unless = "#result == null || #result.records == null || #result.records.isEmpty()")
     public IPage<ScholarshipApplication> pageApplications(Long current, Long size, Long batchId, Long studentId, Integer status) {
+        CursorPageHelper.validateOffset(current, size, scholarshipProperties.getEvaluation().getMaxOffsetRows());
         Page<ScholarshipApplication> page = new Page<>(current, size);
         LambdaQueryWrapper<ScholarshipApplication> wrapper = new LambdaQueryWrapper<>();
-
         if (batchId != null) {
             wrapper.eq(ScholarshipApplication::getBatchId, batchId);
         }
@@ -88,44 +104,92 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         if (status != null) {
             wrapper.eq(ScholarshipApplication::getStatus, status);
         }
-
         wrapper.orderByDesc(ScholarshipApplication::getCreateTime);
         return applicationMapper.selectPage(page, wrapper);
     }
 
     @Override
+    public List<ScholarshipApplication> listApprovedBatchPage(Long batchId, Long lastId, Long size) {
+        Page<ScholarshipApplication> page = new Page<>(1, size, false);
+        LambdaQueryWrapper<ScholarshipApplication> wrapper = new LambdaQueryWrapper<ScholarshipApplication>()
+                .eq(ScholarshipApplication::getBatchId, batchId)
+                .eq(ScholarshipApplication::getStatus, ApplicationStatusEnum.APPROVED.getCode())
+                .gt(lastId != null, ScholarshipApplication::getId, lastId)
+                .orderByAsc(ScholarshipApplication::getId);
+        return applicationMapper.selectPage(page, wrapper).getRecords();
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitApplication(ScholarshipApplicationSubmitRequest request, Long userId) {
+    public ScholarshipApplicationSubmitResponse submitApplication(ScholarshipApplicationSubmitRequest request, Long userId) {
         StudentInfo studentInfo = studentInfoService.getByUserId(userId);
         if (studentInfo == null) {
             throw new BusinessException("学生信息不存在");
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        ScholarshipApplication application = new ScholarshipApplication();
-        application.setBatchId(request.getBatchId());
-        application.setStudentId(studentInfo.getId());
-        application.setRemark(serializeApplicationRemark(request.getSelfEvaluation(), request.getRemark()));
-        application.setStatus(ApplicationStatusEnum.SUBMITTED.getCode());
-        application.setApplicationTime(now);
-        application.setSubmitTime(now);
-        application.setApplicationNo(generateApplicationNo());
-
-        log.info("生成奖学金申请编号: {}", application.getApplicationNo());
-        boolean inserted = applicationMapper.insert(application) > 0;
-        if (!inserted) {
-            return false;
+        String lockKey = LockConstants.APPLICATION_SUBMIT + studentInfo.getId() + ":" + request.getBatchId();
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = redisLockSupport.tryLock(
+                lockKey,
+                lockValue,
+                scholarshipProperties.getLock().getApplicationSubmitSeconds()
+        );
+        if (!locked) {
+            throw new BusinessException("申请正在提交，请勿重复操作");
         }
 
-        List<ApplicationAchievement> achievements = buildAchievementsForSubmit(
-                application.getId(),
-                studentInfo.getId(),
-                request.getAchievements()
-        );
-        return applicationAchievementService.replaceByApplicationId(application.getId(), achievements);
+        try {
+            ScholarshipApplication existingApplication = findActiveApplication(studentInfo.getId(), request.getBatchId());
+            if (existingApplication != null) {
+                return buildIdempotentSubmitResponse(existingApplication);
+            }
+
+            LocalDateTime now = LocalDateTime.now();
+            ScholarshipApplication application = new ScholarshipApplication();
+            application.setBatchId(request.getBatchId());
+            application.setStudentId(studentInfo.getId());
+            application.setRemark(serializeApplicationRemark(request.getSelfEvaluation(), request.getRemark()));
+            application.setStatus(ApplicationStatusEnum.SUBMITTED.getCode());
+            application.setApplicationTime(now);
+            application.setSubmitTime(now);
+            application.setApplicationNo(generateApplicationNo());
+
+            log.info("Generated applicationNo={}, studentId={}, batchId={}",
+                    application.getApplicationNo(), studentInfo.getId(), request.getBatchId());
+
+            try {
+                boolean inserted = applicationMapper.insert(application) > 0;
+                if (!inserted) {
+                    throw new BusinessException("申请提交失败，请稍后重试");
+                }
+            } catch (DataIntegrityViolationException e) {
+                ScholarshipApplication duplicateApplication = findActiveApplication(studentInfo.getId(), request.getBatchId());
+                if (duplicateApplication != null) {
+                    return buildIdempotentSubmitResponse(duplicateApplication);
+                }
+                throw new BusinessException(ResultCode.APPLICATION_ALREADY_SUBMITTED, "当前批次已存在申请，请勿重复提交");
+            }
+
+            List<ApplicationAchievement> achievements = buildAchievementsForSubmit(
+                    application.getId(),
+                    studentInfo.getId(),
+                    request.getAchievements()
+            );
+            boolean replaced = applicationAchievementService.replaceByApplicationId(application.getId(), achievements);
+            if (!replaced) {
+                throw new BusinessException("申请提交失败，请稍后重试");
+            }
+
+            cacheEvictionService.evictApplicationAchievementsForUser(userId);
+            cacheEvictionService.evictApplicationPages();
+            return buildCreatedSubmitResponse(application);
+        } finally {
+            redisLockSupport.unlock(lockKey, lockValue);
+        }
     }
 
     @Override
+    @Cacheable(value = CacheConstants.APP_DETAIL, key = "#applicationId", unless = "#result == null")
     public ScholarshipApplicationDetailVO getDetailById(Long applicationId) {
         ScholarshipApplication application = applicationMapper.selectById(applicationId);
         if (application == null) {
@@ -149,6 +213,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
     }
 
     @Override
+    @Cacheable(value = CacheConstants.APP_ACHIEVEMENTS, key = "#userId", unless = "#result == null || #result.isEmpty()")
     public List<ApplicationAchievementVO> listAvailableAchievements(Long userId) {
         StudentInfo studentInfo = studentInfoService.getByUserId(userId);
         if (studentInfo == null) {
@@ -157,19 +222,10 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
 
         Long studentId = studentInfo.getId();
         List<ApplicationAchievementVO> achievements = new ArrayList<>();
-
-        achievements.addAll(loadAvailablePapers(studentId).stream()
-                .map(this::toPaperAchievementOption)
-                .toList());
-        achievements.addAll(loadAvailablePatents(studentId).stream()
-                .map(this::toPatentAchievementOption)
-                .toList());
-        achievements.addAll(loadAvailableProjects(studentId).stream()
-                .map(this::toProjectAchievementOption)
-                .toList());
-        achievements.addAll(loadAvailableCompetitions(studentId).stream()
-                .map(this::toCompetitionAchievementOption)
-                .toList());
+        achievements.addAll(loadAvailablePapers(studentId).stream().map(this::toPaperAchievementOption).toList());
+        achievements.addAll(loadAvailablePatents(studentId).stream().map(this::toPatentAchievementOption).toList());
+        achievements.addAll(loadAvailableProjects(studentId).stream().map(this::toProjectAchievementOption).toList());
+        achievements.addAll(loadAvailableCompetitions(studentId).stream().map(this::toCompetitionAchievementOption).toList());
 
         achievements.sort(Comparator
                 .comparing(ApplicationAchievementVO::getAchievementType)
@@ -192,18 +248,30 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         }
 
         Integer reviewStage = resolveReviewStage(reviewerUserType);
-        if (reviewStage == 1 && student.getTutorId() != null && !student.getTutorId().equals(reviewerId)) {
-            log.warn("审核人 {} 无权审核申请 {}", reviewerId, applicationId);
+        if (ReviewStageEnum.TUTOR.getCode().equals(reviewStage)
+                && student.getTutorId() != null
+                && !student.getTutorId().equals(reviewerId)) {
+            log.warn("Reviewer {} has no permission to review application {}", reviewerId, applicationId);
             throw new BusinessException("无权审核该申请，只能审核自己指导学生的申请");
         }
 
+        Integer expectedStatus = application.getStatus();
+        validateReviewableStatus(expectedStatus, reviewStage);
         Boolean passed = ReviewOpinionEnum.isPassed(opinion);
-        applyReviewResult(application, reviewStage, passed, opinion, reviewerId);
 
-        boolean updated = applicationMapper.updateById(application) > 0;
+        // 使用条件更新防止 TOCTOU 竞态：只有状态未变化时才执行更新
+        LambdaUpdateWrapper<ScholarshipApplication> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(ScholarshipApplication::getId, applicationId)
+                .eq(ScholarshipApplication::getStatus, expectedStatus);
+        buildReviewUpdate(updateWrapper, reviewStage, passed, opinion, reviewerId);
+
+        boolean updated = applicationMapper.update(null, updateWrapper) > 0;
         if (!updated) {
-            return false;
+            throw new BusinessException("申请状态已变化，请刷新后重试");
         }
+
+        cacheEvictionService.evictApplicationDetail(applicationId);
+        cacheEvictionService.evictApplicationPages();
 
         return reviewRecordService.addReviewRecord(
                 applicationId,
@@ -216,37 +284,44 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         );
     }
 
+    private ScholarshipApplication findActiveApplication(Long studentId, Long batchId) {
+        return applicationMapper.selectOne(new LambdaQueryWrapper<ScholarshipApplication>()
+                .eq(ScholarshipApplication::getStudentId, studentId)
+                .eq(ScholarshipApplication::getBatchId, batchId)
+                .last("LIMIT 1"));
+    }
+
+    private void validateReviewableStatus(Integer currentStatus, Integer reviewStage) {
+        Integer expectedStatus = ReviewStageEnum.TUTOR.getCode().equals(reviewStage)
+                ? ApplicationStatusEnum.SUBMITTED.getCode()
+                : ApplicationStatusEnum.TUTOR_PASSED.getCode();
+        if (!expectedStatus.equals(currentStatus)) {
+            throw new BusinessException("当前状态不允许审核");
+        }
+    }
+
     private String generateApplicationNo() {
         String prefix = scholarshipProperties.getApplication().getNumberPrefix();
         String dateStr = LocalDateTime.now().format(DATE_FORMATTER);
         String counterKey = APP_NO_COUNTER_KEY + dateStr;
-
-        String luaScript =
-                "local seq = redis.call('INCR', KEYS[1]) " +
-                "if seq == 1 then " +
-                "    redis.call('EXPIRE', KEYS[1], ARGV[1]) " +
-                "end " +
-                "return seq";
-
+        String luaScript = "local seq = redis.call('INCR', KEYS[1]) "
+                + "if seq == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end "
+                + "return seq";
         DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>(luaScript, Long.class);
         Long sequence = redisTemplate.execute(redisScript, Collections.singletonList(counterKey), "172800");
-
         if (sequence == null) {
             sequence = redisTemplate.opsForValue().increment(counterKey);
             if (sequence != null && sequence == 1) {
                 redisTemplate.expire(counterKey, 2, TimeUnit.DAYS);
             }
         }
-
         String seqStr = String.format("%06d", sequence);
         return String.format("%s-%s-%s", prefix, dateStr, seqStr);
     }
 
-    private List<ApplicationAchievement> buildAchievementsForSubmit(
-            Long applicationId,
-            Long studentId,
-            List<ApplicationAchievementSubmitItem> items
-    ) {
+    private List<ApplicationAchievement> buildAchievementsForSubmit(Long applicationId,
+                                                                    Long studentId,
+                                                                    List<ApplicationAchievementSubmitItem> items) {
         if (items == null || items.isEmpty()) {
             return List.of();
         }
@@ -267,14 +342,12 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         return achievements;
     }
 
-    private ApplicationAchievement buildAchievementEntity(
-            Long applicationId,
-            ApplicationAchievementSubmitItem item,
-            Map<Long, ResearchPaper> paperMap,
-            Map<Long, ResearchPatent> patentMap,
-            Map<Long, ResearchProject> projectMap,
-            Map<Long, CompetitionAward> competitionMap
-    ) {
+    private ApplicationAchievement buildAchievementEntity(Long applicationId,
+                                                          ApplicationAchievementSubmitItem item,
+                                                          Map<Long, ResearchPaper> paperMap,
+                                                          Map<Long, ResearchPatent> patentMap,
+                                                          Map<Long, ResearchProject> projectMap,
+                                                          Map<Long, CompetitionAward> competitionMap) {
         ApplicationAchievement achievement = new ApplicationAchievement();
         achievement.setApplicationId(applicationId);
         achievement.setAchievementType(item.getAchievementType());
@@ -316,7 +389,6 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
             }
             default -> throw new BusinessException("存在未知成果类型，无法提交申请");
         }
-
         return achievement;
     }
 
@@ -436,8 +508,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         if (ids.isEmpty()) {
             return Map.of();
         }
-        return researchPaperMapper.selectList(new LambdaQueryWrapper<ResearchPaper>()
-                        .in(ResearchPaper::getId, ids))
+        return researchPaperMapper.selectList(new LambdaQueryWrapper<ResearchPaper>().in(ResearchPaper::getId, ids))
                 .stream()
                 .collect(Collectors.toMap(ResearchPaper::getId, Function.identity(), (a, b) -> a));
     }
@@ -446,8 +517,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         if (ids.isEmpty()) {
             return Map.of();
         }
-        return researchPatentMapper.selectList(new LambdaQueryWrapper<ResearchPatent>()
-                        .in(ResearchPatent::getId, ids))
+        return researchPatentMapper.selectList(new LambdaQueryWrapper<ResearchPatent>().in(ResearchPatent::getId, ids))
                 .stream()
                 .collect(Collectors.toMap(ResearchPatent::getId, Function.identity(), (a, b) -> a));
     }
@@ -456,8 +526,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         if (ids.isEmpty()) {
             return Map.of();
         }
-        return researchProjectMapper.selectList(new LambdaQueryWrapper<ResearchProject>()
-                        .in(ResearchProject::getId, ids))
+        return researchProjectMapper.selectList(new LambdaQueryWrapper<ResearchProject>().in(ResearchProject::getId, ids))
                 .stream()
                 .collect(Collectors.toMap(ResearchProject::getId, Function.identity(), (a, b) -> a));
     }
@@ -466,26 +535,22 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         if (ids.isEmpty()) {
             return Map.of();
         }
-        return competitionAwardMapper.selectList(new LambdaQueryWrapper<CompetitionAward>()
-                        .in(CompetitionAward::getId, ids))
+        return competitionAwardMapper.selectList(new LambdaQueryWrapper<CompetitionAward>().in(CompetitionAward::getId, ids))
                 .stream()
                 .collect(Collectors.toMap(CompetitionAward::getId, Function.identity(), (a, b) -> a));
     }
 
-    private ApplicationAchievementVO toAchievementDetail(
-            ApplicationAchievement link,
-            Map<Long, ResearchPaper> paperMap,
-            Map<Long, ResearchPatent> patentMap,
-            Map<Long, ResearchProject> projectMap,
-            Map<Long, CompetitionAward> competitionMap
-    ) {
+    private ApplicationAchievementVO toAchievementDetail(ApplicationAchievement link,
+                                                         Map<Long, ResearchPaper> paperMap,
+                                                         Map<Long, ResearchPatent> patentMap,
+                                                         Map<Long, ResearchProject> projectMap,
+                                                         Map<Long, CompetitionAward> competitionMap) {
         ApplicationAchievementVO vo = new ApplicationAchievementVO();
         vo.setId(link.getId());
         vo.setAchievementType(link.getAchievementType());
         vo.setAchievementId(link.getAchievementId());
         vo.setScore(link.getScore());
         vo.setScoreComment(link.getScoreComment());
-
         switch (link.getAchievementType()) {
             case 1 -> fillPaperInfo(vo, paperMap.get(link.getAchievementId()));
             case 2 -> fillPatentInfo(vo, patentMap.get(link.getAchievementId()));
@@ -578,7 +643,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
 
     private String buildScoreComment(String label, BigDecimal score, String sourceName) {
         if (score == null) {
-            return "申请时关联" + label + "，" + sourceName + "为空，按 0 分记录";
+            return "申请时关联" + label + "，" + sourceName + "为空，按0分记录";
         }
         return "申请时关联" + label + "，分值来源：" + sourceName;
     }
@@ -593,7 +658,6 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
     private String serializeApplicationRemark(String selfEvaluation, String remark) {
         String trimmedSelfEvaluation = selfEvaluation == null ? "" : selfEvaluation.trim();
         String trimmedRemark = remark == null ? "" : remark.trim();
-
         if (!trimmedSelfEvaluation.isEmpty() && !trimmedRemark.isEmpty()) {
             return trimmedSelfEvaluation + APPLICATION_REMARK_SEPARATOR + trimmedRemark;
         }
@@ -607,7 +671,6 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         if (text == null || text.isBlank()) {
             return new ParsedRemark("", "");
         }
-
         String[] parts = text.split(APPLICATION_REMARK_SEPARATOR, 2);
         if (parts.length == 2) {
             return new ParsedRemark(parts[0], parts[1]);
@@ -617,39 +680,40 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
 
     private Integer resolveReviewStage(Integer reviewerUserType) {
         return switch (reviewerUserType) {
-            case 2 -> 1;
-            case 3 -> 2;
+            case 2 -> ReviewStageEnum.TUTOR.getCode();
+            case 3 -> ReviewStageEnum.DEPARTMENT.getCode();
             default -> throw new BusinessException("无效的审核用户类型");
         };
     }
 
-    private void applyReviewResult(ScholarshipApplication application, Integer reviewStage, Boolean passed,
-                                   String opinion, Long reviewerId) {
+    private void buildReviewUpdate(LambdaUpdateWrapper<ScholarshipApplication> wrapper,
+                                    Integer reviewStage, Boolean passed,
+                                    String opinion, Long reviewerId) {
         LocalDateTime now = LocalDateTime.now();
-        if (reviewStage == 1) {
+        if (ReviewStageEnum.TUTOR.getCode().equals(reviewStage)) {
             if (passed == null) {
-                application.setStatus(ApplicationStatusEnum.TUTOR_REVIEWING.getCode());
+                wrapper.set(ScholarshipApplication::getStatus, ApplicationStatusEnum.TUTOR_REVIEWING.getCode());
             } else if (passed) {
-                application.setStatus(ApplicationStatusEnum.TUTOR_PASSED.getCode());
+                wrapper.set(ScholarshipApplication::getStatus, ApplicationStatusEnum.TUTOR_PASSED.getCode());
             } else {
-                application.setStatus(ApplicationStatusEnum.TUTOR_REJECTED.getCode());
+                wrapper.set(ScholarshipApplication::getStatus, ApplicationStatusEnum.TUTOR_REJECTED.getCode());
             }
-            application.setTutorOpinion(opinion);
-            application.setTutorId(reviewerId);
-            application.setTutorReviewTime(now);
+            wrapper.set(ScholarshipApplication::getTutorOpinion, opinion);
+            wrapper.set(ScholarshipApplication::getTutorId, reviewerId);
+            wrapper.set(ScholarshipApplication::getTutorReviewTime, now);
             return;
         }
 
         if (passed == null) {
-            application.setStatus(ApplicationStatusEnum.ADMIN_REVIEWING.getCode());
+            wrapper.set(ScholarshipApplication::getStatus, ApplicationStatusEnum.ADMIN_REVIEWING.getCode());
         } else if (passed) {
-            application.setStatus(ApplicationStatusEnum.APPROVED.getCode());
+            wrapper.set(ScholarshipApplication::getStatus, ApplicationStatusEnum.APPROVED.getCode());
         } else {
-            application.setStatus(ApplicationStatusEnum.ADMIN_REJECTED.getCode());
+            wrapper.set(ScholarshipApplication::getStatus, ApplicationStatusEnum.ADMIN_REJECTED.getCode());
         }
-        application.setCollegeOpinion(opinion);
-        application.setCollegeReviewerId(reviewerId);
-        application.setCollegeReviewTime(now);
+        wrapper.set(ScholarshipApplication::getCollegeOpinion, opinion);
+        wrapper.set(ScholarshipApplication::getCollegeReviewerId, reviewerId);
+        wrapper.set(ScholarshipApplication::getCollegeReviewTime, now);
     }
 
     private Integer resolveReviewResultCode(Boolean passed) {
@@ -657,6 +721,28 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
             return 3;
         }
         return passed ? 1 : 2;
+    }
+
+    private ScholarshipApplicationSubmitResponse buildCreatedSubmitResponse(ScholarshipApplication application) {
+        ScholarshipApplicationSubmitResponse response = new ScholarshipApplicationSubmitResponse();
+        response.setApplicationId(application.getId());
+        response.setApplicationNo(application.getApplicationNo());
+        response.setStatus(application.getStatus());
+        response.setCreated(true);
+        response.setIdempotent(false);
+        response.setMessage("提交成功");
+        return response;
+    }
+
+    private ScholarshipApplicationSubmitResponse buildIdempotentSubmitResponse(ScholarshipApplication application) {
+        ScholarshipApplicationSubmitResponse response = new ScholarshipApplicationSubmitResponse();
+        response.setApplicationId(application.getId());
+        response.setApplicationNo(application.getApplicationNo());
+        response.setStatus(application.getStatus());
+        response.setCreated(false);
+        response.setIdempotent(true);
+        response.setMessage("当前批次已存在申请，已返回已有记录");
+        return response;
     }
 
     private record ParsedRemark(String selfEvaluation, String remark) {

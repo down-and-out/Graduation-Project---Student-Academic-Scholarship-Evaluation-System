@@ -91,7 +91,7 @@
       </el-form>
       <template #footer>
         <el-button @click="appealDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitAppeal">提交</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmitAppeal">提交</el-button>
       </template>
     </el-dialog>
 
@@ -142,7 +142,6 @@ import { submitAppeal } from '@/api/appeal'
 import { getMyResult, getResultDetail, getResultPage } from '@/api/result'
 import type { EvaluationResult } from '@/api/result'
 import { extractApiData, extractPageData } from '@/utils/helpers'
-import { LARGE_QUERY_SIZE } from '@/constants'
 import {
   AWARD_LEVEL_MAX,
   AWARD_LEVEL_MIN,
@@ -172,6 +171,8 @@ const appealDialogVisible = ref(false)
 const detailDialogVisible = ref(false)
 const appealFormRef = ref<FormInstance | null>(null)
 const loading = ref(false)
+const submitting = ref(false)
+const HISTORY_PAGE_SIZE = 20
 
 const appealForm = reactive({
   reason: '',
@@ -250,7 +251,7 @@ async function loadResult(): Promise<void> {
 
 async function loadHistory(): Promise<void> {
   try {
-    const response = await getResultPage({ current: 1, size: LARGE_QUERY_SIZE })
+    const response = await getResultPage({ current: 1, size: HISTORY_PAGE_SIZE })
     const pageData = extractPageData<EvaluationResult>(response)
     historyList.value = (pageData?.records || []).map(normalizeResult)
   } catch (error) {
@@ -277,6 +278,7 @@ async function handleSubmitAppeal(): Promise<void> {
   const valid = await appealFormRef.value.validate().catch(() => false)
   if (!valid || !result.value?.id) return
 
+  submitting.value = true
   try {
     await submitAppeal({
       resultId: result.value.id,
@@ -288,6 +290,8 @@ async function handleSubmitAppeal(): Promise<void> {
   } catch (error) {
     console.error('提交异议失败:', error)
     ElMessage.error('提交异议失败')
+  } finally {
+    submitting.value = false
   }
 }
 

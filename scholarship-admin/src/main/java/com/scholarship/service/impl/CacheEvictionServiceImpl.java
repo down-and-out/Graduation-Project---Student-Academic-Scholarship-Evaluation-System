@@ -5,7 +5,6 @@ import com.scholarship.service.CacheEvictionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
-import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.ScanOptions;
@@ -17,12 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 缓存失效服务实现：使用 Redis SCAN+DELETE 批量清除缓存。
- *
- * <p>统一使用 {@link StringRedisTemplate#execute(RedisCallback)} 方式
- * 执行 SCAN 命令，避免 {@code KEYS *} 阻塞 Redis。</p>
- *
- * @author Scholarship Development Team
+ * 基于 Redis SCAN+DELETE 的缓存失效实现。
  */
 @Slf4j
 @Service
@@ -38,17 +32,14 @@ public class CacheEvictionServiceImpl implements CacheEvictionService {
         if (batchId == null) {
             return;
         }
-        // 使用分隔符包围的精确匹配，避免 batch:1 误匹配 batch:10
         String batchSuffix = ":batch:" + batchId;
         scanAndDelete(CacheConstants.evalPrefix(), batchSuffix);
-        scanAndDelete(CacheConstants.evalPagePrefix(), batchSuffix);
-        // 清除所有学生的"最新批次"缓存（对应前端不传 batchId 的场景），
-        // 因为任何批次数据变更后，"最新"可能已变化
-        scanAndDelete(CacheConstants.evalPrefix(), ":batch:latest");
-        // eval:admin key 不含 batchId（key 为 resultId），由调用方通过 evictAdminResult 精确清除
-        // eval:rank key 格式为 {batchId}:{type}，使用直接 pattern 扫描
-        String rankPattern = CacheConstants.evalRankPrefix() + batchId + ":*";
-        scanByPattern(rankPattern);
+        // 管理员结果分页既可能按 batchId 查询，也可能按学年/学期汇总查询，批次重算后保守清理全部分页缓存。
+        scanAndDelete(CacheConstants.evalPagePrefix(), null);
+        scanByPattern(CacheConstants.evalPrefix() + "*:batch:latest");
+        // 评定结果重建后，旧的详情缓存可能引用已被覆盖的结果记录，这里保守清空详情缓存。
+        scanByPattern(CacheConstants.evalAdminPrefix() + "*");
+        scanByPattern(CacheConstants.evalRankPrefix() + batchId + ":*");
     }
 
     @Override
@@ -56,8 +47,7 @@ public class CacheEvictionServiceImpl implements CacheEvictionService {
         if (userId == null) {
             return;
         }
-        String keyPattern = CacheConstants.appAchievementsPrefix() + userId;
-        deleteExact(keyPattern);
+        deleteExact(CacheConstants.appAchievementsPrefix() + userId);
     }
 
     @Override
@@ -65,8 +55,7 @@ public class CacheEvictionServiceImpl implements CacheEvictionService {
         if (applicationId == null) {
             return;
         }
-        String keyPattern = CacheConstants.appDetailPrefix() + applicationId;
-        deleteExact(keyPattern);
+        deleteExact(CacheConstants.appDetailPrefix() + applicationId);
     }
 
     @Override
@@ -79,14 +68,26 @@ public class CacheEvictionServiceImpl implements CacheEvictionService {
         if (taskId == null) {
             return;
         }
-        String keyPattern = CacheConstants.taskDetailPrefix() + taskId;
-        deleteExact(keyPattern);
+        deleteExact(CacheConstants.taskDetailPrefix() + taskId);
     }
 
     @Override
     public void evictBatchAvailable() {
-        String keyPattern = CacheConstants.batchAvailablePrefix() + "available";
-        deleteExact(keyPattern);
+        deleteExact(CacheConstants.batchAvailablePrefix() + "available");
+    }
+
+    @Override
+    public void evictBatchDetail(Long batchId) {
+        if (batchId == null) {
+            return;
+        }
+        deleteExact(CacheConstants.batchDetailPrefix() + batchId);
+    }
+
+    @Override
+    public void evictRuleCaches() {
+        scanAndDelete(CacheConstants.ruleAvailablePrefix(), null);
+        scanAndDelete(CacheConstants.ruleDetailPrefix(), null);
     }
 
     @Override
@@ -97,16 +98,6 @@ public class CacheEvictionServiceImpl implements CacheEvictionService {
         deleteExact(CacheConstants.evalAdminPrefix() + resultId);
     }
 
-    // ======================== internal helpers ========================
-
-    /**
-     * SCAN 匹配前缀并删除包含 suffix 的 key。
-     * <p>若 suffix 为 null 则删除所有匹配前缀的 key。</p>
-     *
-     * @param prefix 缓存 key 前缀
-     * @param suffix 可选后缀过滤，为 null 时不过滤
-     * @return 删除数量
-     */
     private int scanAndDelete(String prefix, String suffix) {
         try {
             String pattern = prefix + "*";
@@ -121,13 +112,11 @@ public class CacheEvictionServiceImpl implements CacheEvictionService {
                     while (cursor.hasNext()) {
                         byte[] rawKey = cursor.next();
                         String key = new String(rawKey, StandardCharsets.UTF_8);
-                        if (suffix != null && !(key + ":").contains(suffix + ":")) {
+                        if (suffix != null && !key.endsWith(suffix)) {
                             continue;
                         }
                         batchKeys.add(rawKey);
                     }
-
-                    // Delete in batch if possible (RedisConnection.del supports byte[]...)
                     if (!batchKeys.isEmpty()) {
                         byte[][] keysArray = batchKeys.toArray(new byte[0][]);
                         Long deleted = connection.del(keysArray);
@@ -149,12 +138,6 @@ public class CacheEvictionServiceImpl implements CacheEvictionService {
         }
     }
 
-    /**
-     * 使用精确 pattern SCAN 并删除所有匹配的 key（不做 suffix 过滤）。
-     *
-     * @param pattern Redis SCAN pattern
-     * @return 删除数量
-     */
     private int scanByPattern(String pattern) {
         try {
             Integer deletedCount = redisTemplate.execute((RedisCallback<Integer>) connection -> {
@@ -189,9 +172,6 @@ public class CacheEvictionServiceImpl implements CacheEvictionService {
         }
     }
 
-    /**
-     * 精确删除指定 key（Spring Cache 格式为 cacheName::key，可直接拼出完整 key）。
-     */
     private void deleteExact(String key) {
         try {
             Boolean deleted = redisTemplate.delete(key);

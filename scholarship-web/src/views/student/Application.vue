@@ -398,6 +398,11 @@ async function handleViewApplication(): Promise<void> {
 }
 
 async function handleSubmit(): Promise<void> {
+  if (hasApplied.value) {
+    ElMessage.warning('您已提交过申请')
+    return
+  }
+
   if (!formData.agreed) {
     ElMessage.warning('请先阅读并同意申请声明')
     return

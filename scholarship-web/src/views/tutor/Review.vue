@@ -41,7 +41,7 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
+    <el-table v-loading="loading" :data="tableData" border stripe empty-text="暂无数据" style="width: 100%">
       <el-table-column type="index" label="序号" width="60" />
       <el-table-column prop="studentName" label="学生" width="120" />
       <el-table-column prop="studentNo" label="学号" width="130" />
@@ -192,8 +192,11 @@ import {
   REVIEW_STATUS_OPTIONS,
   REVIEW_STATUS_TAG_TYPES,
   normalizeReviewStatus,
-  toSubmitReviewStatus
+  toSubmitReviewStatus,
+  type ReviewDisplayStatus
 } from '@/constants/review'
+
+defineOptions({ name: 'TutorReview' })
 
 type ReviewType = 'paper' | 'patent' | 'project' | 'competition'
 
@@ -226,6 +229,7 @@ const currentRow = ref<ReviewRow | null>(null)
 const detailDialogVisible = ref(false)
 const reviewDialogVisible = ref(false)
 const reviewSubmitting = ref(false)
+const reviewingIds = ref(new Set<number>())
 
 const queryParams = reactive({
   current: 1,
@@ -234,7 +238,10 @@ const queryParams = reactive({
   status: '' as number | ''
 })
 
-const reviewForm = reactive({
+const reviewForm = reactive<{
+  status: ReviewDisplayStatus
+  comment: string
+}>({
   status: REVIEW_DISPLAY_STATUS.APPROVED,
   comment: ''
 })
@@ -386,6 +393,11 @@ async function fetchTableData() {
     const pageData = extractPageData<CompetitionAward>(res)
     tableData.value = (pageData?.records || []).map(normalizeCompetition)
     total.value = pageData?.total || 0
+  } catch (error) {
+    console.error('查询审核列表失败:', error)
+    ElMessage.error('查询失败，请稍后重试')
+    tableData.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
@@ -433,6 +445,13 @@ async function handleReviewSubmit() {
     return
   }
 
+  // 竞态防护：同一记录正在审核中则拦截重复提交
+  if (reviewingIds.value.has(currentRow.value.id)) {
+    ElMessage.warning('该记录正在审核中，请勿重复操作')
+    return
+  }
+  reviewingIds.value.add(currentRow.value.id)
+
   reviewSubmitting.value = true
   try {
     const submitStatus = toSubmitReviewStatus(reviewForm.status)
@@ -459,6 +478,12 @@ async function handleReviewSubmit() {
       })
     }
 
+    // 本地更新行状态，避免列表刷新前的短暂不一致
+    const idx = tableData.value.findIndex(r => r.id === currentRow.value!.id)
+    if (idx >= 0) {
+      tableData.value[idx].status = reviewForm.status
+    }
+
     ElMessage.success('审核成功')
     reviewDialogVisible.value = false
     await fetchTableData()
@@ -466,6 +491,7 @@ async function handleReviewSubmit() {
     console.error('审核提交失败:', error)
     ElMessage.error('审核提交失败，请稍后重试')
   } finally {
+    reviewingIds.value.delete(currentRow.value!.id)
     reviewSubmitting.value = false
   }
 }

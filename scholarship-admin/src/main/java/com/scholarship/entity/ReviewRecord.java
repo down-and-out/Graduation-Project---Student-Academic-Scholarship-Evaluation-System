@@ -108,4 +108,13 @@ public class ReviewRecord implements Serializable {
     @TableField(fill = FieldFill.INSERT)
     @Schema(description = "逻辑删除：0-未删除 1-已删除")
     private Integer deleted;
+
+    @Version
+    @TableField(fill = FieldFill.INSERT)
+    @Schema(description = "乐观锁版本号")
+    private Integer version;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    @Schema(description = "更新时间")
+    private LocalDateTime updateTime;
 }

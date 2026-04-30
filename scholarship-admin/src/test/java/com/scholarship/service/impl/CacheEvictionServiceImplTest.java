@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,71 +31,69 @@ class CacheEvictionServiceImplTest {
     }
 
     @Test
-    @DisplayName("evictEvaluationResultsForBatch 正确扫描并删除该批次所有 eval 缓存")
+    @DisplayName("evictEvaluationResultsForBatch should scan all related result caches")
     void evictEvaluationResultsForBatchShouldDeleteAllEvalCaches() {
-        Long batchId = 5L;
-
         when(redisTemplate.execute(any(RedisCallback.class))).thenReturn(3);
 
-        // 不应抛异常（内部调用 3 次：evalPrefix + evalPagePrefix + scanByPattern for rank）
-        assertDoesNotThrow(() -> service.evictEvaluationResultsForBatch(batchId));
-        verify(redisTemplate, org.mockito.Mockito.times(4)).execute(any(RedisCallback.class));
+        assertDoesNotThrow(() -> service.evictEvaluationResultsForBatch(5L));
+        verify(redisTemplate, times(5)).execute(any(RedisCallback.class));
     }
 
     @Test
-    @DisplayName("evictEvaluationResultsForBatch 不同 batchId 的缓存不被误删（suffix 过滤正确）")
-    void evictEvaluationResultsForBatchShouldNotDeleteOtherBatches() {
-        Long batchId = 5L;
-
-        when(redisTemplate.execute(any(RedisCallback.class))).thenReturn(2);
-
-        assertDoesNotThrow(() -> service.evictEvaluationResultsForBatch(batchId));
-        // 核心验证：scanAndDelete 使用分隔符包围的 suffix 精确过滤；新增 :batch:latest 扫描
-        verify(redisTemplate, org.mockito.Mockito.times(4)).execute(any(RedisCallback.class));
-    }
-
-    @Test
-    @DisplayName("scanAndDelete 遇到 DataAccessException 时返回 0 不抛异常")
+    @DisplayName("scanAndDelete should swallow data access exception")
     void scanAndDeleteShouldReturnZeroOnDataAccessException() {
         when(redisTemplate.execute(any(RedisCallback.class)))
-                .thenThrow(new DataAccessException("Connection failed") {});
+                .thenThrow(new DataAccessException("Connection failed") { });
 
-        // 不应抛异常，静默处理
         assertDoesNotThrow(() -> service.evictEvaluationResultsForBatch(1L));
     }
 
     @Test
-    @DisplayName("evictApplicationAchievementsForUser 正确删除用户成果缓存")
+    @DisplayName("evictApplicationAchievementsForUser should delete correct key")
     void evictApplicationAchievementsForUserShouldDeleteCorrectKey() {
-        Long userId = 100L;
-        String expectedKey = CacheConstants.APP_ACHIEVEMENTS + "::" + userId;
-
+        String expectedKey = CacheConstants.APP_ACHIEVEMENTS + "::100";
         when(redisTemplate.delete(expectedKey)).thenReturn(true);
 
-        assertDoesNotThrow(() -> service.evictApplicationAchievementsForUser(userId));
+        assertDoesNotThrow(() -> service.evictApplicationAchievementsForUser(100L));
         verify(redisTemplate).delete(expectedKey);
     }
 
     @Test
-    @DisplayName("evictBatchAvailable 正确删除可用批次缓存")
+    @DisplayName("evictBatchAvailable should delete correct key")
     void evictBatchAvailableShouldDeleteCorrectKey() {
         String expectedKey = CacheConstants.BATCH_AVAILABLE + "::available";
-
         when(redisTemplate.delete(expectedKey)).thenReturn(true);
 
-        assertDoesNotThrow(() -> service.evictBatchAvailable());
+        assertDoesNotThrow(service::evictBatchAvailable);
         verify(redisTemplate).delete(expectedKey);
     }
 
     @Test
-    @DisplayName("evictAdminResult 正确删除指定 admin 缓存 key")
-    void evictAdminResultShouldDeleteCorrectKey() {
-        Long resultId = 200L;
-        String expectedKey = CacheConstants.EVAL_ADMIN + "::" + resultId;
-
+    @DisplayName("evictBatchDetail should delete correct key")
+    void evictBatchDetailShouldDeleteCorrectKey() {
+        String expectedKey = CacheConstants.BATCH_DETAIL + "::8";
         when(redisTemplate.delete(expectedKey)).thenReturn(true);
 
-        assertDoesNotThrow(() -> service.evictAdminResult(resultId));
+        assertDoesNotThrow(() -> service.evictBatchDetail(8L));
+        verify(redisTemplate).delete(expectedKey);
+    }
+
+    @Test
+    @DisplayName("evictRuleCaches should scan rule caches")
+    void evictRuleCachesShouldScanRuleCaches() {
+        when(redisTemplate.execute(any(RedisCallback.class))).thenReturn(1);
+
+        assertDoesNotThrow(service::evictRuleCaches);
+        verify(redisTemplate, times(2)).execute(any(RedisCallback.class));
+    }
+
+    @Test
+    @DisplayName("evictAdminResult should delete correct key")
+    void evictAdminResultShouldDeleteCorrectKey() {
+        String expectedKey = CacheConstants.EVAL_ADMIN + "::200";
+        when(redisTemplate.delete(expectedKey)).thenReturn(true);
+
+        assertDoesNotThrow(() -> service.evictAdminResult(200L));
         verify(redisTemplate).delete(expectedKey);
     }
 }
