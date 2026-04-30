@@ -68,7 +68,7 @@ public class ScoreRuleController {
             @ApiResponse(responseCode = "404", description = "规则不存在")
     })
     public Result<ScoreRule> getById(@PathVariable Long id) {
-        ScoreRule rule = scoreRuleService.getById(id);
+        ScoreRule rule = scoreRuleService.getByIdWithCache(id);
         if (rule == null) {
             return Result.error("规则不存在");
         }

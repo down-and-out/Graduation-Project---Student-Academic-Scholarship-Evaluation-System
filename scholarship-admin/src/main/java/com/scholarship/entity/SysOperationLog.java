@@ -1,9 +1,11 @@
 package com.scholarship.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -85,6 +87,11 @@ public class SysOperationLog implements Serializable {
     @Schema(description = "执行耗时（毫秒）")
     private Long executionTime;
 
+    /**
+     * 版本号（乐观锁）
+     */
+    @Version
+    @TableField(fill = FieldFill.INSERT)
     @Schema(description = "版本号")
     private Integer version;
 

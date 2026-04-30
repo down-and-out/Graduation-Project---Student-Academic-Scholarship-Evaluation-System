@@ -139,7 +139,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">确定</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -150,7 +150,11 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getRulePage, addRule, updateRule, deleteRule, getRuleCategoryList } from '@/api/rule'
+import { clearApiCache } from '@/utils/apiCache'
 import { RULE_TYPE, RULE_TYPE_LABELS, RULE_TYPE_OPTIONS, RULE_TYPE_TAG_TYPES } from '@/constants/rule'
+import { optimisticUpdate } from '@/utils/helpers'
+
+defineOptions({ name: 'AdminRules' })
 
 const AVAILABILITY = {
   ENABLED: 1,     // 启用
@@ -163,6 +167,7 @@ const categoryOptions = ref([])
 const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
+const submitting = ref(false)
 const formRef = ref(null)
 
 const dialogTitle = computed(() => isEdit.value ? '编辑规则' : '添加规则')
@@ -252,8 +257,11 @@ async function handleDelete(row) {
       type: 'warning'
     })
     await deleteRule(row.id)
+    clearApiCache('rule_categories')
+    // 本地移除行，避免不必要的全量刷新
+    tableData.value = tableData.value.filter(item => item.id !== row.id)
+    total.value = Math.max(0, total.value - 1)
     ElMessage.success('删除成功')
-    handleQuery()
   } catch (error) {
     if (error === 'cancel') {
       // 用户取消删除，不显示错误
@@ -267,18 +275,26 @@ async function handleSubmit() {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
+  submitting.value = true
   try {
     if (isEdit.value) {
       await updateRule(formData)
+      // 乐观更新本地行，避免不必要的全量刷新
+      optimisticUpdate(tableData.value, { ...formData })
       ElMessage.success('修改成功')
     } else {
       await addRule(formData)
       ElMessage.success('添加成功')
     }
+    clearApiCache('rule_categories')
     dialogVisible.value = false
-    handleQuery()
+    if (!isEdit.value) {
+      handleQuery()
+    }
   } catch (error) {
     ElMessage.error('操作失败：' + (error.message || '未知错误'))
+  } finally {
+    submitting.value = false
   }
 }
 

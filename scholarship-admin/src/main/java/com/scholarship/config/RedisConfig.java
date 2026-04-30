@@ -102,9 +102,7 @@ public class RedisConfig {
                 // 设置key的序列化方式
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 // 设置value的序列化方式
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer))
-                // 不缓存null值
-                .disableCachingNullValues();
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 
         // 构建CacheManager
         return RedisCacheManager.builder(connectionFactory)
@@ -120,8 +118,12 @@ public class RedisConfig {
                         config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_SYS_SETTINGS_ALL)))
                 .withCacheConfiguration(CacheConstants.BATCH_AVAILABLE,
                         config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_BATCH_AVAILABLE)))
-                .withCacheConfiguration(CacheConstants.TASK_DETAIL,
-                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_TASK_DETAIL)))
+                .withCacheConfiguration(CacheConstants.BATCH_DETAIL,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_BATCH_DETAIL)))
+                .withCacheConfiguration(CacheConstants.RULE_AVAILABLE,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_RULE_AVAILABLE)))
+                .withCacheConfiguration(CacheConstants.RULE_DETAIL,
+                        config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_RULE_DETAIL)))
                 .withCacheConfiguration(CacheConstants.APP_DETAIL,
                         config.entryTtl(Duration.ofSeconds(CacheConstants.TTL_APP_DETAIL)))
                 .withCacheConfiguration(CacheConstants.APP_ACHIEVEMENTS,

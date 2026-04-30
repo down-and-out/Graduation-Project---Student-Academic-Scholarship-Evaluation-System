@@ -36,7 +36,7 @@
               />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="handleSaveBasic">保存设置</el-button>
+              <el-button type="primary" :loading="savingBasic" @click="handleSaveBasic">保存设置</el-button>
             </el-form-item>
           </el-form>
         </el-card>
@@ -64,7 +64,7 @@
               style="margin-bottom: 20px"
             />
             <el-form-item>
-              <el-button type="primary" @click="handleSaveWeight">保存权重</el-button>
+              <el-button type="primary" :loading="savingWeight" @click="handleSaveWeight">保存权重</el-button>
             </el-form-item>
           </el-form>
         </el-card>
@@ -120,14 +120,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { getEvaluationPage, type EvaluationBatch } from '@/api/evaluation'
 import { getOperationLogPage, getSetting, updateSetting } from '@/api/system'
 import { LOG_TYPE_LABELS, LOG_TYPE_OPTIONS } from '@/constants/operationLog'
 import type { BasicSetting, OperationLog, WeightSetting } from '@/api/system'
-import { extractApiData } from '@/utils/helpers'
+import { extractApiData, formatAcademicYearLabel } from '@/utils/helpers'
 import { LARGE_QUERY_SIZE } from '@/constants'
 
 type AlertType = 'success' | 'warning' | 'info' | 'error'
@@ -148,6 +148,8 @@ const activeTab = ref('basic')
 const basicFormRef = ref<FormInstance | null>(null)
 const weightFormRef = ref<FormInstance | null>(null)
 const logLoading = ref(false)
+const savingBasic = ref(false)
+const savingWeight = ref(false)
 
 const basicForm = reactive<BasicSetting>({
   systemName: '研究生学业奖学金评定系统',
@@ -210,13 +212,8 @@ const totalWeight = computed(() => weightForm.courseWeight + weightForm.research
 const totalWeightAlertType = computed<AlertType>(() => (totalWeight.value === 100 ? 'success' : 'warning'))
 
 function buildSemesterOption(academicYear: string, semester: number): { label: string; value: string } {
-  const numericYear = Number.parseInt(academicYear, 10)
-  const displayAcademicYear = Number.isNaN(numericYear)
-    ? academicYear
-    : `${numericYear}-${numericYear + 1}学年`
-
   return {
-    label: `${displayAcademicYear}${semester === 1 ? '第一学期' : '第二学期'}`,
+    label: `${formatAcademicYearLabel(academicYear)}${semester === 1 ? '第一学期' : '第二学期'}`,
     value: `${academicYear}-${semester}`
   }
 }
@@ -286,8 +283,16 @@ function ensureCurrentSemesterOption(): void {
 async function handleSaveBasic(): Promise<void> {
   const valid = await basicFormRef.value?.validate().catch(() => false)
   if (!valid) return
-  await updateSetting<BasicSetting>('basic', basicForm)
-  ElMessage.success('保存成功')
+  savingBasic.value = true
+  try {
+    await updateSetting<BasicSetting>('basic', basicForm)
+    ElMessage.success('保存成功')
+  } catch (error) {
+    console.error('保存基本设置失败:', error)
+    ElMessage.error('保存失败')
+  } finally {
+    savingBasic.value = false
+  }
 }
 
 async function handleSaveWeight(): Promise<void> {
@@ -297,8 +302,16 @@ async function handleSaveWeight(): Promise<void> {
   }
   const valid = await weightFormRef.value?.validate().catch(() => false)
   if (!valid) return
-  await updateSetting<WeightSetting>('weight', weightForm)
-  ElMessage.success('保存成功')
+  savingWeight.value = true
+  try {
+    await updateSetting<WeightSetting>('weight', weightForm)
+    ElMessage.success('保存成功')
+  } catch (error) {
+    console.error('保存权重设置失败:', error)
+    ElMessage.error('保存失败')
+  } finally {
+    savingWeight.value = false
+  }
 }
 
 function getLogTypeText(type: number | null, typeLabel?: string): string {
@@ -360,8 +373,21 @@ async function loadSettings(): Promise<void> {
   }
 }
 
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   void Promise.allSettled([loadSemesterOptions(), loadSettings(), handleQueryLog()])
+  // 每 60s 静默刷新系统设置，检测其他管理员的修改
+  refreshTimer = setInterval(() => {
+    void loadSettings()
+  }, 60000)
+})
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
 })
 </script>
 

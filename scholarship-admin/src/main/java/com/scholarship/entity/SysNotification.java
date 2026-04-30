@@ -63,8 +63,10 @@ public class SysNotification implements Serializable {
     private Long roleId;
 
     /**
-     * 版本号
+     * 版本号（乐观锁）
      */
+    @Version
+    @TableField(fill = FieldFill.INSERT)
     @Schema(description = "版本号")
     private Integer version;
 
@@ -119,4 +121,8 @@ public class SysNotification implements Serializable {
      */
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    @Schema(description = "更新时间")
+    private LocalDateTime updateTime;
 }

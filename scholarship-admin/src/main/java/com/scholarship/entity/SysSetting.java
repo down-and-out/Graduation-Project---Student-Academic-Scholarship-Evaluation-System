@@ -45,8 +45,10 @@ public class SysSetting implements Serializable {
     private String settingValue;
 
     /**
-     * 版本号，支持多版本管理
+     * 版本号，支持多版本管理（乐观锁）
      */
+    @Version
+    @TableField(fill = FieldFill.INSERT)
     @Schema(description = "版本号")
     private Integer version;
 

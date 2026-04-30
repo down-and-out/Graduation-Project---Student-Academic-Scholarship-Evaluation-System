@@ -66,7 +66,7 @@ public class SysSettingServiceImpl implements SysSettingService {
     }
 
     @Override
-    @Cacheable(value = CacheConstants.SYS_SETTING_ACTIVE, key = "#key", unless = "#result == null")
+    @Cacheable(value = CacheConstants.SYS_SETTING_ACTIVE, key = "#key")
     public <T> T getActiveSetting(String key, Class<T> clazz) {
         SysSetting setting = sysSettingMapper.selectActiveByKey(key);
         if (setting == null || setting.getSettingValue() == null) {

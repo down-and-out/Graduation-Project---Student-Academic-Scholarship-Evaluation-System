@@ -4,15 +4,19 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.common.exception.BusinessException;
+import com.scholarship.common.support.CacheConstants;
 import com.scholarship.dto.query.ScoreRuleQuery;
 import com.scholarship.entity.ScoreRule;
-import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.ScoreRuleMapper;
+import com.scholarship.common.event.CacheEvictionEvent;
+import com.scholarship.common.event.CacheEvictionOperation;
 import com.scholarship.service.ScoreRuleService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheConfig;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,20 +24,32 @@ import java.util.List;
 
 @Slf4j
 @Service
-@CacheConfig(cacheNames = "scoreRules")
+@RequiredArgsConstructor
+@CacheConfig(cacheNames = CacheConstants.RULE_DETAIL)
 public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule> implements ScoreRuleService {
 
+    private final ApplicationEventPublisher eventPublisher;
+
     @Override
-    @Cacheable(key = "#id", unless = "#result == null")
+    @Cacheable(key = "#id")
     public ScoreRule getByIdWithCache(Long id) {
         log.debug("查询评分规则, id={}", id);
         return super.getById(id);
     }
 
     @Override
-    @CacheEvict(key = "#entity.id")
     public boolean updateByIdWithCache(ScoreRule entity) {
-        return super.updateById(entity);
+        return updateById(entity);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updateById(ScoreRule entity) {
+        boolean success = super.updateById(entity);
+        if (success) {
+            eventPublisher.publishEvent(new CacheEvictionEvent(this, CacheEvictionOperation.EVICT_RULE_CACHES, null));
+        }
+        return success;
     }
 
     @Override
@@ -55,6 +71,9 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
     }
 
     @Override
+    @Cacheable(value = CacheConstants.RULE_AVAILABLE,
+            key = "T(com.scholarship.common.support.CacheConstants).ruleAvailableKey(#ruleType)",
+            unless = "#result == null || #result.isEmpty()")
     public List<ScoreRule> listAvailableByRuleType(Integer ruleType) {
         log.debug("查询可用规则, ruleType={}", ruleType);
         LambdaQueryWrapper<ScoreRule> wrapper = new LambdaQueryWrapper<ScoreRule>()
@@ -66,15 +85,17 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(allEntries = true)
     public boolean save(ScoreRule entity) {
         requireCategoryId(entity);
-        return super.save(entity);
+        boolean success = super.save(entity);
+        if (success) {
+            eventPublisher.publishEvent(new CacheEvictionEvent(this, CacheEvictionOperation.EVICT_RULE_CACHES, null));
+        }
+        return success;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(allEntries = true)
     public boolean saveBatch(List<ScoreRule> rules) {
         log.debug("批量保存规则，数量：{}", rules != null ? rules.size() : 0);
         if (rules != null) {
@@ -82,11 +103,14 @@ public class ScoreRuleServiceImpl extends ServiceImpl<ScoreRuleMapper, ScoreRule
                 requireCategoryId(rule);
             }
         }
-        return super.saveBatch(rules, rules != null ? rules.size() : 10);
+        boolean success = super.saveBatch(rules, rules != null ? rules.size() : 10);
+        if (success) {
+            eventPublisher.publishEvent(new CacheEvictionEvent(this, CacheEvictionOperation.EVICT_RULE_CACHES, null));
+        }
+        return success;
     }
 
     @Override
-    @CacheEvict(key = "#id")
     public boolean toggleAvailability(Long id) {
         log.debug("切换规则可用状态：id={}", id);
         ScoreRule rule = getById(id);

@@ -2,6 +2,8 @@
  * 评分规则相关 API 接口
  */
 import request from '@/utils/request'
+import { cachedRequest } from '@/utils/apiCache'
+import { serializeQueryParams } from '@/utils/helpers'
 
 /**
  * 评分规则
@@ -18,6 +20,7 @@ export interface ScoreRule {
   maxScore?: number
   isAvailable?: number
   sortOrder?: number
+  version?: number
   createTime?: string
   updateTime?: string
 }
@@ -51,32 +54,7 @@ export function getRulePage(
     url: '/score-rule/page',
     method: 'get',
     params,
-    paramsSerializer: {
-      serialize: (rawParams: Record<string, unknown>) => {
-        const searchParams = new URLSearchParams()
-
-        Object.entries(rawParams).forEach(([key, value]) => {
-          if (value === undefined || value === null || value === '') {
-            return
-          }
-
-          if (Array.isArray(value)) {
-            const normalized = value
-              .filter(item => item !== undefined && item !== null && item !== '')
-              .map(item => String(item))
-
-            if (normalized.length > 0) {
-              searchParams.append(key, normalized.join(','))
-            }
-            return
-          }
-
-          searchParams.append(key, String(value))
-        })
-
-        return searchParams.toString()
-      }
-    }
+    paramsSerializer: { serialize: serializeQueryParams }
   })
 }
 
@@ -138,12 +116,13 @@ export function deleteRule(id: number): Promise<API.Response<null>> {
   })
 }
 
-export function getRuleCategoryList(): Promise<API.Response<RuleCategory[]>> {
+const _getRuleCategoryList = (): Promise<API.Response<RuleCategory[]>> => {
   return request({
     url: '/rule-category/tree',
     method: 'get'
   })
 }
+export const getRuleCategoryList = cachedRequest(_getRuleCategoryList, 'rule_categories', 30 * 60 * 1000)
 
 export default {
   getRulePage,
