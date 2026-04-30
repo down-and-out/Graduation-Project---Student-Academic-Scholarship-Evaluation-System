@@ -1,8 +1,11 @@
 package com.scholarship.service.impl;
 
-import com.scholarship.common.event.CacheEvictionEvent;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.common.support.LockConstants;
+import com.scholarship.common.support.RedisLockSupport;
 import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.ScholarshipApplicationSubmitResponse;
 import com.scholarship.dto.param.ScholarshipApplicationSubmitRequest;
@@ -14,22 +17,17 @@ import com.scholarship.mapper.ResearchPatentMapper;
 import com.scholarship.mapper.ResearchProjectMapper;
 import com.scholarship.mapper.ScholarshipApplicationMapper;
 import com.scholarship.service.ApplicationAchievementService;
+import com.scholarship.service.CacheEvictionService;
 import com.scholarship.service.ReviewRecordService;
 import com.scholarship.service.StudentInfoService;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
-
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,7 +37,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,15 +48,15 @@ class ScholarshipApplicationServiceImplTest {
     @Mock
     private StringRedisTemplate redisTemplate;
     @Mock
-    private RedissonClient redissonClient;
-    @Mock
-    private RLock rLock;
+    private RedisLockSupport redisLockSupport;
     @Mock
     private StudentInfoService studentInfoService;
     @Mock
     private ApplicationAchievementService applicationAchievementService;
     @Mock
     private ReviewRecordService reviewRecordService;
+    @Mock
+    private CacheEvictionService cacheEvictionService;
     @Mock
     private ResearchPaperMapper researchPaperMapper;
     @Mock
@@ -68,13 +65,15 @@ class ScholarshipApplicationServiceImplTest {
     private ResearchProjectMapper researchProjectMapper;
     @Mock
     private CompetitionAwardMapper competitionAwardMapper;
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
-
-    @Captor
-    private ArgumentCaptor<CacheEvictionEvent> eventCaptor;
 
     private ScholarshipApplicationServiceImpl service;
+
+    @BeforeAll
+    static void initMybatisPlusLambda() {
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
+        TableInfoHelper.initTableInfo(assistant, ScholarshipApplication.class);
+    }
 
     @BeforeEach
     void setUp() {
@@ -85,11 +84,11 @@ class ScholarshipApplicationServiceImplTest {
                 applicationMapper,
                 properties,
                 redisTemplate,
-                redissonClient,
+                redisLockSupport,
                 studentInfoService,
                 applicationAchievementService,
                 reviewRecordService,
-                eventPublisher,
+                cacheEvictionService,
                 researchPaperMapper,
                 researchPatentMapper,
                 researchProjectMapper,
@@ -107,8 +106,7 @@ class ScholarshipApplicationServiceImplTest {
         request.setSelfEvaluation("self");
 
         when(studentInfoService.getByUserId(99L)).thenReturn(studentInfo);
-        when(redissonClient.getLock(eq(LockConstants.APPLICATION_SUBMIT + "12:8"))).thenReturn(rLock);
-        when(rLock.tryLock(0, 10L, TimeUnit.SECONDS)).thenReturn(false);
+        when(redisLockSupport.tryLock(eq(LockConstants.APPLICATION_SUBMIT + "12:8"), anyString(), eq(10L))).thenReturn(false);
 
         BusinessException exception = assertThrows(BusinessException.class, () -> service.submitApplication(request, 99L));
 
@@ -131,9 +129,7 @@ class ScholarshipApplicationServiceImplTest {
         existing.setStatus(1);
 
         when(studentInfoService.getByUserId(99L)).thenReturn(studentInfo);
-        when(redissonClient.getLock(eq(LockConstants.APPLICATION_SUBMIT + "12:8"))).thenReturn(rLock);
-        when(rLock.tryLock(0, 10L, TimeUnit.SECONDS)).thenReturn(true);
-        when(rLock.isHeldByCurrentThread()).thenReturn(true);
+        when(redisLockSupport.tryLock(eq(LockConstants.APPLICATION_SUBMIT + "12:8"), anyString(), eq(10L))).thenReturn(true);
         when(applicationMapper.selectOne(any())).thenReturn(existing);
 
         ScholarshipApplicationSubmitResponse response = service.submitApplication(request, 99L);
@@ -156,9 +152,6 @@ class ScholarshipApplicationServiceImplTest {
         studentInfo.setId(10L);
         studentInfo.setTutorId(101L);
 
-        when(redissonClient.getLock(eq(LockConstants.REVIEW_APPLICATION + 5))).thenReturn(rLock);
-        when(rLock.tryLock(eq(30L), eq(TimeUnit.SECONDS))).thenReturn(true);
-        when(rLock.isHeldByCurrentThread()).thenReturn(true);
         when(applicationMapper.selectById(5L)).thenReturn(application);
         when(studentInfoService.getById(10L)).thenReturn(studentInfo);
 
@@ -168,7 +161,7 @@ class ScholarshipApplicationServiceImplTest {
         );
 
         assertEquals("当前状态不允许审核", exception.getMessage());
-        verify(applicationMapper, never()).updateById(any(ScholarshipApplication.class));
+        verify(applicationMapper, never()).update(any(), any(LambdaUpdateWrapper.class));
     }
 
     @Test
@@ -184,17 +177,15 @@ class ScholarshipApplicationServiceImplTest {
         studentInfo.setId(11L);
         studentInfo.setTutorId(101L);
 
-        when(redissonClient.getLock(eq(LockConstants.REVIEW_APPLICATION + 6))).thenReturn(rLock);
-        when(rLock.tryLock(eq(30L), eq(TimeUnit.SECONDS))).thenReturn(true);
-        when(rLock.isHeldByCurrentThread()).thenReturn(true);
         when(applicationMapper.selectById(6L)).thenReturn(application);
         when(studentInfoService.getById(11L)).thenReturn(studentInfo);
-        when(applicationMapper.updateById(any(ScholarshipApplication.class))).thenReturn(1);
+        when(applicationMapper.update(any(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(reviewRecordService.addReviewRecord(any(), any(), any(), any(), any(), any(), any())).thenReturn(true);
 
         boolean result = service.reviewApplication(6L, "通过", 101L, "tutor", 2);
 
         assertTrue(result);
-        verify(eventPublisher, times(2)).publishEvent(any(CacheEvictionEvent.class));
+        verify(cacheEvictionService).evictApplicationDetail(6L);
+        verify(cacheEvictionService).evictApplicationPages();
     }
 }

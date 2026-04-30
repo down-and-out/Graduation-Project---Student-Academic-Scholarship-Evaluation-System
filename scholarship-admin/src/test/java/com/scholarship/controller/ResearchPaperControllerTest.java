@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.entity.ResearchPaper;
 import com.scholarship.service.ResearchPaperService;
+import com.scholarship.service.StudentInfoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,12 +29,14 @@ class ResearchPaperControllerTest {
 
     @Mock
     private ResearchPaperService researchPaperService;
+    @Mock
+    private StudentInfoService studentInfoService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
 
-        ResearchPaperController controller = new ResearchPaperController(researchPaperService);
+        ResearchPaperController controller = new ResearchPaperController(researchPaperService, studentInfoService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 

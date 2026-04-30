@@ -1,8 +1,10 @@
 package com.scholarship.service;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -17,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @version 1.0.0
  */
 @SpringBootTest
+@ActiveProfiles("dev")
 public class AwardAllocationServiceTest {
 
     @Autowired
@@ -70,6 +73,7 @@ public class AwardAllocationServiceTest {
     }
 
     @Test
+    @Disabled("会写入 evaluation_result 和 evaluation_batch 表数据，需 scholarship_test 库才能安全运行")
     public void testAllocateAwards() {
         // 测试批量奖项分配
         Long batchId = 1L;

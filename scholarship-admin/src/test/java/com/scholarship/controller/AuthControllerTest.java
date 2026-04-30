@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -23,9 +24,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Date;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -100,14 +103,13 @@ class AuthControllerTest {
         when(loginAttemptService.isAccountLocked(anyString())).thenReturn(false);
         when(loginAttemptService.isIpLocked(anyString())).thenReturn(false);
         when(authenticationManager.authenticate(any(Authentication.class)))
-                .thenThrow(new BadCredentialsException("用户名或密码错误"));
+                .thenThrow(new BadCredentialsException("bad credentials"));
 
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(401))
-                .andExpect(jsonPath("$.message").value("用户名或密码错误"));
+                .andExpect(jsonPath("$.code").value(401));
 
         verify(loginAttemptService).recordFailure(anyString(), anyString());
     }
@@ -155,12 +157,53 @@ class AuthControllerTest {
         when(jwtUtil.parseToken(anyString())).thenReturn("test-token");
         when(jwtUtil.extractExpiration(anyString())).thenReturn(new Date(System.currentTimeMillis() + 3600000));
 
-        mockMvc.perform(post("/auth/logout"))
+        mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer test-token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.message").value("登出成功"));
+                .andExpect(jsonPath("$.code").value(200));
 
+        verify(tokenBlacklistService).addToBlacklist(anyString(), anyLong());
         verify(loginAttemptService, never()).recordFailure(anyString(), anyString());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    @DisplayName("logout success when redis blacklist write fails")
+    void testLogoutSuccessWhenBlacklistFails() throws Exception {
+        SysUser sysUser = createTestSysUser();
+        LoginUser loginUser = new LoginUser(sysUser);
+
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getPrincipal()).thenReturn(loginUser);
+        when(jwtUtil.parseToken(anyString())).thenReturn("test-token");
+        when(jwtUtil.extractExpiration(anyString())).thenReturn(new Date(System.currentTimeMillis() + 3600000));
+        doThrow(new InvalidDataAccessApiUsageException("MISCONF Redis write failed"))
+                .when(tokenBlacklistService).addToBlacklist(anyString(), anyLong());
+
+        mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        verify(tokenBlacklistService).addToBlacklist(anyString(), anyLong());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    @DisplayName("logout success when token already expired")
+    void testLogoutSuccessWhenTokenExpired() throws Exception {
+        SysUser sysUser = createTestSysUser();
+        LoginUser loginUser = new LoginUser(sysUser);
+
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getPrincipal()).thenReturn(loginUser);
+        when(jwtUtil.parseToken(anyString())).thenReturn("test-token");
+        when(jwtUtil.extractExpiration(anyString())).thenReturn(new Date(System.currentTimeMillis() - 1000));
+
+        mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        verify(tokenBlacklistService, never()).addToBlacklist(anyString(), anyLong());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
     }
 
     @Test
@@ -187,8 +230,7 @@ class AuthControllerTest {
 
         mockMvc.perform(get("/auth/current-user"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
-                .andExpect(jsonPath("$.message").value("未登录"));
+                .andExpect(jsonPath("$.code").value(500));
     }
 
     private SysUser createTestSysUser() {

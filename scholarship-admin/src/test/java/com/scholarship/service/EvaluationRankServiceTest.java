@@ -1,9 +1,11 @@
 package com.scholarship.service;
 
 import com.scholarship.entity.EvaluationResult;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 import java.util.Map;
@@ -17,12 +19,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * @version 1.0.0
  */
 @SpringBootTest
+@ActiveProfiles("dev")
 public class EvaluationRankServiceTest {
 
     @Autowired
     private EvaluationRankService evaluationRankService;
 
     @Test
+    @Disabled("会更新 evaluation_result 表的排名数据，需 scholarship_test 库才能安全运行")
     public void testGenerateBatchRanks() {
         // 测试批量生成排名
         Long batchId = 1L;

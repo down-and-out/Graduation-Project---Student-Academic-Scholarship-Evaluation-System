@@ -3,9 +3,11 @@ package com.scholarship.service;
 import com.scholarship.dto.BatchCalculationSummary;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.entity.ScholarshipApplication;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 
@@ -13,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest
+@ActiveProfiles("dev")
 public class EvaluationCalculationServiceTest {
 
     @Autowired
@@ -34,6 +37,7 @@ public class EvaluationCalculationServiceTest {
     }
 
     @Test
+    @Disabled("会写入 evaluation_result 表且需要 score_rule 数据，需 scholarship_test 库才能安全运行")
     public void testCalculateApplication() {
         ScholarshipApplication application = new ScholarshipApplication();
         application.setId(1L);
@@ -50,6 +54,7 @@ public class EvaluationCalculationServiceTest {
     }
 
     @Test
+    @Disabled("会先删除再插入 evaluation_result 表数据，需 scholarship_test 库才能安全运行")
     public void testCalculateBatchApplications() {
         Long batchId = 1L;
         BatchCalculationSummary summary = evaluationCalculationService.calculateBatchApplications(batchId);
