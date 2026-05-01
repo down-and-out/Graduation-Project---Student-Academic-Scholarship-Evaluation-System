@@ -267,12 +267,15 @@ export function sleep(ms: number): Promise<void> {
 export function extractApiData<T>(payload: unknown): T | null {
   if (!payload || typeof payload !== 'object') return null
   const raw = payload as Record<string, unknown>
-  if (raw.data && typeof raw.data === 'object') {
-    const inner = raw.data as Record<string, unknown>
-    if (inner.data !== undefined) {
-      return inner.data as T
+  if (Object.prototype.hasOwnProperty.call(raw, 'data')) {
+    const directData = raw.data
+    if (directData && typeof directData === 'object') {
+      const inner = directData as Record<string, unknown>
+      if (Object.prototype.hasOwnProperty.call(inner, 'data')) {
+        return (inner.data ?? null) as T | null
+      }
     }
-    return raw.data as T
+    return (directData ?? null) as T | null
   }
   return raw as T
 }
@@ -284,7 +287,7 @@ export function extractApiData<T>(payload: unknown): T | null {
  */
 export function extractPageData<T>(payload: unknown): API.PageResponse<T> | null {
   const pageData = extractApiData<API.PageResponse<T>>(payload)
-  if (pageData?.records) {
+  if (pageData && Array.isArray(pageData.records)) {
     return pageData
   }
   return null

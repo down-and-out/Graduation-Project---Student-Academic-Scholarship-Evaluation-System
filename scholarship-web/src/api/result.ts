@@ -72,7 +72,7 @@ export function adjustResult(id: number, data: AdjustResultPayload): Promise<API
   })
 }
 
-export function getMyResult(batchId?: number): Promise<API.Response<EvaluationResult>> {
+export function getMyResult(batchId?: number): Promise<API.Response<EvaluationResult | null>> {
   return request({
     url: '/evaluation-result/my-result',
     method: 'get',

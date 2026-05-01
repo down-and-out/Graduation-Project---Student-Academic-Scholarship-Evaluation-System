@@ -437,16 +437,12 @@ import {
   type ResearchPatent
 } from '@/api/patent'
 import {
-  addProject,
   getProjectPage,
-  updateProject,
   type ProjectPageParams,
   type ResearchProject
 } from '@/api/project'
 import {
-  addCompetition,
   getCompetitionPage,
-  updateCompetition,
   type CompetitionAward,
   type CompetitionPageParams
 } from '@/api/competition'
@@ -671,31 +667,13 @@ const currentStatusOptions = computed(() =>
     : SHARED_GENERIC_AUDIT_OPTIONS
 )
 
-const currentFormModel = computed<Record<string, any>>(() => {
-  switch (activeType.value) {
-    case 'patent':
-      return patentForm
-    case 'project':
-      return projectForm
-    case 'competition':
-      return competitionForm
-    default:
-      return paperForm
-  }
-})
+const currentFormModel = computed<Record<string, any>>(() =>
+  activeType.value === 'patent' ? patentForm : paperForm
+)
 
-const currentFormRules = computed<FormRules>(() => {
-  switch (activeType.value) {
-    case 'patent':
-      return patentRules as FormRules
-    case 'project':
-      return projectRules as FormRules
-    case 'competition':
-      return competitionRules as FormRules
-    default:
-      return paperRules as FormRules
-  }
-})
+const currentFormRules = computed<FormRules>(() =>
+  activeType.value === 'patent' ? (patentRules as FormRules) : (paperRules as FormRules)
+)
 
 const dialogTitle = computed(() => `${isEdit.value ? '编辑' : '添加'}${activeTypeLabel.value}`)
 function normalizePaper(row: Paper): NormalizedPaper {
@@ -945,23 +923,23 @@ function handleTypeChange(name: string | number) {
   queryParams.current = 1
   queryParams.status = undefined
   syncRouteQuery()
-  fetchTableData()
+  void fetchTableData()
 }
 
-function handleQuery(): void {
-  queryParams.current = 1
-  fetchTableData()
+function handleQuery(page?: number | Event): void {
+  queryParams.current = typeof page === 'number' ? page : 1
+  void fetchTableData()
 }
 
 function handleReset(): void {
   queryParams.status = undefined
   queryParams.current = 1
-  fetchTableData()
+  void fetchTableData()
 }
 
 function handleSizeChange(): void {
   queryParams.current = 1
-  fetchTableData()
+  void fetchTableData()
 }
 
 function handleAdd(): void {
@@ -1007,7 +985,6 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
       publicationDate: row.publicationDate || ''
     }),
     getFormPayload: (form, isEdit) => ({
-      ...(isEdit ? {} : { studentId: 0 }),
       title: form.paperTitle,
       paperTitle: form.paperTitle,
       authors: form.authors,
@@ -1097,7 +1074,6 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
       remark: row.remark || ''
     }),
     getFormPayload: (form, isEdit) => ({
-      ...(isEdit ? {} : { studentId: 0 }),
       projectName: form.projectName,
       projectType: form.projectType,
       projectLevel: form.projectLevel ?? undefined,
@@ -1113,8 +1089,8 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
       projectStatus: form.projectStatus ?? undefined,
       remark: form.remark || undefined
     }),
-    submitCreate: (payload) => addProject(payload as Omit<ResearchProject, 'id'>),
-    submitUpdate: (id, payload) => updateProject({ id, ...payload }),
+    submitCreate: () => Promise.reject(new Error('Current type is read-only for students')),
+    submitUpdate: () => Promise.reject(new Error('Current type is read-only for students')),
     detailFields: [
       { label: '项目名称', span: 2, value: (row) => row.projectName || '-' },
       { label: '项目类型', value: (row) => getProjectTypeLabel(row.projectType) },
@@ -1152,7 +1128,6 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
       remark: row.remark || ''
     }),
     getFormPayload: (form, isEdit) => ({
-      ...(isEdit ? {} : { studentId: 0 }),
       competitionName: form.competitionName,
       competitionLevel: form.competitionLevel ?? undefined,
       awardLevel: form.awardLevel ?? undefined,
@@ -1166,8 +1141,8 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
       awardDate: form.awardDate || undefined,
       remark: form.remark || undefined
     }),
-    submitCreate: (payload) => addCompetition(payload as Omit<CompetitionAward, 'id'>),
-    submitUpdate: (id, payload) => updateCompetition({ id, ...payload }),
+    submitCreate: () => Promise.reject(new Error('Current type is read-only for students')),
+    submitUpdate: () => Promise.reject(new Error('Current type is read-only for students')),
     detailFields: [
       { label: '竞赛名称', span: 2, value: (row) => row.competitionName || '-' },
       { label: '竞赛级别', value: (row) => getCompetitionLevelLabel(row.competitionLevel) },
@@ -1193,7 +1168,7 @@ const detailFields = computed<DetailField[]>(() =>
 
 function handleEdit(row: AchievementRow): void {
   if (!isTypeEditable.value) return
-  const config = TYPE_FIELD_CONFIG[activeType.value]
+  const config = TYPE_FIELD_CONFIG[activeType.value as 'paper' | 'patent']
   if (!config) return
   isEdit.value = true
   Object.assign(config.formModel, config.extractEditFields(row as Record<string, any>))
@@ -1228,7 +1203,7 @@ async function handleSubmit(): Promise<void> {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
-  const config = TYPE_FIELD_CONFIG[activeType.value]
+  const config = TYPE_FIELD_CONFIG[activeType.value as 'paper' | 'patent']
   if (!config) return
 
   saving.value = true

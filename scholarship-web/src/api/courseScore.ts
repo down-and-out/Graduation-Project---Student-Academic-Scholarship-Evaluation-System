@@ -45,6 +45,13 @@ export function getMyCourseScorePage(
   })
 }
 
+export function getMyCourseScoreYears(): Promise<AxiosResponse<API.Response<string[]>>> {
+  return request({
+    url: '/course-score/my-years',
+    method: 'get'
+  })
+}
+
 export function importMyCourseScores(file: File): Promise<AxiosResponse<API.Response<CourseScoreImportResult>>> {
   const formData = new FormData()
   formData.append('file', file)
@@ -60,5 +67,6 @@ export function importMyCourseScores(file: File): Promise<AxiosResponse<API.Resp
 
 export default {
   getMyCourseScorePage,
+  getMyCourseScoreYears,
   importMyCourseScores
 }

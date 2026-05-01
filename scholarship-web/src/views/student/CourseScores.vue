@@ -108,7 +108,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import type { UploadFile, UploadFiles } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { getMyCourseScorePage, importMyCourseScores } from '@/api/courseScore'
+import { getMyCourseScorePage, getMyCourseScoreYears, importMyCourseScores } from '@/api/courseScore'
 import type { CourseScore, CourseScoreImportResult, CourseScorePageParams } from '@/api/courseScore'
 import { extractApiData, extractPageData, isRequestCanceled } from '@/utils/helpers'
 import {
@@ -116,7 +116,6 @@ import {
   COURSE_SCORE_SEMESTER_OPTIONS,
   COURSE_TYPE_LABELS
 } from '@/constants/courseScore'
-import { LARGE_QUERY_SIZE } from '@/constants'
 
 defineOptions({ name: 'StudentCourseScores' })
 
@@ -135,9 +134,9 @@ const queryParams = reactive<CourseScorePageParams>({
   courseName: ''
 })
 
-function buildAcademicYearOptions(records: CourseScore[]): Array<{ label: string; value: string }> {
+function buildAcademicYearOptions(years: string[]): Array<{ label: string; value: string }> {
   const values = Array.from(
-    new Set(records.map(item => item.academicYear).filter((value): value is string => Boolean(value)))
+    new Set(years.filter((value): value is string => Boolean(value)))
   ).sort((a, b) => b.localeCompare(a, 'zh-CN'))
 
   return values.map(value => ({ label: value, value }))
@@ -145,12 +144,8 @@ function buildAcademicYearOptions(records: CourseScore[]): Array<{ label: string
 
 async function fetchAcademicYearOptions(): Promise<void> {
   try {
-    const response = await getMyCourseScorePage({
-      current: 1,
-      size: LARGE_QUERY_SIZE
-    })
-    const pageData = extractPageData<CourseScore>(response)
-    academicYearOptions.value = buildAcademicYearOptions(pageData?.records || [])
+    const response = await getMyCourseScoreYears()
+    academicYearOptions.value = buildAcademicYearOptions(extractApiData<string[]>(response) || [])
   } catch (error) {
     console.error('加载课程成绩学年选项失败:', error)
     academicYearOptions.value = []
@@ -171,7 +166,7 @@ function formatScoreDisplay(row: CourseScore): string {
   return '-'
 }
 
-async function handleQuery(): Promise<void> {
+async function fetchTableData(): Promise<void> {
   loading.value = true
   try {
     const response = await getMyCourseScorePage({
@@ -196,12 +191,17 @@ function handleReset(): void {
   queryParams.academicYear = ''
   queryParams.semester = undefined
   queryParams.courseName = ''
-  handleQuery()
+  void fetchTableData()
+}
+
+function handleQuery(page?: number | Event): void {
+  queryParams.current = typeof page === 'number' ? page : 1
+  void fetchTableData()
 }
 
 function handleSizeChange(): void {
   queryParams.current = 1
-  handleQuery()
+  void fetchTableData()
 }
 
 function handleFileChange(uploadFile: UploadFile, uploadFiles: UploadFiles): void {
@@ -226,7 +226,7 @@ async function handleImport(): Promise<void> {
     ElMessage.success(importResult?.message || '成绩导入成功')
     selectedFile.value = null
     queryParams.current = 1
-    await Promise.all([fetchAcademicYearOptions(), handleQuery()])
+    await Promise.all([fetchAcademicYearOptions(), fetchTableData()])
   } catch (error) {
     console.error('导入成绩失败:', error)
     ElMessage.error('导入成绩失败')
@@ -236,7 +236,7 @@ async function handleImport(): Promise<void> {
 }
 
 onMounted(async () => {
-  await Promise.allSettled([fetchAcademicYearOptions(), handleQuery()])
+  await Promise.allSettled([fetchAcademicYearOptions(), fetchTableData()])
 })
 </script>
 

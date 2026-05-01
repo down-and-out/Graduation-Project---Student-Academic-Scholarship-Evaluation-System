@@ -203,8 +203,10 @@ import {
   APPLICATION_BATCH_DISPLAY_STATUS,
   APPLICATION_STATUS_STEP_MAP,
   APPLICATION_STEP_CONFIG,
+  canApplyForBatch,
   getBatchStatusText,
   getBatchStatusType,
+  normalizeBatchStatus,
   type BatchDisplayStatus
 } from '@/constants/application'
 
@@ -250,7 +252,7 @@ const batchInfo = ref<BatchCardInfo>({
   id: null,
   name: '',
   applyPeriod: '',
-  status: APPLICATION_BATCH_DISPLAY_STATUS.CLOSED,
+  status: APPLICATION_BATCH_DISPLAY_STATUS.COMPLETED,
   quota: 0,
   amount: 0,
   description: ''
@@ -270,7 +272,7 @@ const formRules: FormRules<ApplicationForm> = {
   ]
 }
 
-const canApply = computed(() => batchInfo.value.status === APPLICATION_BATCH_DISPLAY_STATUS.ACTIVE)
+const canApply = computed(() => canApplyForBatch(batchInfo.value.status))
 const hasApplied = computed(() => myApplication.value !== null)
 const dialogTitle = computed(() => isViewMode.value ? '查看申请详情' : '提交申请')
 
@@ -317,41 +319,54 @@ function normalizeBatchInfo(batch: EvaluationBatch): BatchCardInfo {
     id: batch.id ?? null,
     name: batch.name || '',
     applyPeriod: period,
-    status: batch.status === 2
-      ? APPLICATION_BATCH_DISPLAY_STATUS.ACTIVE
-      : APPLICATION_BATCH_DISPLAY_STATUS.CLOSED,
+    status: normalizeBatchStatus(batch.status),
     quota: batch.winnerCount ?? 0,
     amount: batch.totalAmount ?? 0,
     description: batch.description || ''
   }
 }
 
-async function loadBatchInfo(): Promise<void> {
+async function loadBatchInfo(): Promise<number | null> {
   try {
     const response = await getAvailableBatches()
     const batches = extractApiData<EvaluationBatch[]>(response) || []
-    if (!batches.length) return
+    if (!batches.length) {
+      batchInfo.value = {
+        id: null,
+        name: '',
+        applyPeriod: '',
+        status: APPLICATION_BATCH_DISPLAY_STATUS.COMPLETED,
+        quota: 0,
+        amount: 0,
+        description: ''
+      }
+      return null
+    }
 
     batchInfo.value = normalizeBatchInfo(batches[0])
+    return batchInfo.value.id
   } catch (error) {
     console.error('加载批次信息失败:', error)
-    if (isRequestCanceled(error)) return
+    if (isRequestCanceled(error)) return null
     ElMessage.error('加载批次信息失败')
   }
+  return null
 }
 
-async function loadMyApplication(): Promise<void> {
-  loading.value = true
+async function loadMyApplication(batchId: number | null): Promise<void> {
+  if (batchId == null) {
+    myApplication.value = null
+    return
+  }
+
   try {
-    const response = await getApplicationPage({ current: 1, size: 1 })
+    const response = await getApplicationPage({ current: 1, size: 1, batchId })
     const pageData = extractPageData<Application>(response)
     myApplication.value = pageData?.records?.[0] || null
   } catch (error) {
     console.error('加载申请信息失败:', error)
     if (isRequestCanceled(error)) return
     ElMessage.error('加载申请信息失败')
-  } finally {
-    loading.value = false
   }
 }
 
@@ -439,7 +454,7 @@ async function handleSubmit(): Promise<void> {
     await submitApplication(payload)
     ElMessage.success('申请提交成功')
     dialogVisible.value = false
-    await loadMyApplication()
+    await loadMyApplication(batchInfo.value.id)
   } catch (error) {
     console.error('提交失败:', error)
     ElMessage.error('提交申请失败，请稍后重试')
@@ -465,8 +480,18 @@ function handleDialogClose(): void {
   resetSelections()
 }
 
+async function initializePage(): Promise<void> {
+  loading.value = true
+  try {
+    const batchId = await loadBatchInfo()
+    await loadMyApplication(batchId)
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(() => {
-  void Promise.allSettled([loadBatchInfo(), loadMyApplication()])
+  void initializePage()
 })
 </script>
 
