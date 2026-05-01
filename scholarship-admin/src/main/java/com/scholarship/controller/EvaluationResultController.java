@@ -19,6 +19,7 @@ import com.scholarship.service.EvaluationCalculationService;
 import com.scholarship.service.EvaluationRankService;
 import com.scholarship.service.EvaluationResultService;
 import com.scholarship.service.EvaluationTaskService;
+import com.scholarship.service.ExportTaskService;
 import com.scholarship.service.StudentInfoService;
 import com.scholarship.vo.AdminEvaluationResultVO;
 import com.scholarship.vo.EvaluationResultExportVO;
@@ -43,9 +44,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +67,7 @@ public class EvaluationResultController {
     private final AwardAllocationService awardAllocationService;
     private final EvaluationTaskService evaluationTaskService;
     private final StudentInfoService studentInfoService;
+    private final ExportTaskService exportTaskService;
     private final ScholarshipProperties scholarshipProperties;
 
     @GetMapping("/page")
@@ -258,6 +263,72 @@ public class EvaluationResultController {
         EasyExcel.write(response.getOutputStream(), EvaluationResultExportVO.class)
                 .sheet("evaluation_results")
                 .doWrite(exportData);
+    }
+
+    @PostMapping("/export/submit")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Submit async evaluation result export")
+    public Result<Map<String, Object>> exportAsync(@RequestParam(required = false) Long batchId,
+                                                   @RequestParam(required = false) String academicYear,
+                                                   @RequestParam(required = false) Integer semester) {
+        String fileName = "evaluation_results"
+                + (batchId != null ? "_" + batchId : "")
+                + (academicYear != null && !academicYear.isBlank() ? "_" + academicYear : "")
+                + (semester != null ? "_" + semester : "");
+
+        String taskId = exportTaskService.submit("evaluation-result", fileName, id -> {
+            try {
+                List<EvaluationResultExportVO> data = evaluationResultService.exportBatchResults(batchId, academicYear, semester);
+                String tempDir = System.getProperty("java.io.tmpdir") + File.separator + "scholarship-exports";
+                String filePath = tempDir + File.separator + id + ".xlsx";
+                try (FileOutputStream fos = new FileOutputStream(filePath)) {
+                    EasyExcel.write(fos, EvaluationResultExportVO.class)
+                            .sheet("evaluation_results")
+                            .doWrite(data);
+                }
+                exportTaskService.markCompleted(id, fileName + ".xlsx", filePath);
+            } catch (Exception e) {
+                log.error("Async export failed: taskId={}", id, e);
+                exportTaskService.markFailed(id, e.getMessage());
+            }
+        });
+
+        return Result.success("导出任务已提交", Map.of("taskId", taskId));
+    }
+
+    @GetMapping("/export/status/{taskId}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Query export task status")
+    public Result<Map<String, Object>> exportStatus(@PathVariable String taskId) {
+        Map<String, Object> status = exportTaskService.getStatus(taskId);
+        if (status == null) {
+            return Result.error("任务不存在或已过期");
+        }
+        return Result.success(status);
+    }
+
+    @GetMapping("/export/download/{taskId}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Download async export file")
+    public void exportDownload(@PathVariable String taskId, HttpServletResponse response) throws IOException {
+        String filePath = exportTaskService.getFilePath(taskId);
+        if (filePath == null) {
+            response.setStatus(404);
+            response.getWriter().write("{\"message\":\"文件不存在或导出未完成\"}");
+            return;
+        }
+        File file = new File(filePath);
+        if (!file.exists()) {
+            response.setStatus(404);
+            response.getWriter().write("{\"message\":\"文件已过期，请重新导出\"}");
+            return;
+        }
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        String encodedFileName = URLEncoder.encode(new File(filePath).getName(), StandardCharsets.UTF_8);
+        response.setHeader("Content-Disposition", "attachment;filename=" + encodedFileName);
+        Files.copy(file.toPath(), response.getOutputStream());
+        response.getOutputStream().flush();
     }
 
     private void ensureSyncEvaluationEndpointsAllowed() {

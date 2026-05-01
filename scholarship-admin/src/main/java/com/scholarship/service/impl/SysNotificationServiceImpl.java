@@ -13,6 +13,9 @@ import com.scholarship.mapper.SysRoleMapper;
 import com.scholarship.service.SysNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +37,10 @@ public class SysNotificationServiceImpl extends ServiceImpl<SysNotificationMappe
     private static final int RECEIVER_TYPE_ROLE = 3;
 
     private final SysRoleMapper sysRoleMapper;
+
+    @Lazy
+    @Autowired
+    private SysNotificationServiceImpl self;
 
     @Override
     public IPage<SysNotification> pageNotifications(Long current, Long size, Long userId, Integer userType,
@@ -68,6 +75,16 @@ public class SysNotificationServiceImpl extends ServiceImpl<SysNotificationMappe
             notification.setVersion(1);
         }
         return save(notification);
+    }
+
+    @Async
+    @Override
+    public void sendNotificationAsync(SysNotification notification) {
+        try {
+            self.sendNotification(notification);
+        } catch (Exception e) {
+            log.warn("Async notification send failed: title={}", notification.getTitle(), e);
+        }
     }
 
     @Override

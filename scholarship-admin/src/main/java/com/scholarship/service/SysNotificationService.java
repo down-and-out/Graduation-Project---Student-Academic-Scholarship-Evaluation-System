@@ -16,6 +16,13 @@ public interface SysNotificationService extends IService<SysNotification> {
 
     boolean sendNotification(SysNotification notification);
 
+    /**
+     * 异步发送通知（不阻塞调用线程）。
+     *
+     * @param notification 通知实体
+     */
+    void sendNotificationAsync(SysNotification notification);
+
     boolean markAsRead(Long id, Long userId, Integer userType);
 
     boolean markBatchAsRead(List<Long> ids, Long userId, Integer userType);

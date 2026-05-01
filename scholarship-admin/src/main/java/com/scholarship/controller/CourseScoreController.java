@@ -12,8 +12,12 @@ import com.scholarship.entity.CourseScore;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.CourseScoreService;
+import com.scholarship.service.ExportTaskService;
 import com.scholarship.service.StudentInfoService;
 import com.scholarship.vo.CourseScoreExportVO;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.file.Files;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -31,6 +35,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 课程成绩控制器。
@@ -44,6 +49,7 @@ public class CourseScoreController {
 
     private final CourseScoreService courseScoreService;
     private final StudentInfoService studentInfoService;
+    private final ExportTaskService exportTaskService;
 
     @GetMapping("/page")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
@@ -228,6 +234,79 @@ public class CourseScoreController {
         EasyExcel.write(response.getOutputStream(), CourseScoreExportVO.class)
             .sheet("成绩列表")
             .doWrite(list);
+    }
+
+    @PostMapping("/export/submit")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
+    @Operation(summary = "异步导出成绩", description = "提交异步导出任务，返回 taskId 用于轮询状态和下载")
+    public Result<Map<String, Object>> exportAsync(
+            @Parameter(description = "学生 ID") @RequestParam(required = false) Long studentId,
+            @Parameter(description = "学年") @RequestParam(required = false) String academicYear,
+            @AuthenticationPrincipal LoginUser loginUser) {
+
+        CourseScoreQuery query = new CourseScoreQuery();
+        query.setStudentId(studentId);
+        query.setAcademicYear(academicYear);
+
+        if (!applyTutorScope(query, loginUser)) {
+            query.setStudentIds(List.of(-1L));
+        }
+
+        String taskId = exportTaskService.submit("course-score", "成绩列表", id -> {
+            try {
+                List<CourseScoreExportVO> data = courseScoreService.queryForExport(query).stream()
+                        .map(CourseScoreExportVO::from)
+                        .toList();
+                String tempDir = System.getProperty("java.io.tmpdir") + File.separator + "scholarship-exports";
+                String filePath = tempDir + File.separator + id + ".xlsx";
+                try (FileOutputStream fos = new FileOutputStream(filePath)) {
+                    EasyExcel.write(fos, CourseScoreExportVO.class)
+                            .sheet("成绩列表")
+                            .doWrite(data);
+                }
+                exportTaskService.markCompleted(id, "成绩列表.xlsx", filePath);
+            } catch (Exception e) {
+                log.error("Async export failed: taskId={}", id, e);
+                exportTaskService.markFailed(id, e.getMessage());
+            }
+        });
+
+        return Result.success("导出任务已提交", Map.of("taskId", taskId));
+    }
+
+    @GetMapping("/export/status/{taskId}")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
+    @Operation(summary = "查询导出任务状态")
+    public Result<Map<String, Object>> exportStatus(@PathVariable String taskId) {
+        Map<String, Object> status = exportTaskService.getStatus(taskId);
+        if (status == null) {
+            return Result.error("任务不存在或已过期");
+        }
+        return Result.success(status);
+    }
+
+    @GetMapping("/export/download/{taskId}")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
+    @Operation(summary = "下载异步导出文件")
+    public void exportDownload(@PathVariable String taskId, HttpServletResponse response) throws IOException {
+        String filePath = exportTaskService.getFilePath(taskId);
+        if (filePath == null) {
+            response.setStatus(404);
+            response.getWriter().write("{\"message\":\"文件不存在或导出未完成\"}");
+            return;
+        }
+        File file = new File(filePath);
+        if (!file.exists()) {
+            response.setStatus(404);
+            response.getWriter().write("{\"message\":\"文件已过期，请重新导出\"}");
+            return;
+        }
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setCharacterEncoding("utf-8");
+        String fileName = java.net.URLEncoder.encode("成绩列表", "UTF-8");
+        response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".xlsx");
+        Files.copy(file.toPath(), response.getOutputStream());
+        response.getOutputStream().flush();
     }
 
     @PostMapping("/import")
