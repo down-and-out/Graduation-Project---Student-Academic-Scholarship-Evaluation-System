@@ -2,6 +2,7 @@ package com.scholarship.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scholarship.common.result.Result;
+import com.scholarship.common.support.WebUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,7 +57,7 @@ public class EndpointRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String clientIp = extractClientIp(request);
+        String clientIp = WebUtil.getClientIp(request);
         String actorId = resolveActorId();
         if (isExceeded(uri, "ip", clientIp, endpointLimit.getIpLimit(), endpointLimit.getIpWindowSeconds())
                 || (actorId != null && isExceeded(uri, "actor", actorId, endpointLimit.getActorLimit(), endpointLimit.getActorWindowSeconds()))) {
@@ -112,20 +113,6 @@ public class EndpointRateLimitFilter extends OncePerRequestFilter {
             return null;
         }
         return authentication.getName();
-    }
-
-    private String extractClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip == null || ip.isBlank() ? "unknown" : ip;
     }
 
     private void writeTooManyRequests(HttpServletResponse response) throws IOException {

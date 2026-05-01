@@ -1,6 +1,7 @@
 package com.scholarship.controller;
 
 import com.scholarship.common.result.Result;
+import com.scholarship.common.support.WebUtil;
 import com.scholarship.common.util.PasswordValidator;
 import com.scholarship.common.util.RsaUtils;
 import com.scholarship.common.util.UsernameValidator;
@@ -53,7 +54,7 @@ public class AuthController {
         UsernameValidator.validate(request.username());
 
         String username = request.username();
-        String clientIp = getClientIp(http);
+        String clientIp = WebUtil.getClientIp(http);
         if (loginAttemptService.isAccountLocked(username)) {
             long remainingTime = loginAttemptService.getAccountRemainingLockTime(username);
             log.warn("Login blocked by account lock, username={}, clientIp={}, remainingSeconds={}", username, clientIp, remainingTime);
@@ -146,19 +147,5 @@ public class AuthController {
                 .avatar(sysUser.getAvatar())
                 .build();
         return Result.success(loginResponse);
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip == null || ip.isBlank() ? "unknown" : ip;
     }
 }
