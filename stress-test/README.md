@@ -74,6 +74,14 @@ mysql -u root -p < stress-test/scripts/prepare-data.sql
 - 评定批次 `PT-SMALL`、`PT-MEDIUM`、`PT-LARGE`、`PT-QUERY`
 - 对应的申请、评定结果、课程成绩、德育数据
 
+注意：
+
+- 当前 `prepare-data.sql` 在末尾核验 SQL 处仍有已知问题，可能报出 `Unknown column 'batch_code' in 'field list'`
+- 该报错通常发生在数据准备主体执行完成之后，不代表前面的 PT 学生与 PT 批次一定没有落库
+- 建议执行后再额外核验：
+  - `sys_user` 中是否存在 `pt_test_0000` 到 `pt_test_0199`
+  - `evaluation_batch` 中是否存在 `PT-SMALL`、`PT-MEDIUM`、`PT-LARGE`、`PT-QUERY`
+
 ## 第二步：生成 token
 
 管理员 token：
@@ -164,6 +172,12 @@ stress-test/results/<YYYYMMDD_HHMMSS>/
 ONLY_PHASES=phase5_result_export bash stress-test/scripts/run-benchmark.sh
 SKIP_PHASES=phase6_mixed_workload,phase7_stability_mixed bash stress-test/scripts/run-benchmark.sh
 ```
+
+强烈建议：
+
+- 不要直接在 `dev` 默认配置上执行整套压测，尤其是 Token 生成和申请提交场景
+- 请优先使用 `stress` profile 启动后端，否则登录限流和接口限流可能把结果污染成大量 `429`
+- 如果结果里出现大面积 `429`，优先判定为“环境未切到压测配置”，不要直接解读成系统吞吐瓶颈
 
 ## 当前场景编排
 
@@ -423,6 +437,18 @@ bash stress-test/scripts/analyze-results.sh stress-test/results/<timestamp>
 - 监控 CSV 聚合
 - 慢 SQL Top 10 结构化分析
 
+### 6. Phase 1 大量失败且 JTL 里主要是 `429`
+
+这通常说明不是业务接口本身失败，而是后端仍运行在带限流的配置上。
+
+优先检查：
+
+- 是否使用了 `stress` profile 启动后端
+- `RATE_LIMIT_ENABLED` 是否已经关闭
+- 登录限流/接口限流相关 Redis 键是否已经清理
+
+如果在 `dev` 配置下压测，即使请求返回很快，也可能因为限流导致结果完全失真。
+
 ## 建议执行顺序
 
 推荐你每次都按这个顺序来：
@@ -459,6 +485,12 @@ mysql -u root -p < stress-test/scripts/cleanup-data.sql
 - 学生/用户：`PT-*`、`pt_test_*`
 
 不会按整表粗暴清空正常业务数据。
+
+补充说明：
+
+- 当前 `cleanup-data.sql` 存在一处已知兼容性问题，某些 MySQL 版本下可能报 `Can't reopen table: 'tmp_stress_user_ids'`
+- 如果脚本中断，建议改用分步 SQL 或手工按 `PT-* / pt_test_*` 范围删除
+- 本次（2026-05-01）已验证：通过分步删除语句可以把 PT 批次、PT 学生、PT 用户、PT 申请、PT 评定结果清到 `0`
 
 ### 清理 Redis 压测遗留键
 
