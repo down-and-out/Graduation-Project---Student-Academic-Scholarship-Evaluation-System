@@ -2,6 +2,7 @@ package com.scholarship.service.impl;
 
 import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.scholarship.common.support.LockConstants;
 import com.scholarship.dto.StudentImportDTO;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.mapper.StudentInfoMapper;
@@ -10,9 +11,10 @@ import com.scholarship.service.BatchImportService;
 import com.scholarship.service.StudentInfoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
@@ -37,93 +39,110 @@ public class BatchImportServiceImpl implements BatchImportService {
     private final StudentInfoService studentInfoService;
     private final SysUserMapper sysUserMapper;
     private final PasswordEncoder passwordEncoder;
+    private final RedissonClient redissonClient;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> importStudents(List<StudentImportDTO> students) {
         log.info("开始批量导入学生信息，数量：{}", students.size());
 
-        // 批量查询已存在的学号，避免 N+1 逐条 selectOne
-        List<String> allStudentNos = students.stream()
-                .map(StudentImportDTO::getStudentNo)
-                .distinct()
-                .toList();
-        Set<String> existingStudentNos = allStudentNos.isEmpty() ? Set.of() :
-                studentInfoMapper.selectList(new LambdaQueryWrapper<StudentInfo>()
-                                .in(StudentInfo::getStudentNo, allStudentNos))
-                        .stream()
-                        .map(StudentInfo::getStudentNo)
-                        .collect(Collectors.toSet());
+        RLock lock = redissonClient.getLock(LockConstants.BATCH_IMPORT_STUDENTS);
+        boolean locked;
+        try {
+            locked = lock.tryLock(0, 30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("导入操作被中断");
+        }
+        if (!locked) {
+            throw new RuntimeException("正在导入中，请稍后再试");
+        }
+        try {
+            // 批量查询已存在的学号，避免 N+1 逐条 selectOne
+            List<String> allStudentNos = students.stream()
+                    .map(StudentImportDTO::getStudentNo)
+                    .distinct()
+                    .toList();
+            Set<String> existingStudentNos = allStudentNos.isEmpty() ? Set.of() :
+                    studentInfoMapper.selectList(new LambdaQueryWrapper<StudentInfo>()
+                                    .in(StudentInfo::getStudentNo, allStudentNos))
+                            .stream()
+                            .map(StudentInfo::getStudentNo)
+                            .collect(Collectors.toSet());
 
-        List<String> successNames = new ArrayList<>();
-        List<Map<String, String>> failures = new ArrayList<>();
-        List<StudentInfo> toInsert = new ArrayList<>();
+            List<String> successNames = new ArrayList<>();
+            List<Map<String, String>> failures = new ArrayList<>();
+            List<StudentInfo> toInsert = new ArrayList<>();
 
-        for (StudentImportDTO dto : students) {
-            try {
-                if (existingStudentNos.contains(dto.getStudentNo())) {
+            for (StudentImportDTO dto : students) {
+                try {
+                    if (existingStudentNos.contains(dto.getStudentNo())) {
+                        Map<String, String> failRecord = new HashMap<>();
+                        failRecord.put("studentNo", dto.getStudentNo());
+                        failRecord.put("name", dto.getName());
+                        failRecord.put("reason", "学号已存在");
+                        failures.add(failRecord);
+                        continue;
+                    }
+
+                    StudentInfo studentInfo = new StudentInfo();
+                    studentInfo.setStudentNo(dto.getStudentNo());
+                    studentInfo.setName(dto.getName());
+                    studentInfo.setGender(dto.getGender());
+                    studentInfo.setIdCard(dto.getIdCard());
+                    studentInfo.setEnrollmentYear(dto.getEnrollmentYear());
+                    studentInfo.setEducationLevel(dto.getEducationLevel());
+                    studentInfo.setTrainingMode(dto.getTrainingMode());
+                    studentInfo.setDepartment(dto.getDepartment());
+                    studentInfo.setMajor(dto.getMajor());
+                    studentInfo.setClassName(dto.getClassName());
+                    studentInfo.setTutorId(dto.getTutorId());
+                    studentInfo.setDirection(dto.getDirection());
+                    studentInfo.setPoliticalStatus(dto.getPoliticalStatus());
+                    studentInfo.setNation(dto.getNation());
+                    studentInfo.setNativePlace(dto.getNativePlace());
+                    studentInfo.setAddress(dto.getAddress());
+                    studentInfo.setPhone(dto.getPhone());
+                    studentInfo.setEmail(dto.getEmail());
+                    studentInfo.setStatus(1);
+                    studentInfo.setDeleted(0);
+
+                    toInsert.add(studentInfo);
+                    successNames.add(dto.getName());
+
+                    // 定期刷新，避免大文件导致内存压力
+                    if (toInsert.size() >= BATCH_FLUSH_SIZE) {
+                        studentInfoService.saveBatch(toInsert, 200);
+                        toInsert.clear();
+                    }
+
+                } catch (Exception e) {
+                    log.error("导入学生失败：{}，错误：{}", dto.getStudentNo(), e.getMessage());
                     Map<String, String> failRecord = new HashMap<>();
                     failRecord.put("studentNo", dto.getStudentNo());
                     failRecord.put("name", dto.getName());
-                    failRecord.put("reason", "学号已存在");
+                    failRecord.put("reason", "系统错误：" + e.getMessage());
                     failures.add(failRecord);
-                    continue;
                 }
+            }
 
-                StudentInfo studentInfo = new StudentInfo();
-                studentInfo.setStudentNo(dto.getStudentNo());
-                studentInfo.setName(dto.getName());
-                studentInfo.setGender(dto.getGender());
-                studentInfo.setIdCard(dto.getIdCard());
-                studentInfo.setEnrollmentYear(dto.getEnrollmentYear());
-                studentInfo.setEducationLevel(dto.getEducationLevel());
-                studentInfo.setTrainingMode(dto.getTrainingMode());
-                studentInfo.setDepartment(dto.getDepartment());
-                studentInfo.setMajor(dto.getMajor());
-                studentInfo.setClassName(dto.getClassName());
-                studentInfo.setTutorId(dto.getTutorId());
-                studentInfo.setDirection(dto.getDirection());
-                studentInfo.setPoliticalStatus(dto.getPoliticalStatus());
-                studentInfo.setNation(dto.getNation());
-                studentInfo.setNativePlace(dto.getNativePlace());
-                studentInfo.setAddress(dto.getAddress());
-                studentInfo.setPhone(dto.getPhone());
-                studentInfo.setEmail(dto.getEmail());
-                studentInfo.setStatus(1);
-                studentInfo.setDeleted(0);
+            // 刷新剩余记录
+            if (!toInsert.isEmpty()) {
+                studentInfoService.saveBatch(toInsert, 200);
+            }
 
-                toInsert.add(studentInfo);
-                successNames.add(dto.getName());
+            Map<String, Object> result = new HashMap<>();
+            result.put("successCount", successNames.size());
+            result.put("failCount", failures.size());
+            result.put("successNames", successNames);
+            result.put("failures", failures);
 
-                // 定期刷新，避免大文件导致内存压力
-                if (toInsert.size() >= BATCH_FLUSH_SIZE) {
-                    studentInfoService.saveBatch(toInsert, 200);
-                    toInsert.clear();
-                }
-
-            } catch (Exception e) {
-                log.error("导入学生失败：{}，错误：{}", dto.getStudentNo(), e.getMessage());
-                Map<String, String> failRecord = new HashMap<>();
-                failRecord.put("studentNo", dto.getStudentNo());
-                failRecord.put("name", dto.getName());
-                failRecord.put("reason", "系统错误：" + e.getMessage());
-                failures.add(failRecord);
+            log.info("批量导入完成：成功 {} 条，失败 {} 条", successNames.size(), failures.size());
+            return result;
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
             }
         }
-
-        // 刷新剩余记录
-        if (!toInsert.isEmpty()) {
-            studentInfoService.saveBatch(toInsert, 200);
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("successCount", successNames.size());
-        result.put("failCount", failures.size());
-        result.put("successNames", successNames);
-        result.put("failures", failures);
-
-        log.info("批量导入完成：成功 {} 条，失败 {} 条", successNames.size(), failures.size());
-        return result;
     }
 
     @Override

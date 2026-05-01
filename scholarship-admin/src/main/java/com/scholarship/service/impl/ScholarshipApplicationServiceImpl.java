@@ -14,7 +14,8 @@ import com.scholarship.common.result.ResultCode;
 import com.scholarship.common.support.CacheConstants;
 import com.scholarship.common.support.CursorPageHelper;
 import com.scholarship.common.support.LockConstants;
-import com.scholarship.common.support.RedisLockSupport;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.ScholarshipApplicationSubmitResponse;
 import com.scholarship.dto.param.ApplicationAchievementSubmitItem;
@@ -56,7 +57,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -79,7 +79,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
     private final ScholarshipApplicationMapper applicationMapper;
     private final ScholarshipProperties scholarshipProperties;
     private final StringRedisTemplate redisTemplate;
-    private final RedisLockSupport redisLockSupport;
+    private final RedissonClient redissonClient;
     private final StudentInfoService studentInfoService;
     private final ApplicationAchievementService applicationAchievementService;
     private final ReviewRecordService reviewRecordService;
@@ -130,12 +130,14 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         }
 
         String lockKey = LockConstants.APPLICATION_SUBMIT + studentInfo.getId() + ":" + request.getBatchId();
-        String lockValue = UUID.randomUUID().toString();
-        boolean locked = redisLockSupport.tryLock(
-                lockKey,
-                lockValue,
-                scholarshipProperties.getLock().getApplicationSubmitSeconds()
-        );
+        RLock lock = redissonClient.getLock(lockKey);
+        boolean locked;
+        try {
+            locked = lock.tryLock(0, scholarshipProperties.getLock().getApplicationSubmitSeconds(), TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException("申请正在提交，请勿重复操作");
+        }
         if (!locked) {
             throw new BusinessException("申请正在提交，请勿重复操作");
         }
@@ -186,7 +188,9 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
             cacheEvictionService.evictApplicationPages();
             return buildCreatedSubmitResponse(application);
         } finally {
-            redisLockSupport.unlock(lockKey, lockValue);
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
     }
 

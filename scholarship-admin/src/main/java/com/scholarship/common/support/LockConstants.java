@@ -30,6 +30,11 @@ public final class LockConstants {
     /** 申请审核锁，key 格式: lock:review:application:{applicationId} */
     public static final String REVIEW_APPLICATION = "lock:review:application:";
 
+    // ======================== 批量导入模块 (Redisson) ========================
+
+    /** 学生批量导入锁，key 格式: lock:batch:import:students */
+    public static final String BATCH_IMPORT_STUDENTS = "lock:batch:import:students";
+
     // ======================== 登录安全模块 (StringRedisTemplate + Lua) ========================
 
     /** 账号登录尝试计数，key 格式: login:attempt:account:{username} */

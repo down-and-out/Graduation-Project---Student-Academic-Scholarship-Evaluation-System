@@ -1,5 +1,6 @@
 package com.scholarship.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.common.support.LockConstants;
 import com.scholarship.config.ScholarshipProperties;
@@ -7,6 +8,7 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import com.scholarship.dto.BatchCalculationSummary;
 import com.scholarship.entity.EvaluationResult;
+import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.service.AwardAllocationService;
 import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.EvaluationCalculationService;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -28,6 +31,7 @@ public class EvaluationWorkflowServiceImpl implements EvaluationWorkflowService 
     private final EvaluationRankService evaluationRankService;
     private final AwardAllocationService awardAllocationService;
     private final EvaluationBatchService evaluationBatchService;
+    private final EvaluationResultMapper evaluationResultMapper;
     private final ScholarshipProperties scholarshipProperties;
     private final RedissonClient redissonClient;
 
@@ -48,10 +52,17 @@ public class EvaluationWorkflowServiceImpl implements EvaluationWorkflowService 
             result.put("calculatedCount", calcSummary.getWrittenCount());
             result.put("calculationPageCount", calcSummary.getPageCount());
 
-            Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
+            // 统一加载一次全量结果，复用给排名和奖项分配，消除重复 DB 查询
+            List<EvaluationResult> sortedResults = evaluationResultMapper.selectList(
+                    new LambdaQueryWrapper<EvaluationResult>()
+                            .eq(EvaluationResult::getBatchId, batchId)
+                            .orderByDesc(EvaluationResult::getTotalScore)
+            );
+
+            Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId, sortedResults);
             result.put("rankedCount", rankResults.size());
 
-            AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId);
+            AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId, sortedResults);
             result.put("awardResult", awardResult);
             result.put("batchId", batchId);
             result.put("status", "completed");

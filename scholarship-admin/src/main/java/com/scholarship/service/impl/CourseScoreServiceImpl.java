@@ -22,8 +22,10 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,6 +68,10 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
 
     private final EvaluationBatchService evaluationBatchService;
     private final StudentInfoMapper studentInfoMapper;
+
+    @Lazy
+    @Autowired
+    private CourseScoreServiceImpl self;
 
     @Override
     public boolean save(CourseScore entity) {
@@ -320,7 +326,6 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public CourseScoreImportResult importScores(InputStream inputStream, String originalFilename, StudentInfo studentInfo) throws IOException {
         log.info("导入课程成绩开始, studentId={}, studentNo={}, fileName={}",
                 studentInfo.getId(), studentInfo.getStudentNo(), originalFilename);
@@ -440,16 +445,8 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 cachedTermScores.put(score);
             }
 
-            // 循环结束后批量写入
-            if (!newScores.isEmpty()) {
-                super.saveBatch(newScores, 200);
-            }
-            if (!updateScores.isEmpty()) {
-                super.updateBatchById(updateScores, 200);
-            }
-            if (!duplicateIdsToRemove.isEmpty()) {
-                super.removeBatchByIds(duplicateIdsToRemove, 200);
-            }
+            // 通过代理调用使 @Transactional 生效，确保三步写入在同一事务中
+            self.persistImportResults(newScores, updateScores, duplicateIdsToRemove);
 
             CourseScoreImportResult result = new CourseScoreImportResult();
             result.setImported(importedCount);
@@ -460,6 +457,26 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
             log.info("导入课程成绩完成, studentId={}, importedCount={}, updatedCount={}, skippedCount={}",
                     studentInfo.getId(), importedCount, updatedCount, skippedCount);
             return result;
+        }
+    }
+
+    /**
+     * 仅包裹 DB 写入操作的事务方法。
+     *
+     * <p>通过 self 代理调用以使 {@code @Transactional} 生效，
+     * Excel 解析、缓存加载等纯内存操作不占用数据库连接和事务。</p>
+     */
+    @Transactional(rollbackFor = Exception.class)
+    void persistImportResults(List<CourseScore> newScores, List<CourseScore> updateScores,
+                                     List<Long> duplicateIdsToRemove) {
+        if (!newScores.isEmpty()) {
+            super.saveBatch(newScores, 200);
+        }
+        if (!updateScores.isEmpty()) {
+            super.updateBatchById(updateScores, 200);
+        }
+        if (!duplicateIdsToRemove.isEmpty()) {
+            super.removeBatchByIds(duplicateIdsToRemove, 200);
         }
     }
 
