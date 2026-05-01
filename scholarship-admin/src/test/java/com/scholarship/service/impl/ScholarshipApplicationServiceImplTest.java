@@ -5,7 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.common.support.LockConstants;
-import com.scholarship.common.support.RedisLockSupport;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.ScholarshipApplicationSubmitResponse;
 import com.scholarship.dto.param.ScholarshipApplicationSubmitRequest;
@@ -29,6 +30,8 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -48,7 +51,9 @@ class ScholarshipApplicationServiceImplTest {
     @Mock
     private StringRedisTemplate redisTemplate;
     @Mock
-    private RedisLockSupport redisLockSupport;
+    private RedissonClient redissonClient;
+    @Mock
+    private RLock rlock;
     @Mock
     private StudentInfoService studentInfoService;
     @Mock
@@ -84,7 +89,7 @@ class ScholarshipApplicationServiceImplTest {
                 applicationMapper,
                 properties,
                 redisTemplate,
-                redisLockSupport,
+                redissonClient,
                 studentInfoService,
                 applicationAchievementService,
                 reviewRecordService,
@@ -106,7 +111,8 @@ class ScholarshipApplicationServiceImplTest {
         request.setSelfEvaluation("self");
 
         when(studentInfoService.getByUserId(99L)).thenReturn(studentInfo);
-        when(redisLockSupport.tryLock(eq(LockConstants.APPLICATION_SUBMIT + "12:8"), anyString(), eq(10L))).thenReturn(false);
+        when(redissonClient.getLock(eq(LockConstants.APPLICATION_SUBMIT + "12:8"))).thenReturn(rlock);
+        when(rlock.tryLock(eq(0L), eq(10L), eq(TimeUnit.SECONDS))).thenReturn(false);
 
         BusinessException exception = assertThrows(BusinessException.class, () -> service.submitApplication(request, 99L));
 
@@ -129,7 +135,8 @@ class ScholarshipApplicationServiceImplTest {
         existing.setStatus(1);
 
         when(studentInfoService.getByUserId(99L)).thenReturn(studentInfo);
-        when(redisLockSupport.tryLock(eq(LockConstants.APPLICATION_SUBMIT + "12:8"), anyString(), eq(10L))).thenReturn(true);
+        when(redissonClient.getLock(eq(LockConstants.APPLICATION_SUBMIT + "12:8"))).thenReturn(rlock);
+        when(rlock.tryLock(eq(0L), eq(10L), eq(TimeUnit.SECONDS))).thenReturn(true);
         when(applicationMapper.selectOne(any())).thenReturn(existing);
 
         ScholarshipApplicationSubmitResponse response = service.submitApplication(request, 99L);

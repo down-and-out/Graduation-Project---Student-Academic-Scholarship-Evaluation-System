@@ -5,6 +5,8 @@ import com.scholarship.common.support.LockConstants;
 import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.BatchCalculationSummary;
 import com.scholarship.entity.EvaluationBatch;
+import com.scholarship.entity.EvaluationResult;
+import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.service.AwardAllocationService;
 import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.EvaluationCalculationService;
@@ -19,6 +21,9 @@ import org.redisson.api.RedissonClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -41,6 +46,8 @@ class EvaluationWorkflowServiceImplTest {
     private RedissonClient redissonClient;
     @Mock
     private RLock rLock;
+    @Mock
+    private EvaluationResultMapper evaluationResultMapper;
 
     private EvaluationWorkflowServiceImpl service;
 
@@ -54,6 +61,7 @@ class EvaluationWorkflowServiceImplTest {
                 evaluationRankService,
                 awardAllocationService,
                 evaluationBatchService,
+                evaluationResultMapper,
                 properties,
                 redissonClient
         );
@@ -103,8 +111,9 @@ class EvaluationWorkflowServiceImplTest {
         when(rLock.isHeldByCurrentThread()).thenReturn(true);
         when(evaluationBatchService.getById(11L)).thenReturn(batch);
         when(evaluationCalculationService.calculateBatchApplications(11L)).thenReturn(summary);
-        when(evaluationRankService.generateBatchRanks(11L)).thenReturn(java.util.Map.of());
-        when(awardAllocationService.allocateAwards(11L)).thenReturn(new AwardAllocationService.AwardAllocationResult());
+        when(evaluationResultMapper.selectList(any())).thenReturn(List.of());
+        when(evaluationRankService.generateBatchRanks(eq(11L), any())).thenReturn(java.util.Map.of());
+        when(awardAllocationService.allocateAwards(eq(11L), any())).thenReturn(new AwardAllocationService.AwardAllocationResult());
 
         var result = service.evaluateBatch(11L);
 
