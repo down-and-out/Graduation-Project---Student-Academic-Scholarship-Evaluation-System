@@ -3,17 +3,24 @@ package com.scholarship.config;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 
+@Slf4j
 @Configuration
-public class AsyncTaskConfig {
+public class AsyncTaskConfig implements AsyncConfigurer {
 
     private final ScholarshipProperties scholarshipProperties;
 
@@ -34,6 +41,19 @@ public class AsyncTaskConfig {
     @Bean("batchImportTaskExecutor")
     public ThreadPoolTaskExecutor batchImportTaskExecutor() {
         return buildExecutor(scholarshipProperties.getAsync().getBatchImport());
+    }
+
+    @Override
+    public Executor getAsyncExecutor() {
+        return buildExecutor(new ScholarshipProperties.ExecutorConfig(
+                2, 4, 50, 60, "CALLER_RUNS", "async-default-"));
+    }
+
+    @Override
+    public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
+        return (Throwable ex, Method method, Object... params) ->
+                log.error("Async method [{}] threw exception with params={}",
+                        method.getName(), Arrays.toString(params), ex);
     }
 
     @Bean
