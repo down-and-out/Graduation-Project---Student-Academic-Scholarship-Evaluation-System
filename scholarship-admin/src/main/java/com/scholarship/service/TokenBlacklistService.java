@@ -40,4 +40,12 @@ public interface TokenBlacklistService {
      * @return 黑名单中的 Token 数量
      */
     long getBlacklistSize();
+
+    /**
+     * 定时校准黑名单计数器。
+     *
+     * <p>Redis key TTL 过期不会触发计数器递减，长时间运行会导致计数器虚高。
+     * 每小时 SCAN 一次全量 key 数量并校正。</p>
+     */
+    void reconcileBlacklistCount();
 }

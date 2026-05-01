@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -117,6 +118,34 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
             log.info("Token blacklist cleanup finished, deleted={}, remaining={}", deletedCount, getBlacklistSize());
         } catch (Exception e) {
             log.error("Token blacklist cleanup failed", e);
+        }
+    }
+
+    /**
+     * 定时校准黑名单计数器。
+     *
+     * <p>Redis key TTL 过期不会触发计数器递减，长时间运行会导致计数器虚高。
+     * 每小时 SCAN 一次全量 key 数量并校正。</p>
+     */
+    @Override
+    @Scheduled(fixedDelay = 3600_000)
+    public void reconcileBlacklistCount() {
+        try {
+            int actualCount = 0;
+            try (Cursor<String> cursor = redisTemplate.scan(
+                    ScanOptions.scanOptions().match(BLACKLIST_PREFIX + "*").count(1000).build())) {
+                while (cursor.hasNext()) {
+                    cursor.next();
+                    actualCount++;
+                }
+            }
+            long oldCount = getBlacklistSize();
+            if (oldCount != actualCount) {
+                redisTemplate.opsForValue().set(BLACKLIST_COUNT_KEY, String.valueOf(actualCount));
+                log.info("Token blacklist count reconciled: {} → {}", oldCount, actualCount);
+            }
+        } catch (Exception e) {
+            log.warn("Token blacklist count reconciliation failed", e);
         }
     }
 

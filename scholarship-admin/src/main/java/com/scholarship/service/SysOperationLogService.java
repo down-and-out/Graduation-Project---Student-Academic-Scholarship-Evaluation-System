@@ -17,4 +17,9 @@ public interface SysOperationLogService extends IService<SysOperationLog> {
      * @return 分页结果
      */
     IPage<SysOperationLog> queryPage(OperationLogQuery query);
+
+    /**
+     * 定时清理过期操作日志（90 天前），每天凌晨 3 点执行。
+     */
+    void cleanExpiredLogs();
 }

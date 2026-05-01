@@ -10,8 +10,10 @@ import com.scholarship.mapper.SysOperationLogMapper;
 import com.scholarship.service.SysOperationLogService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -55,5 +57,22 @@ public class SysOperationLogServiceImpl extends ServiceImpl<SysOperationLogMappe
 
         wrapper.orderByDesc(SysOperationLog::getCreateTime);
         return page(page, wrapper);
+    }
+
+    /**
+     * 定时清理过期操作日志（90 天前）。
+     *
+     * <p>每天凌晨 3 点执行，使用物理 DELETE（依赖 application-prod.yml 中 delete-permit: true）。</p>
+     */
+    @Override
+    @Scheduled(cron = "0 0 3 * * ?")
+    public void cleanExpiredLogs() {
+        LocalDateTime threshold = LocalDateTime.now().minusDays(90);
+        LambdaQueryWrapper<SysOperationLog> wrapper = new LambdaQueryWrapper<>();
+        wrapper.lt(SysOperationLog::getCreateTime, threshold);
+        long deleted = getBaseMapper().delete(wrapper);
+        if (deleted > 0) {
+            log.info("Cleaned {} expired operation logs before {}", deleted, threshold);
+        }
     }
 }
