@@ -125,16 +125,17 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
      * 定时校准黑名单计数器。
      *
      * <p>Redis key TTL 过期不会触发计数器递减，长时间运行会导致计数器虚高。
-     * 每小时 SCAN 一次全量 key 数量并校正。</p>
+     * 每 3 小时 SCAN 校正一次，单次最多扫描 5000 个 key 防止 Redis 阻塞。</p>
      */
     @Override
-    @Scheduled(fixedDelay = 3600_000)
+    @Scheduled(fixedDelay = 10_800_000)
     public void reconcileBlacklistCount() {
         try {
             int actualCount = 0;
+            int maxScanKeys = 5000;
             try (Cursor<String> cursor = redisTemplate.scan(
-                    ScanOptions.scanOptions().match(BLACKLIST_PREFIX + "*").count(1000).build())) {
-                while (cursor.hasNext()) {
+                    ScanOptions.scanOptions().match(BLACKLIST_PREFIX + "*").count(500).build())) {
+                while (cursor.hasNext() && actualCount < maxScanKeys) {
                     cursor.next();
                     actualCount++;
                 }
@@ -142,7 +143,8 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
             long oldCount = getBlacklistSize();
             if (oldCount != actualCount) {
                 redisTemplate.opsForValue().set(BLACKLIST_COUNT_KEY, String.valueOf(actualCount));
-                log.info("Token blacklist count reconciled: {} → {}", oldCount, actualCount);
+                log.info("Token blacklist count reconciled: {} → {}{}", oldCount, actualCount,
+                        actualCount >= maxScanKeys ? " (capped)" : "");
             }
         } catch (Exception e) {
             log.warn("Token blacklist count reconciliation failed", e);

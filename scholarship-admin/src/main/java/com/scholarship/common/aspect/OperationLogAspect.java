@@ -73,10 +73,8 @@ public class OperationLogAspect {
         } finally {
             long executionTime = System.currentTimeMillis() - startTime;
             try {
-                if (sysOperationLogMapper != null) {
-                    SysOperationLog logEntry = buildLogEntry(opLog, joinPoint, status, errorMsg, executionTime);
-                    sysOperationLogMapper.insert(logEntry);
-                }
+                SysOperationLog logEntry = buildLogEntry(opLog, joinPoint, status, errorMsg, executionTime);
+                sysOperationLogMapper.insert(logEntry);
             } catch (Exception e) {
                 log.warn("Failed to write operation log", e);
             }

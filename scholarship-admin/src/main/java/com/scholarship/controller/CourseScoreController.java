@@ -236,12 +236,15 @@ public class CourseScoreController {
             .doWrite(list);
     }
 
+    private static final int EXPORT_MAX_ROWS = 5000;
+
     @PostMapping("/export/submit")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "异步导出成绩", description = "提交异步导出任务，返回 taskId 用于轮询状态和下载")
     public Result<Map<String, Object>> exportAsync(
             @Parameter(description = "学生 ID") @RequestParam(required = false) Long studentId,
             @Parameter(description = "学年") @RequestParam(required = false) String academicYear,
+            @Parameter(description = "最大行数") @RequestParam(defaultValue = "5000") int maxRows,
             @AuthenticationPrincipal LoginUser loginUser) {
 
         CourseScoreQuery query = new CourseScoreQuery();
@@ -252,12 +255,15 @@ public class CourseScoreController {
             query.setStudentIds(List.of(-1L));
         }
 
+        int effectiveMaxRows = Math.min(maxRows, EXPORT_MAX_ROWS);
+
         String taskId = exportTaskService.submit("course-score", "成绩列表", id -> {
             try {
                 List<CourseScoreExportVO> data = courseScoreService.queryForExport(query).stream()
+                        .limit(effectiveMaxRows)
                         .map(CourseScoreExportVO::from)
                         .toList();
-                String tempDir = System.getProperty("java.io.tmpdir") + File.separator + "scholarship-exports";
+                String tempDir = exportTaskService.getTempDir();
                 String filePath = tempDir + File.separator + id + ".xlsx";
                 try (FileOutputStream fos = new FileOutputStream(filePath)) {
                     EasyExcel.write(fos, CourseScoreExportVO.class)

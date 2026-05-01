@@ -16,28 +16,30 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * 异步导出任务服务实现。
+ * 异步任务服务实现（统一管理导出和导入任务）。
  *
- * <p>使用 Redis 存储任务状态，使用 exportTaskExecutor 线程池异步执行导出。</p>
+ * <p>使用 Redis 存储任务状态，使用 exportTaskExecutor / batchImportTaskExecutor 异步执行。</p>
  */
 @Slf4j
 @Service
 public class ExportTaskServiceImpl implements ExportTaskService {
 
     private static final String TASK_KEY_PREFIX = "export:task:";
+    private static final String IMPORT_TASK_PREFIX = "import:task:";
     private static final Duration TASK_TTL = Duration.ofMinutes(30);
     private static final String EXPORT_TEMP_DIR = System.getProperty("java.io.tmpdir") + File.separator + "scholarship-exports";
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final StringRedisTemplate redisTemplate;
     private final ThreadPoolTaskExecutor exportTaskExecutor;
-    private final ObjectMapper objectMapper;
+    private final ThreadPoolTaskExecutor batchImportTaskExecutor;
 
     public ExportTaskServiceImpl(StringRedisTemplate redisTemplate,
-                                 @Qualifier("exportTaskExecutor") ThreadPoolTaskExecutor exportTaskExecutor) {
+                                 @Qualifier("exportTaskExecutor") ThreadPoolTaskExecutor exportTaskExecutor,
+                                 @Qualifier("batchImportTaskExecutor") ThreadPoolTaskExecutor batchImportTaskExecutor) {
         this.redisTemplate = redisTemplate;
         this.exportTaskExecutor = exportTaskExecutor;
-        this.objectMapper = new ObjectMapper();
-        // 确保临时目录存在
+        this.batchImportTaskExecutor = batchImportTaskExecutor;
         File dir = new File(EXPORT_TEMP_DIR);
         if (!dir.exists()) {
             dir.mkdirs();
@@ -55,14 +57,7 @@ public class ExportTaskServiceImpl implements ExportTaskService {
         writeTaskState(taskId, initialState);
         log.info("Export task created: taskId={}, taskType={}", taskId, taskType);
 
-        exportTaskExecutor.execute(() -> {
-            try {
-                exportTask.accept(taskId);
-            } catch (Exception e) {
-                log.error("Export task failed: taskId={}", taskId, e);
-                markFailed(taskId, e.getMessage());
-            }
-        });
+        exportTaskExecutor.execute(() -> exportTask.accept(taskId));
 
         return taskId;
     }
@@ -88,6 +83,11 @@ public class ExportTaskServiceImpl implements ExportTaskService {
     }
 
     @Override
+    public String getTempDir() {
+        return EXPORT_TEMP_DIR;
+    }
+
+    @Override
     public Map<String, Object> getStatus(String taskId) {
         return readTaskState(taskId);
     }
@@ -101,31 +101,67 @@ public class ExportTaskServiceImpl implements ExportTaskService {
         return (String) state.get("filePath");
     }
 
+    @Override
+    public String submitImport(String taskType, Consumer<String> importTask) {
+        String taskId = UUID.randomUUID().toString().replace("-", "");
+        Map<String, Object> initialState = new HashMap<>();
+        initialState.put("status", Status.PROCESSING.name());
+        initialState.put("taskType", taskType);
+        writeTaskState(IMPORT_TASK_PREFIX, taskId, initialState);
+        log.info("Import task created: taskId={}, taskType={}", taskId, taskType);
+
+        batchImportTaskExecutor.execute(() -> {
+            try {
+                importTask.accept(taskId);
+                Map<String, Object> completeState = new HashMap<>();
+                completeState.put("status", Status.COMPLETED.name());
+                writeTaskState(IMPORT_TASK_PREFIX, taskId, completeState);
+            } catch (Exception e) {
+                log.error("Import task failed: taskId={}", taskId, e);
+                Map<String, Object> failState = new HashMap<>();
+                failState.put("status", Status.FAILED.name());
+                failState.put("errorMsg", e.getMessage());
+                writeTaskState(IMPORT_TASK_PREFIX, taskId, failState);
+            }
+        });
+
+        return taskId;
+    }
+
+    @Override
+    public Map<String, Object> getImportStatus(String taskId) {
+        return readTaskState(IMPORT_TASK_PREFIX, taskId);
+    }
+
     private void writeTaskState(String taskId, Map<String, Object> state) {
+        writeTaskState(TASK_KEY_PREFIX, taskId, state);
+    }
+
+    private void writeTaskState(String prefix, String taskId, Map<String, Object> state) {
         try {
-            String json = objectMapper.writeValueAsString(state);
-            redisTemplate.opsForValue().set(buildKey(taskId), json, TASK_TTL);
+            String json = OBJECT_MAPPER.writeValueAsString(state);
+            redisTemplate.opsForValue().set(prefix + taskId, json, TASK_TTL);
         } catch (Exception e) {
-            log.warn("Failed to write export task state: taskId={}", taskId, e);
+            log.warn("Failed to write task state: prefix={}, taskId={}", prefix, taskId, e);
         }
     }
 
     private Map<String, Object> readTaskState(String taskId) {
+        return readTaskState(TASK_KEY_PREFIX, taskId);
+    }
+
+    private Map<String, Object> readTaskState(String prefix, String taskId) {
         try {
-            String json = redisTemplate.opsForValue().get(buildKey(taskId));
+            String json = redisTemplate.opsForValue().get(prefix + taskId);
             if (json == null) {
                 return null;
             }
             @SuppressWarnings("unchecked")
-            Map<String, Object> state = objectMapper.readValue(json, Map.class);
+            Map<String, Object> state = OBJECT_MAPPER.readValue(json, Map.class);
             return state;
         } catch (Exception e) {
-            log.warn("Failed to read export task state: taskId={}", taskId, e);
+            log.warn("Failed to read task state: prefix={}, taskId={}", prefix, taskId, e);
             return null;
         }
-    }
-
-    private String buildKey(String taskId) {
-        return TASK_KEY_PREFIX + taskId;
     }
 }

@@ -42,6 +42,11 @@ public interface ExportTaskService {
     String getFilePath(String taskId);
 
     /**
+     * 获取导出临时目录路径。
+     */
+    String getTempDir();
+
+    /**
      * 标记任务完成并记录文件信息。
      */
     void markCompleted(String taskId, String fileName, String filePath);
@@ -50,4 +55,21 @@ public interface ExportTaskService {
      * 更新任务状态为失败。
      */
     void markFailed(String taskId, String errorMsg);
+
+    /**
+     * 创建导入任务并异步执行。
+     *
+     * @param taskType 任务类型标识
+     * @param importTask 导入执行逻辑，接收 taskId 参数
+     * @return 任务 ID
+     */
+    String submitImport(String taskType, Consumer<String> importTask);
+
+    /**
+     * 查询导入任务状态。
+     *
+     * @param taskId 任务 ID
+     * @return 状态 Map，任务不存在返回 null
+     */
+    Map<String, Object> getImportStatus(String taskId);
 }

@@ -60,19 +60,29 @@ public class SysOperationLogServiceImpl extends ServiceImpl<SysOperationLogMappe
     }
 
     /**
-     * 定时清理过期操作日志（90 天前）。
+     * 定时清理过期操作日志（90 天前），分批删除避免大事务锁表。
      *
-     * <p>每天凌晨 3 点执行，使用物理 DELETE（依赖 application-prod.yml 中 delete-permit: true）。</p>
+     * <p>每天凌晨 3 点执行，每批 1000 行。</p>
      */
     @Override
     @Scheduled(cron = "0 0 3 * * ?")
     public void cleanExpiredLogs() {
         LocalDateTime threshold = LocalDateTime.now().minusDays(90);
-        LambdaQueryWrapper<SysOperationLog> wrapper = new LambdaQueryWrapper<>();
-        wrapper.lt(SysOperationLog::getCreateTime, threshold);
-        long deleted = getBaseMapper().delete(wrapper);
-        if (deleted > 0) {
-            log.info("Cleaned {} expired operation logs before {}", deleted, threshold);
+        long totalDeleted = 0;
+        int batchSize = 1000;
+
+        while (true) {
+            LambdaQueryWrapper<SysOperationLog> wrapper = new LambdaQueryWrapper<>();
+            wrapper.lt(SysOperationLog::getCreateTime, threshold).last("LIMIT " + batchSize);
+            long deleted = getBaseMapper().delete(wrapper);
+            if (deleted == 0) {
+                break;
+            }
+            totalDeleted += deleted;
+        }
+
+        if (totalDeleted > 0) {
+            log.info("Cleaned {} expired operation logs before {}", totalDeleted, threshold);
         }
     }
 }

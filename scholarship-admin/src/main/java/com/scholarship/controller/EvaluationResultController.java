@@ -265,21 +265,27 @@ public class EvaluationResultController {
                 .doWrite(exportData);
     }
 
+    private static final int EXPORT_MAX_ROWS = 5000;
+
     @PostMapping("/export/submit")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "Submit async evaluation result export")
     public Result<Map<String, Object>> exportAsync(@RequestParam(required = false) Long batchId,
                                                    @RequestParam(required = false) String academicYear,
-                                                   @RequestParam(required = false) Integer semester) {
+                                                   @RequestParam(required = false) Integer semester,
+                                                   @RequestParam(defaultValue = "5000") int maxRows) {
         String fileName = "evaluation_results"
                 + (batchId != null ? "_" + batchId : "")
                 + (academicYear != null && !academicYear.isBlank() ? "_" + academicYear : "")
                 + (semester != null ? "_" + semester : "");
 
+        int effectiveMaxRows = Math.min(maxRows, EXPORT_MAX_ROWS);
+
         String taskId = exportTaskService.submit("evaluation-result", fileName, id -> {
             try {
-                List<EvaluationResultExportVO> data = evaluationResultService.exportBatchResults(batchId, academicYear, semester);
-                String tempDir = System.getProperty("java.io.tmpdir") + File.separator + "scholarship-exports";
+                List<EvaluationResultExportVO> data = evaluationResultService.exportBatchResults(batchId, academicYear, semester)
+                        .stream().limit(effectiveMaxRows).toList();
+                String tempDir = exportTaskService.getTempDir();
                 String filePath = tempDir + File.separator + id + ".xlsx";
                 try (FileOutputStream fos = new FileOutputStream(filePath)) {
                     EasyExcel.write(fos, EvaluationResultExportVO.class)
