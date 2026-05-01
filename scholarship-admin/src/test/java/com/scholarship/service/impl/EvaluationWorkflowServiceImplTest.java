@@ -71,7 +71,7 @@ class EvaluationWorkflowServiceImplTest {
 
     @Test
     @DisplayName("evaluate should fail when batch lock is occupied")
-    void evaluateShouldFailWhenBatchLockIsOccupied() {
+    void evaluateShouldFailWhenBatchLockIsOccupied() throws InterruptedException {
         when(redissonClient.getLock(eq(LockConstants.BATCH_EVALUATE + 6))).thenReturn(rLock);
         doReturn(false).when(rLock).tryLock(eq(0L), eq(1800L), eq(TimeUnit.SECONDS));
 
@@ -83,7 +83,7 @@ class EvaluationWorkflowServiceImplTest {
 
     @Test
     @DisplayName("evaluate should reject non reviewing batch")
-    void evaluateShouldRejectNonReviewingBatch() {
+    void evaluateShouldRejectNonReviewingBatch() throws InterruptedException {
         when(redissonClient.getLock(eq(LockConstants.BATCH_EVALUATE + 9))).thenReturn(rLock);
         doReturn(true).when(rLock).tryLock(eq(0L), eq(1800L), eq(TimeUnit.SECONDS));
         when(rLock.isHeldByCurrentThread()).thenReturn(true);
@@ -98,7 +98,7 @@ class EvaluationWorkflowServiceImplTest {
 
     @Test
     @DisplayName("evaluate should expose calculation summary counts")
-    void evaluateShouldExposeCalculationSummaryCounts() {
+    void evaluateShouldExposeCalculationSummaryCounts() throws InterruptedException {
         EvaluationBatch batch = new EvaluationBatch();
         batch.setId(11L);
         batch.setBatchStatus(3);
