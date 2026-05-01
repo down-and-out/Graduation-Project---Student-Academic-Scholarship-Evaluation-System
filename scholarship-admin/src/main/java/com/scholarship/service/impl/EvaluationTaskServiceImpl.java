@@ -13,6 +13,7 @@ import com.scholarship.dto.EvaluationTaskResponse;
 import com.scholarship.dto.EvaluationTaskResponse.TaskSummary;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.entity.EvaluationTask;
+import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.mapper.EvaluationTaskMapper;
 import com.scholarship.service.AwardAllocationService;
 import com.scholarship.service.CacheEvictionService;
@@ -41,6 +42,7 @@ public class EvaluationTaskServiceImpl implements EvaluationTaskService {
     private static final String TASK_TYPE_BATCH_EVALUATION = "BATCH_EVALUATION";
 
     private final EvaluationTaskMapper evaluationTaskMapper;
+    private final EvaluationResultMapper evaluationResultMapper;
     private final EvaluationCalculationService evaluationCalculationService;
     private final EvaluationRankService evaluationRankService;
     private final AwardAllocationService awardAllocationService;
@@ -168,8 +170,15 @@ public class EvaluationTaskServiceImpl implements EvaluationTaskService {
             log.info("Start evaluation task execution, taskId={}, batchId={}", taskId, batchId);
 
             BatchCalculationSummary calcSummary = evaluationCalculationService.calculateBatchApplications(batchId);
-            Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
-            AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId);
+
+            // 加载批次下所有已计算的评定结果（仅一次 DB 查询），供排名和奖项分配合用
+            List<EvaluationResult> sortedResults = evaluationResultMapper.selectList(
+                    new LambdaQueryWrapper<EvaluationResult>()
+                            .eq(EvaluationResult::getBatchId, batchId)
+                            .orderByDesc(EvaluationResult::getTotalScore)
+            );
+            Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId, sortedResults);
+            AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId, sortedResults);
 
             TaskSummary summary = new TaskSummary();
             summary.setProcessedCount(calcSummary.getProcessedCount());

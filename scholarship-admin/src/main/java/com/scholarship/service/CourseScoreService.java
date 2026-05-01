@@ -65,12 +65,29 @@ public interface CourseScoreService extends IService<CourseScore> {
     Map<Long, BigDecimal> mapWeightedAverageByStudentIds(List<Long> studentIds, Long batchId);
 
     /**
+     * 批量计算学生的加权平均分（直接指定学年，避免重复查询批次信息）
+     *
+     * @param studentIds 学生 ID 列表
+     * @param academicYear 学年
+     * @return 按学生 ID 分组的加权平均分
+     */
+    Map<Long, BigDecimal> mapWeightedAverageByStudentIds(List<Long> studentIds, String academicYear);
+
+    /**
      * 分页查询课程成绩
      *
      * @param query 查询参数
      * @return 分页结果
      */
     IPage<CourseScore> queryPage(CourseScoreQuery query);
+
+    /**
+     * 查询学生可选学年列表
+     *
+     * @param studentId 学生 ID
+     * @return 学年列表，按倒序排列
+     */
+    List<String> listAcademicYearsByStudentId(Long studentId);
 
     /**
      * 根据查询条件获取成绩列表（用于导出）

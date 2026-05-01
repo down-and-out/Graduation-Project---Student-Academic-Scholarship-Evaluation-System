@@ -218,13 +218,6 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
 
     @Override
     public Map<Long, BigDecimal> mapWeightedAverageByStudentIds(List<Long> studentIds, Long batchId) {
-        if (studentIds == null || studentIds.isEmpty()) {
-            return Map.of();
-        }
-
-        log.debug("批量计算加权平均分，studentCount={}, batchId={}", studentIds.size(), batchId);
-
-        // 获取批次的学年
         String academicYear = null;
         if (batchId != null) {
             EvaluationBatch batch = evaluationBatchService.getById(batchId);
@@ -232,8 +225,17 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 academicYear = batch.getAcademicYear();
             }
         }
+        return mapWeightedAverageByStudentIds(studentIds, academicYear);
+    }
 
-        // 批量查询所有学生的成绩
+    @Override
+    public Map<Long, BigDecimal> mapWeightedAverageByStudentIds(List<Long> studentIds, String academicYear) {
+        if (studentIds == null || studentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        log.debug("批量计算加权平均分，studentCount={}, academicYear={}", studentIds.size(), academicYear);
+
         LambdaQueryWrapper<CourseScore> wrapper = new LambdaQueryWrapper<CourseScore>()
             .in(CourseScore::getStudentId, studentIds);
         if (academicYear != null) {
@@ -241,11 +243,9 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         }
         List<CourseScore> allScores = list(wrapper);
 
-        // 按学生 ID 分组
         Map<Long, List<CourseScore>> scoresByStudent = allScores.stream()
             .collect(java.util.stream.Collectors.groupingBy(CourseScore::getStudentId));
 
-        // 计算每个学生的加权平均分
         Map<Long, BigDecimal> result = new HashMap<>();
         for (Long studentId : studentIds) {
             List<CourseScore> scores = scoresByStudent.getOrDefault(studentId, List.of());
@@ -288,6 +288,25 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
         applyDefaultSort(wrapper);
 
         return page(page, wrapper);
+    }
+
+    @Override
+    public List<String> listAcademicYearsByStudentId(Long studentId) {
+        if (studentId == null) {
+            return List.of();
+        }
+
+        LambdaQueryWrapper<CourseScore> wrapper = new LambdaQueryWrapper<CourseScore>()
+                .select(CourseScore::getAcademicYear)
+                .eq(CourseScore::getStudentId, studentId)
+                .isNotNull(CourseScore::getAcademicYear)
+                .orderByDesc(CourseScore::getAcademicYear);
+
+        return list(wrapper).stream()
+                .map(CourseScore::getAcademicYear)
+                .filter(year -> year != null && !year.isBlank())
+                .distinct()
+                .toList();
     }
 
     @Override

@@ -223,7 +223,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
 
         List<ResearchPaper> papers = list(new LambdaQueryWrapper<ResearchPaper>()
                 .in(ResearchPaper::getStudentId, studentIds)
-                .eq(ResearchPaper::getStatus, 1));
+                .eq(ResearchPaper::getStatus, 2));
 
         return papers.stream().collect(Collectors.groupingBy(ResearchPaper::getStudentId));
     }

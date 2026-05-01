@@ -29,6 +29,15 @@ public interface AwardAllocationService {
     AwardAllocationResult allocateAwards(Long batchId);
 
     /**
+     * 基于已加载的排序结果分配奖项（避免重复 DB 查询）
+     *
+     * @param batchId 批次 ID
+     * @param sortedResults 已按总分降序排列的评定结果列表
+     * @return 分配结果统计
+     */
+    AwardAllocationResult allocateAwards(Long batchId, List<EvaluationResult> sortedResults);
+
+    /**
      * 为单个评定结果分配奖项
      *
      * @param result 评定结果

@@ -134,37 +134,59 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         BatchCalculationSummary summary = new BatchCalculationSummary();
         summary.setBatchId(batchId);
 
-        clearBatchResults(batchId);
+        // 版本化写入：获取下一个计算轮次
+        int calculationRound = queryNextCalculationRound(batchId);
+
+        // 预取权重配置，避免每个学生重复查询
+        WeightSetting weightSetting = getWeightSettingSafe();
+
+        // 预取批次学年，避免每页重复查询 evaluation_batch
+        EvaluationBatch batch = evaluationBatchService.getById(batchId);
+        String academicYear = batch != null ? batch.getAcademicYear() : null;
 
         Long lastId = null;
         long readPageSize = scholarshipProperties.getEvaluation().getReadPageSize();
         int writeBatchSize = scholarshipProperties.getEvaluation().getWriteBatchSize();
 
-        while (true) {
-            List<ScholarshipApplication> applications = scholarshipApplicationService
-                    .listApprovedBatchPage(batchId, lastId, readPageSize);
-            if (applications.isEmpty()) {
-                break;
+        try {
+            while (true) {
+                List<ScholarshipApplication> applications = scholarshipApplicationService
+                        .listApprovedBatchPage(batchId, lastId, readPageSize);
+                if (applications.isEmpty()) {
+                    break;
+                }
+
+                List<EvaluationResult> resultList = buildBatchResults(
+                        batchId,
+                        applications,
+                        rulesByType,
+                        courseRules,
+                        qualityRules,
+                        maxCourseScore,
+                        maxQualityScore,
+                        calculationRound,
+                        weightSetting,
+                        academicYear
+                );
+
+                saveBatchResults(resultList, writeBatchSize);
+
+                summary.setProcessedCount(summary.getProcessedCount() + applications.size());
+                summary.setWrittenCount(summary.getWrittenCount() + resultList.size());
+                summary.setPageCount(summary.getPageCount() + 1);
+                lastId = applications.get(applications.size() - 1).getId();
             }
 
-            List<EvaluationResult> resultList = buildBatchResults(
-                    batchId,
-                    applications,
-                    rulesByType,
-                    courseRules,
-                    qualityRules,
-                    maxCourseScore,
-                    maxQualityScore
-            );
+            // 全部写入完成后，批量逻辑删除旧版本
+            deleteOldCalculationRounds(batchId, calculationRound);
 
-            saveBatchResults(resultList, writeBatchSize);
-
-            summary.setProcessedCount(summary.getProcessedCount() + applications.size());
-            summary.setWrittenCount(summary.getWrittenCount() + resultList.size());
-            summary.setPageCount(summary.getPageCount() + 1);
-            lastId = applications.get(applications.size() - 1).getId();
+            log.info("批次计算完成，batchId={}, round={}, processed={}, pages={}",
+                    batchId, calculationRound, summary.getProcessedCount(), summary.getPageCount());
+        } catch (Exception e) {
+            log.error("批次计算异常，batchId={}, round={}, 清理已写入的当前轮次数据", batchId, calculationRound, e);
+            cleanCurrentRoundData(batchId, calculationRound);
+            throw e;
         }
-
         return summary;
     }
 
@@ -268,28 +290,26 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
     @Override
     public BigDecimal calculateTotalScore(BigDecimal courseScore, BigDecimal researchScore,
                                           BigDecimal competitionScore, BigDecimal qualityScore) {
+        return calculateTotalScore(courseScore, researchScore, competitionScore, qualityScore, getWeightSettingSafe());
+    }
+
+    private BigDecimal calculateTotalScore(BigDecimal courseScore, BigDecimal researchScore,
+                                           BigDecimal competitionScore, BigDecimal qualityScore,
+                                           WeightSetting weightSetting) {
         BigDecimal courseWeight = new BigDecimal("0.4");
         BigDecimal researchWeight = new BigDecimal("0.3");
         BigDecimal competitionWeight = new BigDecimal("0.2");
         BigDecimal qualityWeight = new BigDecimal("0.1");
 
-        try {
-            WeightSetting weightSetting = sysSettingService.getWeightSetting();
-            if (weightSetting != null
-                    && weightSetting.getCourseWeight() != null
-                    && weightSetting.getResearchWeight() != null
-                    && weightSetting.getCompetitionWeight() != null
-                    && weightSetting.getComprehensiveWeight() != null) {
-                courseWeight = weightToDecimal(weightSetting.getCourseWeight());
-                researchWeight = weightToDecimal(weightSetting.getResearchWeight());
-                competitionWeight = weightToDecimal(weightSetting.getCompetitionWeight());
-                qualityWeight = weightToDecimal(weightSetting.getComprehensiveWeight());
-            }
-        } catch (DataAccessException | IllegalArgumentException e) {
-            log.warn("读取权重设置失败，使用默认权重", e);
-        } catch (Exception e) {
-            log.error("读取权重设置异常", e);
-            throw new BusinessException("权重配置读取失败，无法计算综合得分", e);
+        if (weightSetting != null
+                && weightSetting.getCourseWeight() != null
+                && weightSetting.getResearchWeight() != null
+                && weightSetting.getCompetitionWeight() != null
+                && weightSetting.getComprehensiveWeight() != null) {
+            courseWeight = weightToDecimal(weightSetting.getCourseWeight());
+            researchWeight = weightToDecimal(weightSetting.getResearchWeight());
+            competitionWeight = weightToDecimal(weightSetting.getCompetitionWeight());
+            qualityWeight = weightToDecimal(weightSetting.getComprehensiveWeight());
         }
 
         return courseScore.multiply(courseWeight)
@@ -299,13 +319,28 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
+    private WeightSetting getWeightSettingSafe() {
+        try {
+            return sysSettingService.getWeightSetting();
+        } catch (DataAccessException | IllegalArgumentException e) {
+            log.warn("读取权重设置失败，使用默认权重", e);
+            return null;
+        } catch (Exception e) {
+            log.error("读取权重设置异常", e);
+            throw new BusinessException("权重配置读取失败，无法计算综合得分", e);
+        }
+    }
+
     private List<EvaluationResult> buildBatchResults(Long batchId,
                                                      List<ScholarshipApplication> applications,
                                                      Map<Integer, List<ScoreRule>> rulesByType,
                                                      List<ScoreRule> courseRules,
                                                      List<ScoreRule> qualityRules,
                                                      BigDecimal maxCourseScore,
-                                                     BigDecimal maxQualityScore) {
+                                                     BigDecimal maxQualityScore,
+                                                     int calculationRound,
+                                                     WeightSetting weightSetting,
+                                                     String academicYear) {
         List<Long> studentIds = applications.stream()
                 .map(ScholarshipApplication::getStudentId)
                 .distinct()
@@ -316,8 +351,8 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         Map<Long, List<ResearchPatent>> patentsByStudent = researchPatentService.mapByStudentIds(studentIds);
         Map<Long, List<ResearchProject>> projectsByStudent = researchProjectService.mapByStudentIds(studentIds);
         Map<Long, List<CompetitionAward>> awardsByStudent = competitionAwardService.mapByStudentIds(studentIds);
-        Map<Long, BigDecimal> courseScoresByStudent = courseScoreService.mapWeightedAverageByStudentIds(studentIds, batchId);
-        Map<Long, BigDecimal> moralScoresByStudent = moralPerformanceService.mapTotalScoreByStudentIds(studentIds, batchId);
+        Map<Long, BigDecimal> courseScoresByStudent = courseScoreService.mapWeightedAverageByStudentIds(studentIds, academicYear);
+        Map<Long, BigDecimal> moralScoresByStudent = moralPerformanceService.mapTotalScoreByStudentIds(studentIds, academicYear);
 
         List<EvaluationResult> results = new ArrayList<>(applications.size());
         for (ScholarshipApplication application : applications) {
@@ -341,13 +376,14 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
                 qualityScore = maxQualityScore;
             }
 
-            BigDecimal totalScore = calculateTotalScore(courseScore, researchScore, competitionScore, qualityScore);
+            BigDecimal totalScore = calculateTotalScore(courseScore, researchScore, competitionScore, qualityScore, weightSetting);
             StudentInfo studentInfo = studentInfoMap.get(studentId);
 
             EvaluationResult result = new EvaluationResult();
             result.setBatchId(batchId);
             result.setApplicationId(application.getId());
             result.setStudentId(studentId);
+            result.setCalculationRound(calculationRound);
             if (studentInfo != null) {
                 result.setStudentName(studentInfo.getName());
                 result.setStudentNo(studentInfo.getStudentNo());
@@ -364,11 +400,38 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         return results;
     }
 
-    private void clearBatchResults(Long batchId) {
+    private int queryNextCalculationRound(Long batchId) {
+        EvaluationResult latest = getOne(new LambdaQueryWrapper<EvaluationResult>()
+                .eq(EvaluationResult::getBatchId, batchId)
+                .orderByDesc(EvaluationResult::getCalculationRound)
+                .last("LIMIT 1"));
+        return (latest != null && latest.getCalculationRound() != null)
+                ? latest.getCalculationRound() + 1
+                : 1;
+    }
+
+    private void deleteOldCalculationRounds(Long batchId, int currentRound) {
         transactionTemplate.executeWithoutResult(status ->
-                remove(new LambdaQueryWrapper<EvaluationResult>()
-                        .eq(EvaluationResult::getBatchId, batchId))
+                lambdaUpdate()
+                        .eq(EvaluationResult::getBatchId, batchId)
+                        .lt(EvaluationResult::getCalculationRound, currentRound)
+                        .set(EvaluationResult::getDeleted, 1)
+                        .update()
         );
+    }
+
+    private void cleanCurrentRoundData(Long batchId, int calculationRound) {
+        try {
+            transactionTemplate.executeWithoutResult(status ->
+                    lambdaUpdate()
+                            .eq(EvaluationResult::getBatchId, batchId)
+                            .eq(EvaluationResult::getCalculationRound, calculationRound)
+                            .set(EvaluationResult::getDeleted, 1)
+                            .update()
+            );
+        } catch (Exception ex) {
+            log.error("清理当前轮次数据失败，batchId={}, round={}", batchId, calculationRound, ex);
+        }
     }
 
     private void saveBatchResults(List<EvaluationResult> resultList, int writeBatchSize) {

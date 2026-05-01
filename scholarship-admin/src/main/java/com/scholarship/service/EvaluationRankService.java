@@ -28,6 +28,15 @@ public interface EvaluationRankService {
     Map<Long, EvaluationResult> generateBatchRanks(Long batchId);
 
     /**
+     * 基于已加载的评定结果生成排名（避免重复 DB 查询）
+     *
+     * @param batchId 批次 ID
+     * @param results 已按总分降序排列的评定结果列表
+     * @return 排名结果，key 为学生 ID
+     */
+    Map<Long, EvaluationResult> generateBatchRanks(Long batchId, List<EvaluationResult> results);
+
+    /**
      * 计算院系排名
      * <p>
      * 按院系统计学生排名

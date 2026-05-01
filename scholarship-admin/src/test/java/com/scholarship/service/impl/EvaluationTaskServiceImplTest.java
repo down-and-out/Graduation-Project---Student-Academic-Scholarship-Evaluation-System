@@ -7,6 +7,7 @@ import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.BatchCalculationSummary;
 import com.scholarship.dto.EvaluationTaskResponse;
 import com.scholarship.entity.EvaluationTask;
+import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.mapper.EvaluationTaskMapper;
 import com.scholarship.service.AwardAllocationService;
 import com.scholarship.service.CacheEvictionService;
@@ -22,6 +23,8 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -29,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,6 +45,8 @@ class EvaluationTaskServiceImplTest {
 
     @Mock
     private EvaluationTaskMapper evaluationTaskMapper;
+    @Mock
+    private EvaluationResultMapper evaluationResultMapper;
     @Mock
     private EvaluationCalculationService evaluationCalculationService;
     @Mock
@@ -67,6 +73,7 @@ class EvaluationTaskServiceImplTest {
         properties.getLock().setEvaluationTaskCreateSeconds(10L);
         service = new EvaluationTaskServiceImpl(
                 evaluationTaskMapper,
+                evaluationResultMapper,
                 evaluationCalculationService,
                 evaluationRankService,
                 awardAllocationService,
@@ -140,9 +147,10 @@ class EvaluationTaskServiceImplTest {
         calcSummary.setWrittenCount(10);
         calcSummary.setPageCount(1);
         when(evaluationCalculationService.calculateBatchApplications(batchId)).thenReturn(calcSummary);
-        when(evaluationRankService.generateBatchRanks(batchId)).thenReturn(Map.of());
+        when(evaluationResultMapper.selectList(any())).thenReturn(Collections.emptyList());
+        when(evaluationRankService.generateBatchRanks(eq(batchId), anyList())).thenReturn(Map.of());
         AwardAllocationService.AwardAllocationResult awardResult = new AwardAllocationService.AwardAllocationResult();
-        when(awardAllocationService.allocateAwards(batchId)).thenReturn(awardResult);
+        when(awardAllocationService.allocateAwards(eq(batchId), anyList())).thenReturn(awardResult);
         when(rLockExecute.isHeldByCurrentThread()).thenReturn(true);
 
         service.executeTask(taskId);

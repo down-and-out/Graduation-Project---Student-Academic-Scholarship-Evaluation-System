@@ -128,13 +128,6 @@ public class MoralPerformanceServiceImpl extends ServiceImpl<MoralPerformanceMap
 
     @Override
     public Map<Long, BigDecimal> mapTotalScoreByStudentIds(List<Long> studentIds, Long batchId) {
-        if (studentIds == null || studentIds.isEmpty()) {
-            return Map.of();
-        }
-
-        log.debug("批量计算德育总分，studentCount={}, batchId={}", studentIds.size(), batchId);
-
-        // 获取批次的学年
         String academicYear = null;
         if (batchId != null) {
             EvaluationBatch batch = evaluationBatchService.getById(batchId);
@@ -142,21 +135,28 @@ public class MoralPerformanceServiceImpl extends ServiceImpl<MoralPerformanceMap
                 academicYear = batch.getAcademicYear();
             }
         }
+        return mapTotalScoreByStudentIds(studentIds, academicYear);
+    }
 
-        // 批量查询所有学生的德育表现
+    @Override
+    public Map<Long, BigDecimal> mapTotalScoreByStudentIds(List<Long> studentIds, String academicYear) {
+        if (studentIds == null || studentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        log.debug("批量计算德育总分，studentCount={}, academicYear={}", studentIds.size(), academicYear);
+
         LambdaQueryWrapper<MoralPerformance> wrapper = new LambdaQueryWrapper<MoralPerformance>()
             .in(MoralPerformance::getStudentId, studentIds)
-            .eq(MoralPerformance::getAuditStatus, 1); // 审核通过
+            .eq(MoralPerformance::getAuditStatus, 1);
         if (academicYear != null) {
             wrapper.eq(MoralPerformance::getAcademicYear, academicYear);
         }
         List<MoralPerformance> allPerformances = list(wrapper);
 
-        // 按学生 ID 分组
         Map<Long, List<MoralPerformance>> performancesByStudent = allPerformances.stream()
             .collect(Collectors.groupingBy(MoralPerformance::getStudentId));
 
-        // 计算每个学生的德育总分
         Map<Long, BigDecimal> result = new HashMap<>();
         for (Long studentId : studentIds) {
             List<MoralPerformance> performances = performancesByStudent.getOrDefault(studentId, List.of());

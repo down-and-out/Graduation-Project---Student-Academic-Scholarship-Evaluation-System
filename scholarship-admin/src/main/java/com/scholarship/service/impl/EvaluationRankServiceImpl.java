@@ -35,7 +35,6 @@ public class EvaluationRankServiceImpl extends ServiceImpl<EvaluationResultMappe
     public Map<Long, EvaluationResult> generateBatchRanks(Long batchId) {
         log.info("开始生成批次排名，batchId={}", batchId);
 
-        // 查询该批次下所有评定结果
         List<EvaluationResult> results = list(
             new LambdaQueryWrapper<EvaluationResult>()
                 .eq(EvaluationResult::getBatchId, batchId)
@@ -47,7 +46,15 @@ public class EvaluationRankServiceImpl extends ServiceImpl<EvaluationResultMappe
             return new HashMap<>();
         }
 
-        // 按院系统分组
+        return generateBatchRanks(batchId, results);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Map<Long, EvaluationResult> generateBatchRanks(Long batchId, List<EvaluationResult> results) {
+        log.info("基于已加载结果生成批次排名，batchId={}, count={}", batchId, results.size());
+
+        // 按院系分组
         Map<String, List<EvaluationResult>> departmentMap = results.stream()
             .filter(r -> r.getDepartment() != null)
             .collect(Collectors.groupingBy(EvaluationResult::getDepartment));
@@ -60,9 +67,7 @@ public class EvaluationRankServiceImpl extends ServiceImpl<EvaluationResultMappe
         // 计算各院系内部排名
         for (Map.Entry<String, List<EvaluationResult>> entry : departmentMap.entrySet()) {
             List<EvaluationResult> deptResults = entry.getValue();
-            // 按总分排序
             deptResults.sort(Comparator.comparing(EvaluationResult::getTotalScore, Comparator.nullsLast(Comparator.reverseOrder())));
-            // 设置排名
             for (int i = 0; i < deptResults.size(); i++) {
                 deptResults.get(i).setDepartmentRank(i + 1);
             }
@@ -71,9 +76,7 @@ public class EvaluationRankServiceImpl extends ServiceImpl<EvaluationResultMappe
         // 计算各专业内部排名
         for (Map.Entry<String, List<EvaluationResult>> entry : majorMap.entrySet()) {
             List<EvaluationResult> majorResults = entry.getValue();
-            // 按总分排序
             majorResults.sort(Comparator.comparing(EvaluationResult::getTotalScore, Comparator.nullsLast(Comparator.reverseOrder())));
-            // 设置排名
             for (int i = 0; i < majorResults.size(); i++) {
                 majorResults.get(i).setMajorRank(i + 1);
             }

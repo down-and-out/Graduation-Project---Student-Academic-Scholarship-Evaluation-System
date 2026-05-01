@@ -41,20 +41,31 @@ public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapp
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AwardAllocationResult allocateAwards(Long batchId) {
-        AwardAllocationResult result = new AwardAllocationResult();
         EvaluationBatch batch = evaluationBatchService.getById(batchId);
         if (batch == null) {
-            return result;
+            return new AwardAllocationResult();
         }
 
         List<EvaluationResult> results = list(new LambdaQueryWrapper<EvaluationResult>()
                 .eq(EvaluationResult::getBatchId, batchId)
                 .orderByDesc(EvaluationResult::getTotalScore));
         if (results.isEmpty()) {
+            return new AwardAllocationResult();
+        }
+
+        return allocateAwards(batchId, results);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AwardAllocationResult allocateAwards(Long batchId, List<EvaluationResult> sortedResults) {
+        AwardAllocationResult result = new AwardAllocationResult();
+        EvaluationBatch batch = evaluationBatchService.getById(batchId);
+        if (batch == null || sortedResults.isEmpty()) {
             return result;
         }
 
-        int total = results.size();
+        int total = sortedResults.size();
         Map<Integer, AwardQuota> quotaConfig = buildQuotaConfig(batch, total);
 
         int specialQuota = quotaConfig.get(1).getMaxCount();
@@ -65,7 +76,7 @@ public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapp
         // 按院系分组计算院内排名
         Map<Long, Integer> deptRankMap = new HashMap<>();
         Map<String, List<EvaluationResult>> deptGroups = new LinkedHashMap<>();
-        for (EvaluationResult er : results) {
+        for (EvaluationResult er : sortedResults) {
             String dept = er.getDepartment() != null ? er.getDepartment() : "";
             deptGroups.computeIfAbsent(dept, k -> new ArrayList<>()).add(er);
         }
@@ -86,7 +97,7 @@ public class AwardAllocationServiceImpl extends ServiceImpl<EvaluationResultMapp
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<EvaluationResult> updateEntities = new ArrayList<>();
 
-        for (EvaluationResult evalResult : results) {
+        for (EvaluationResult evalResult : sortedResults) {
             currentRank++;
             Integer awardLevel;
             BigDecimal awardAmount = BigDecimal.ZERO;

@@ -149,6 +149,13 @@ public class EvaluationResult implements Serializable {
     private LocalDateTime confirmDate;
 
     /**
+     * 计算轮次
+     * 用于版本化写入，避免清空-重写之间的不一致窗口期
+     */
+    @Schema(description = "计算轮次")
+    private Integer calculationRound;
+
+    /**
      * 乐观锁版本号
      */
     @Version

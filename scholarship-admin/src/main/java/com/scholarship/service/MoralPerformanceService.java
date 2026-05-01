@@ -71,4 +71,13 @@ public interface MoralPerformanceService extends IService<MoralPerformance> {
      * @return 按学生 ID 分组的德育总分
      */
     Map<Long, BigDecimal> mapTotalScoreByStudentIds(List<Long> studentIds, Long batchId);
+
+    /**
+     * 批量计算学生的德育总分（直接指定学年，避免重复查询批次信息）
+     *
+     * @param studentIds 学生 ID 列表
+     * @param academicYear 学年
+     * @return 按学生 ID 分组的德育总分
+     */
+    Map<Long, BigDecimal> mapTotalScoreByStudentIds(List<Long> studentIds, String academicYear);
 }
