@@ -6,16 +6,15 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.common.event.CacheEvictionEvent;
 import com.scholarship.common.event.CacheEvictionOperation;
+import com.scholarship.common.exception.BusinessException;
 import com.scholarship.common.support.CacheConstants;
 import com.scholarship.common.support.CursorPageHelper;
 import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.param.EvaluationResultAdjustRequest;
-
 import com.scholarship.entity.EvaluationBatch;
 import com.scholarship.entity.EvaluationResult;
 import com.scholarship.enums.AwardLevelEnum;
 import com.scholarship.enums.ResultStatusEnum;
-import com.scholarship.common.exception.BusinessException;
 import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.service.EvaluationBatchService;
 import com.scholarship.service.EvaluationResultService;
@@ -38,15 +37,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 评定结果服务实现类
- *
- * @author Scholarship Development Team
- * @version 1.0.0
+ * Evaluation result service implementation.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMapper, EvaluationResult> implements EvaluationResultService {
+public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMapper, EvaluationResult>
+        implements EvaluationResultService {
 
     private final EvaluationResultMapper evaluationResultMapper;
     private final EvaluationBatchService evaluationBatchService;
@@ -85,14 +82,15 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         }
 
         wrapper.orderByDesc(EvaluationResult::getTotalScore);
-
         return evaluationResultMapper.selectPage(page, wrapper);
     }
 
     @Override
-    @Cacheable(value = CacheConstants.EVAL_PAGE,
+    @Cacheable(
+            value = CacheConstants.EVAL_PAGE,
             key = "T(com.scholarship.common.support.CacheConstants).evalPageKey(#current, #size, #batchId, #academicYear, #semester, #studentId, #status, #keyword)",
-            unless = "#result == null || #result.records == null || #result.records.isEmpty()")
+            unless = "#result == null || #result.records == null || #result.records.isEmpty()"
+    )
     public IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, String academicYear,
                                                            Integer semester, Long studentId, Integer status,
                                                            String keyword) {
@@ -108,7 +106,11 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         );
         Map<Long, String> batchNameMap = loadBatchNameMap(pageResult.getRecords());
 
-        Page<AdminEvaluationResultVO> adminPage = new Page<>(pageResult.getCurrent(), pageResult.getSize(), pageResult.getTotal());
+        Page<AdminEvaluationResultVO> adminPage = new Page<>(
+                pageResult.getCurrent(),
+                pageResult.getSize(),
+                pageResult.getTotal()
+        );
         adminPage.setRecords(pageResult.getRecords().stream()
                 .map(item -> toAdminVO(item, batchNameMap))
                 .toList());
@@ -118,19 +120,24 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     @Override
     @Cacheable(value = CacheConstants.EVAL_STUDENT, key = "'student:' + #studentId + ':batch:' + (#batchId != null ? #batchId.toString() : 'latest')")
     public EvaluationResult getStudentResult(Long studentId, Long batchId) {
-        log.debug("获取学生评定结果，studentId={}, batchId={}", studentId, batchId);
+        log.debug("Load evaluation result for studentId={}, batchId={}", studentId, batchId);
 
         LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(EvaluationResult::getStudentId, studentId);
 
+        Page<EvaluationResult> page = new Page<>(1, 1, false);
         if (batchId != null) {
             wrapper.eq(EvaluationResult::getBatchId, batchId);
-        } else {
-            // 如果没有传入 batchId，获取最新的评定结果
-            wrapper.orderByDesc(EvaluationResult::getBatchId);
+            return evaluationResultMapper.selectPage(page, wrapper).getRecords().stream()
+                    .findFirst()
+                    .orElse(null);
         }
 
-        return getOne(wrapper);
+        wrapper.orderByDesc(EvaluationResult::getBatchId)
+                .orderByDesc(EvaluationResult::getId);
+        return evaluationResultMapper.selectPage(page, wrapper).getRecords().stream()
+                .findFirst()
+                .orElse(null);
     }
 
     @Override
@@ -146,7 +153,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     @Override
     @Transactional
     public boolean confirmResult(Long id) {
-        log.info("确认评定结果，id={}", id);
+        log.info("Confirm evaluation result, id={}", id);
 
         EvaluationResult result = getById(id);
         if (result == null) {
@@ -162,7 +169,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     @Override
     @Transactional
     public boolean objectResult(Long id) {
-        log.info("标记评定结果有异议，id={}", id);
+        log.info("Mark evaluation result objected, id={}", id);
 
         EvaluationResult result = getById(id);
         if (result == null) {
@@ -178,11 +185,11 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     @Override
     @Cacheable(value = CacheConstants.EVAL_RANK, key = "#batchId + ':' + #type", unless = "#result.isEmpty()")
     public List<EvaluationResult> getBatchRanks(Long batchId, String type) {
-        log.debug("获取批次排名列表，batchId={}, type={}", batchId, type);
+        log.debug("Load batch ranks, batchId={}, type={}", batchId, type);
 
         LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(EvaluationResult::getBatchId, batchId)
-            .orderByDesc(EvaluationResult::getTotalScore);
+                .orderByDesc(EvaluationResult::getTotalScore);
 
         if ("department".equals(type)) {
             wrapper.orderByAsc(EvaluationResult::getDepartmentRank);
@@ -195,7 +202,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
 
     @Override
     public List<EvaluationResultExportVO> exportBatchResults(Long batchId, String academicYear, Integer semester) {
-        log.info("导出批次评定结果，batchId={}, academicYear={}, semester={}", batchId, academicYear, semester);
+        log.info("Export evaluation results, batchId={}, academicYear={}, semester={}", batchId, academicYear, semester);
 
         LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
         if (batchId != null) {
@@ -210,8 +217,6 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         wrapper.orderByDesc(EvaluationResult::getTotalScore);
 
         List<EvaluationResult> results = list(wrapper);
-
-        // 转换为导出 VO
         List<EvaluationResultExportVO> exportData = new ArrayList<>();
         int index = 1;
         for (EvaluationResult result : results) {
@@ -278,14 +283,25 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         }
 
         return evaluationBatchService.listByIds(batchIds).stream()
-                .collect(Collectors.toMap(EvaluationBatch::getId, EvaluationBatch::getBatchName, (left, right) -> left, HashMap::new));
+                .collect(Collectors.toMap(
+                        EvaluationBatch::getId,
+                        EvaluationBatch::getBatchName,
+                        (left, right) -> left,
+                        HashMap::new
+                ));
     }
 
     private void evictResultCaches(Long batchId, Long resultId) {
-        eventPublisher.publishEvent(new CacheEvictionEvent(this,
-                CacheEvictionOperation.EVICT_EVALUATION_RESULTS_FOR_BATCH, batchId));
-        eventPublisher.publishEvent(new CacheEvictionEvent(this,
-                CacheEvictionOperation.EVICT_ADMIN_RESULT, resultId));
+        eventPublisher.publishEvent(new CacheEvictionEvent(
+                this,
+                CacheEvictionOperation.EVICT_EVALUATION_RESULTS_FOR_BATCH,
+                batchId
+        ));
+        eventPublisher.publishEvent(new CacheEvictionEvent(
+                this,
+                CacheEvictionOperation.EVICT_ADMIN_RESULT,
+                resultId
+        ));
     }
 
     private AdminEvaluationResultVO toAdminVO(EvaluationResult result, Map<Long, String> batchNameMap) {
@@ -315,5 +331,4 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         vo.setUpdateTime(result.getUpdateTime());
         return vo;
     }
-
 }

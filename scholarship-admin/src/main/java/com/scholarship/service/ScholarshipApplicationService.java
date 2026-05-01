@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.scholarship.dto.ScholarshipApplicationSubmitResponse;
 import com.scholarship.dto.param.ScholarshipApplicationSubmitRequest;
 import com.scholarship.entity.ScholarshipApplication;
+import com.scholarship.security.LoginUser;
 import com.scholarship.vo.ApplicationAchievementVO;
 import com.scholarship.vo.ScholarshipApplicationDetailVO;
 
@@ -21,7 +22,7 @@ public interface ScholarshipApplicationService extends IService<ScholarshipAppli
 
     ScholarshipApplicationSubmitResponse submitApplication(ScholarshipApplicationSubmitRequest request, Long userId);
 
-    ScholarshipApplicationDetailVO getDetailById(Long applicationId);
+    ScholarshipApplicationDetailVO getDetailById(Long applicationId, LoginUser loginUser);
 
     List<ApplicationAchievementVO> listAvailableAchievements(Long userId);
 

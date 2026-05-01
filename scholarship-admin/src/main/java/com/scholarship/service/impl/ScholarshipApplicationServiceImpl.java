@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.scholarship.common.enums.ApplicationStatusEnum;
 import com.scholarship.common.enums.ReviewOpinionEnum;
 import com.scholarship.common.enums.ReviewStageEnum;
+import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.common.result.ResultCode;
 import com.scholarship.common.support.CacheConstants;
@@ -30,6 +31,7 @@ import com.scholarship.mapper.ResearchPaperMapper;
 import com.scholarship.mapper.ResearchPatentMapper;
 import com.scholarship.mapper.ResearchProjectMapper;
 import com.scholarship.mapper.ScholarshipApplicationMapper;
+import com.scholarship.security.LoginUser;
 import com.scholarship.service.ApplicationAchievementService;
 import com.scholarship.service.CacheEvictionService;
 import com.scholarship.service.ReviewRecordService;
@@ -189,12 +191,13 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
     }
 
     @Override
-    @Cacheable(value = CacheConstants.APP_DETAIL, key = "#applicationId", unless = "#result == null")
-    public ScholarshipApplicationDetailVO getDetailById(Long applicationId) {
+    public ScholarshipApplicationDetailVO getDetailById(Long applicationId, LoginUser loginUser) {
         ScholarshipApplication application = applicationMapper.selectById(applicationId);
         if (application == null) {
             return null;
         }
+
+        ensureCanViewApplication(application, loginUser);
 
         ScholarshipApplicationDetailVO detail = new ScholarshipApplicationDetailVO();
         detail.setId(application.getId());
@@ -289,6 +292,37 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
                 .eq(ScholarshipApplication::getStudentId, studentId)
                 .eq(ScholarshipApplication::getBatchId, batchId)
                 .last("LIMIT 1"));
+    }
+
+    private void ensureCanViewApplication(ScholarshipApplication application, LoginUser loginUser) {
+        if (loginUser == null || loginUser.getUserType() == null) {
+            throw new BusinessException(403, "鏃犳潈璁块棶璇ョ敵璇?");
+        }
+
+        if (UserTypeEnum.isAdmin(loginUser.getUserType())) {
+            return;
+        }
+
+        StudentInfo student = studentInfoService.getById(application.getStudentId());
+        if (student == null) {
+            throw new BusinessException("瀛︾敓淇℃伅涓嶅瓨鍦?");
+        }
+
+        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
+            StudentInfo currentStudent = studentInfoService.getByUserId(loginUser.getUserId());
+            if (currentStudent == null || !application.getStudentId().equals(currentStudent.getId())) {
+                throw new BusinessException(403, "鏃犳潈璁块棶璇ョ敵璇?");
+            }
+            return;
+        }
+
+        if (UserTypeEnum.isTutor(loginUser.getUserType())
+                && student.getTutorId() != null
+                && student.getTutorId().equals(loginUser.getUserId())) {
+            return;
+        }
+
+        throw new BusinessException(403, "鏃犳潈璁块棶璇ョ敵璇?");
     }
 
     private void validateReviewableStatus(Integer currentStatus, Integer reviewStage) {

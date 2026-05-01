@@ -99,6 +99,17 @@ public class CourseScoreController {
         return Result.success(courseScoreService.queryPage(query));
     }
 
+    @GetMapping("/my-years")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
+    @Operation(summary = "查询我的成绩学年列表", description = "返回当前学生已有课程成绩对应的学年去重列表")
+    public Result<List<String>> myAcademicYears(@AuthenticationPrincipal LoginUser loginUser) {
+        StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
+        if (studentInfo == null) {
+            return Result.error("未找到学生信息");
+        }
+        return Result.success(courseScoreService.listAcademicYearsByStudentId(studentInfo.getId()));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "获取成绩详情")

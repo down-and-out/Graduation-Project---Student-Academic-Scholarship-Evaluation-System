@@ -54,7 +54,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/evaluation-result")
 @RequiredArgsConstructor
-@Tag(name = "评审结果管理", description = "评审结果查询、调整、导出与异步评审任务接口")
+@Tag(name = "Evaluation Result", description = "Scholarship evaluation result APIs")
 public class EvaluationResultController {
 
     private final EvaluationResultService evaluationResultService;
@@ -67,8 +67,8 @@ public class EvaluationResultController {
 
     @GetMapping("/page")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_STUDENT')")
-    @Operation(summary = "分页查询评审结果")
-    @ApiResponses(@ApiResponse(responseCode = "200", description = "查询成功"))
+    @Operation(summary = "Page evaluation results")
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "Query succeeded"))
     public Result<IPage<AdminEvaluationResultVO>> page(@Valid @ModelAttribute EvaluationResultQueryParam queryParam,
                                                        @AuthenticationPrincipal LoginUser loginUser) {
         Long studentId = queryParam.getStudentId();
@@ -95,18 +95,18 @@ public class EvaluationResultController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_STUDENT')")
-    @Operation(summary = "获取评审结果详情")
+    @Operation(summary = "Get evaluation result detail")
     public Result<AdminEvaluationResultVO> getById(@PathVariable Long id,
                                                    @AuthenticationPrincipal LoginUser loginUser) {
         AdminEvaluationResultVO result = evaluationResultService.getAdminResultById(id);
         if (result == null) {
-            return Result.error("评审结果不存在");
+            return Result.error("评定结果不存在");
         }
 
         if (loginUser != null && UserTypeEnum.isStudent(loginUser.getUserType())) {
             StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
             if (studentInfo == null || !studentInfo.getId().equals(result.getStudentId())) {
-                return Result.error(403, "无权访问该评审结果");
+                return Result.error(403, "无权访问该评定结果");
             }
         }
         return Result.success(result);
@@ -114,7 +114,7 @@ public class EvaluationResultController {
 
     @PutMapping("/adjust/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "调整评审结果")
+    @Operation(summary = "Adjust evaluation result")
     public Result<Void> adjustResult(@PathVariable Long id,
                                      @Valid @RequestBody EvaluationResultAdjustRequest request) {
         boolean success = evaluationResultService.adjustResult(id, request);
@@ -123,7 +123,7 @@ public class EvaluationResultController {
 
     @GetMapping("/my-result")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
-    @Operation(summary = "获取当前学生评审结果")
+    @Operation(summary = "Get current student's latest result")
     public Result<EvaluationResult> getMyResult(@RequestParam(required = false) Long batchId,
                                                 @AuthenticationPrincipal LoginUser loginUser) {
         if (loginUser == null || loginUser.getUserId() == null) {
@@ -132,28 +132,27 @@ public class EvaluationResultController {
 
         StudentInfo studentInfo = studentInfoService.getByUserId(loginUser.getUserId());
         if (studentInfo == null) {
-            return Result.error("学生信息不存在");
+            return Result.error("未找到学生信息");
         }
 
         EvaluationResult result = evaluationResultService.getStudentResult(studentInfo.getId(), batchId);
-        if (result == null) {
-            return Result.error("暂无评审结果");
-        }
-        return Result.success(result);
+        return result == null
+                ? Result.success("暂无评审结果", null)
+                : Result.success(result);
     }
 
     @PostMapping("/calculate/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "同步计算批次评审结果")
+    @Operation(summary = "Calculate batch evaluation scores")
     public Result<BatchCalculationSummary> calculateBatch(@PathVariable Long batchId) {
         ensureSyncEvaluationEndpointsAllowed();
         BatchCalculationSummary summary = evaluationCalculationService.calculateBatchApplications(batchId);
-        return Result.success("评审计算完成", summary);
+        return Result.success("计算完成", summary);
     }
 
     @PostMapping("/generate-ranks/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "同步生成排名")
+    @Operation(summary = "Generate batch ranks")
     public Result<Map<String, Object>> generateRanks(@PathVariable Long batchId) {
         ensureSyncEvaluationEndpointsAllowed();
         Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId);
@@ -165,7 +164,7 @@ public class EvaluationResultController {
 
     @PostMapping("/generate/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "同步生成奖项")
+    @Operation(summary = "Generate batch awards")
     public Result<AwardAllocationService.AwardAllocationResult> generateAwards(@PathVariable Long batchId) {
         ensureSyncEvaluationEndpointsAllowed();
         AwardAllocationService.AwardAllocationResult result = awardAllocationService.allocateAwards(batchId);
@@ -174,7 +173,7 @@ public class EvaluationResultController {
 
     @PutMapping("/confirm/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "确认评审结果")
+    @Operation(summary = "Confirm evaluation result")
     public Result<Void> confirmResult(@PathVariable Long id) {
         boolean success = evaluationResultService.confirmResult(id);
         return success ? Result.success("确认成功") : Result.error("确认失败");
@@ -182,16 +181,16 @@ public class EvaluationResultController {
 
     @PutMapping("/object/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "标记评审结果有异议")
+    @Operation(summary = "Mark evaluation result as objected")
     public Result<Void> objectResult(@PathVariable Long id) {
         boolean success = evaluationResultService.objectResult(id);
-        return success ? Result.success("标记成功") : Result.error("标记失败");
+        return success ? Result.success("已标记异议") : Result.error("标记异议失败");
     }
 
     @GetMapping("/batch/{batchId}/ranks")
-    @Operation(summary = "查询批次排名列表")
+    @Operation(summary = "Get batch ranks")
     public Result<List<EvaluationResult>> getBatchRanks(@PathVariable Long batchId,
-                                                        @Parameter(description = "排名维度", example = "department")
+                                                        @Parameter(description = "Ranking type", example = "department")
                                                         @RequestParam(defaultValue = "department") String type) {
         List<EvaluationResult> results = evaluationResultService.getBatchRanks(batchId, type);
         return Result.success(results);
@@ -199,7 +198,7 @@ public class EvaluationResultController {
 
     @PostMapping("/evaluate/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "创建异步评审任务")
+    @Operation(summary = "Create async evaluation task")
     public Result<EvaluationTaskResponse> evaluateBatch(@PathVariable Long batchId,
                                                         @AuthenticationPrincipal LoginUser loginUser) {
         EvaluationTaskResponse taskResponse = evaluationTaskService.createEvaluationTask(
@@ -215,18 +214,18 @@ public class EvaluationResultController {
 
     @GetMapping("/tasks/{taskId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "查询评审任务状态")
+    @Operation(summary = "Get evaluation task detail")
     public Result<EvaluationTaskResponse> getEvaluationTask(@PathVariable Long taskId) {
         EvaluationTaskResponse taskResponse = evaluationTaskService.getTaskById(taskId);
         if (taskResponse == null) {
-            return Result.error("评审任务不存在");
+            return Result.error("评定任务不存在");
         }
         return Result.success(taskResponse);
     }
 
     @GetMapping("/tasks/latest/{batchId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "查询批次最近一次评审任务")
+    @Operation(summary = "Get latest batch evaluation task")
     public Result<EvaluationTaskResponse> getLatestEvaluationTask(@PathVariable Long batchId) {
         EvaluationTaskResponse taskResponse = evaluationTaskService.getLatestTaskByBatchId(batchId);
         return Result.success(taskResponse);
@@ -234,7 +233,7 @@ public class EvaluationResultController {
 
     @GetMapping("/export")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @Operation(summary = "导出评审结果")
+    @Operation(summary = "Export evaluation results")
     public void export(@RequestParam(required = false) Long batchId,
                        @RequestParam(required = false) String academicYear,
                        @RequestParam(required = false) Integer semester,
@@ -243,7 +242,7 @@ public class EvaluationResultController {
 
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        StringBuilder fileNameBuilder = new StringBuilder("评审结果");
+        StringBuilder fileNameBuilder = new StringBuilder("evaluation_results");
         if (batchId != null) {
             fileNameBuilder.append("_").append(batchId);
         }
@@ -257,13 +256,13 @@ public class EvaluationResultController {
         response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".xlsx");
 
         EasyExcel.write(response.getOutputStream(), EvaluationResultExportVO.class)
-                .sheet("评审结果")
+                .sheet("evaluation_results")
                 .doWrite(exportData);
     }
 
     private void ensureSyncEvaluationEndpointsAllowed() {
         if (!scholarshipProperties.getEvaluation().isAllowSyncEndpoints()) {
-            throw new BusinessException("同步评审入口已关闭，请使用异步任务接口");
+            throw new BusinessException("Synchronous evaluation endpoints are disabled. Use async tasks instead.");
         }
     }
 }

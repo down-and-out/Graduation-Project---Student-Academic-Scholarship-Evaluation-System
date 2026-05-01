@@ -15,6 +15,7 @@ import org.mockito.MockitoAnnotations;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 @DisplayName("ScholarshipApplicationController tests")
@@ -46,9 +47,9 @@ class ScholarshipApplicationControllerTest {
 
     @Test
     void getByIdReturnsErrorWhenMissing() {
-        when(applicationService.getDetailById(eq(999L))).thenReturn(null);
+        when(applicationService.getDetailById(eq(999L), isNull())).thenReturn(null);
 
-        Result<ScholarshipApplicationDetailVO> result = controller.getById(999L);
+        Result<ScholarshipApplicationDetailVO> result = controller.getById(999L, null);
 
         assertEquals(500, result.getCode());
         assertNull(result.getData());
@@ -58,9 +59,9 @@ class ScholarshipApplicationControllerTest {
     void getByIdReturnsDetailWhenFound() {
         ScholarshipApplicationDetailVO detail = new ScholarshipApplicationDetailVO();
         detail.setId(1L);
-        when(applicationService.getDetailById(1L)).thenReturn(detail);
+        when(applicationService.getDetailById(eq(1L), isNull())).thenReturn(detail);
 
-        Result<ScholarshipApplicationDetailVO> result = controller.getById(1L);
+        Result<ScholarshipApplicationDetailVO> result = controller.getById(1L, null);
 
         assertEquals(200, result.getCode());
         assertEquals(1L, result.getData().getId());

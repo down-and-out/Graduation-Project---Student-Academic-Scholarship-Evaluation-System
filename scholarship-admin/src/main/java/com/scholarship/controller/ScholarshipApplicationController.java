@@ -75,13 +75,15 @@ public class ScholarshipApplicationController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ROLE_STUDENT', 'ROLE_TUTOR', 'ROLE_ADMIN')")
     @Operation(summary = "获取申请详情")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "获取成功"),
             @ApiResponse(responseCode = "404", description = "申请不存在")
     })
-    public Result<ScholarshipApplicationDetailVO> getById(@PathVariable Long id) {
-        ScholarshipApplicationDetailVO application = applicationService.getDetailById(id);
+    public Result<ScholarshipApplicationDetailVO> getById(@PathVariable Long id,
+                                                          @AuthenticationPrincipal LoginUser loginUser) {
+        ScholarshipApplicationDetailVO application = applicationService.getDetailById(id, loginUser);
         if (application == null) {
             return Result.error("申请不存在");
         }
