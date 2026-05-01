@@ -151,6 +151,12 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
     }
 
     @Override
+    public long countOwnedByStudentId(Long studentId) {
+        return count(new LambdaQueryWrapper<ResearchPatent>()
+                .eq(ResearchPatent::getStudentId, studentId));
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean audit(Long id, Integer auditStatus, String auditComment, Long auditorId, boolean isAdmin) {
         log.info("审核专利，id={}, auditStatus={}", id, auditStatus);

@@ -123,7 +123,7 @@ public class ResearchProjectController {
             log.debug("统计项目数量失败：学生信息不存在, userId={}", loginUser.getUserId());
             return Result.success(0L);
         }
-        long count = researchProjectService.countByStudentId(studentInfo.getId());
+        long count = researchProjectService.countOwnedByStudentId(studentInfo.getId());
         log.debug("统计项目数量结果, userId={}, studentId={}, count={}", loginUser.getUserId(), studentInfo.getId(), count);
         return Result.success(count);
     }

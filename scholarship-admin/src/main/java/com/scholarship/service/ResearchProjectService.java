@@ -52,4 +52,6 @@ public interface ResearchProjectService extends IService<ResearchProject> {
      * @return 审核通过数量
      */
     long countByStudentId(Long studentId);
+
+    long countOwnedByStudentId(Long studentId);
 }

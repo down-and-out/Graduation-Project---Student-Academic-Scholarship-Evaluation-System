@@ -236,6 +236,12 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
     }
 
     @Override
+    public long countOwnedByStudentId(Long studentId) {
+        return count(new LambdaQueryWrapper<ResearchPaper>()
+                .eq(ResearchPaper::getStudentId, studentId));
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean deleteWithAuth(Long id, Long currentUserId, boolean isAdmin) {
         log.info("删除论文，id={}, currentUserId={}, isAdmin={}", id, currentUserId, isAdmin);

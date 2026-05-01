@@ -188,6 +188,6 @@ public class ResearchPaperController {
         if (studentInfo == null) {
             return Result.success(0L);
         }
-        return Result.success(researchPaperService.countByStudentId(studentInfo.getId()));
+        return Result.success(researchPaperService.countOwnedByStudentId(studentInfo.getId()));
     }
 }
