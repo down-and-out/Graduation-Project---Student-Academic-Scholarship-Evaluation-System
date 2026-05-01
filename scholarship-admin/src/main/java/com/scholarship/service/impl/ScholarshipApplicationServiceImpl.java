@@ -14,7 +14,7 @@ import com.scholarship.common.result.ResultCode;
 import com.scholarship.common.support.CacheConstants;
 import com.scholarship.common.support.CursorPageHelper;
 import com.scholarship.common.support.LockConstants;
-import org.redisson.api.RLock;
+import com.scholarship.common.support.RedissonLockSupport;
 import org.redisson.api.RedissonClient;
 import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.ScholarshipApplicationSubmitResponse;
@@ -130,68 +130,55 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         }
 
         String lockKey = LockConstants.APPLICATION_SUBMIT + studentInfo.getId() + ":" + request.getBatchId();
-        RLock lock = redissonClient.getLock(lockKey);
-        boolean locked;
-        try {
-            locked = lock.tryLock(0, scholarshipProperties.getLock().getApplicationSubmitSeconds(), TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new BusinessException("申请正在提交，请勿重复操作");
-        }
-        if (!locked) {
-            throw new BusinessException("申请正在提交，请勿重复操作");
-        }
+        return RedissonLockSupport.executeWithTryLock(redissonClient, lockKey,
+                0, scholarshipProperties.getLock().getApplicationSubmitSeconds(), TimeUnit.SECONDS,
+                () -> {
+                    ScholarshipApplication existingApplication = findActiveApplication(studentInfo.getId(), request.getBatchId());
+                    if (existingApplication != null) {
+                        return buildIdempotentSubmitResponse(existingApplication);
+                    }
 
-        try {
-            ScholarshipApplication existingApplication = findActiveApplication(studentInfo.getId(), request.getBatchId());
-            if (existingApplication != null) {
-                return buildIdempotentSubmitResponse(existingApplication);
-            }
+                    LocalDateTime now = LocalDateTime.now();
+                    ScholarshipApplication application = new ScholarshipApplication();
+                    application.setBatchId(request.getBatchId());
+                    application.setStudentId(studentInfo.getId());
+                    application.setRemark(serializeApplicationRemark(request.getSelfEvaluation(), request.getRemark()));
+                    application.setStatus(ApplicationStatusEnum.SUBMITTED.getCode());
+                    application.setApplicationTime(now);
+                    application.setSubmitTime(now);
+                    application.setApplicationNo(generateApplicationNo());
 
-            LocalDateTime now = LocalDateTime.now();
-            ScholarshipApplication application = new ScholarshipApplication();
-            application.setBatchId(request.getBatchId());
-            application.setStudentId(studentInfo.getId());
-            application.setRemark(serializeApplicationRemark(request.getSelfEvaluation(), request.getRemark()));
-            application.setStatus(ApplicationStatusEnum.SUBMITTED.getCode());
-            application.setApplicationTime(now);
-            application.setSubmitTime(now);
-            application.setApplicationNo(generateApplicationNo());
+                    log.info("Generated applicationNo={}, studentId={}, batchId={}",
+                            application.getApplicationNo(), studentInfo.getId(), request.getBatchId());
 
-            log.info("Generated applicationNo={}, studentId={}, batchId={}",
-                    application.getApplicationNo(), studentInfo.getId(), request.getBatchId());
+                    try {
+                        boolean inserted = applicationMapper.insert(application) > 0;
+                        if (!inserted) {
+                            throw new BusinessException("申请提交失败，请稍后重试");
+                        }
+                    } catch (DataIntegrityViolationException e) {
+                        ScholarshipApplication duplicateApplication = findActiveApplication(studentInfo.getId(), request.getBatchId());
+                        if (duplicateApplication != null) {
+                            return buildIdempotentSubmitResponse(duplicateApplication);
+                        }
+                        throw new BusinessException(ResultCode.APPLICATION_ALREADY_SUBMITTED, "当前批次已存在申请，请勿重复提交");
+                    }
 
-            try {
-                boolean inserted = applicationMapper.insert(application) > 0;
-                if (!inserted) {
-                    throw new BusinessException("申请提交失败，请稍后重试");
-                }
-            } catch (DataIntegrityViolationException e) {
-                ScholarshipApplication duplicateApplication = findActiveApplication(studentInfo.getId(), request.getBatchId());
-                if (duplicateApplication != null) {
-                    return buildIdempotentSubmitResponse(duplicateApplication);
-                }
-                throw new BusinessException(ResultCode.APPLICATION_ALREADY_SUBMITTED, "当前批次已存在申请，请勿重复提交");
-            }
+                    List<ApplicationAchievement> achievements = buildAchievementsForSubmit(
+                            application.getId(),
+                            studentInfo.getId(),
+                            request.getAchievements()
+                    );
+                    boolean replaced = applicationAchievementService.replaceByApplicationId(application.getId(), achievements);
+                    if (!replaced) {
+                        throw new BusinessException("申请提交失败，请稍后重试");
+                    }
 
-            List<ApplicationAchievement> achievements = buildAchievementsForSubmit(
-                    application.getId(),
-                    studentInfo.getId(),
-                    request.getAchievements()
-            );
-            boolean replaced = applicationAchievementService.replaceByApplicationId(application.getId(), achievements);
-            if (!replaced) {
-                throw new BusinessException("申请提交失败，请稍后重试");
-            }
-
-            cacheEvictionService.evictApplicationAchievementsForUser(userId);
-            cacheEvictionService.evictApplicationPages();
-            return buildCreatedSubmitResponse(application);
-        } finally {
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
-            }
-        }
+                    cacheEvictionService.evictApplicationAchievementsForUser(userId);
+                    cacheEvictionService.evictApplicationPages();
+                    return buildCreatedSubmitResponse(application);
+                },
+                "申请正在提交，请勿重复操作");
     }
 
     @Override

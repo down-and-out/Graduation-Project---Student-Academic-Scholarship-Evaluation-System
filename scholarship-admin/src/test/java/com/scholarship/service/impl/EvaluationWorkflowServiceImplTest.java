@@ -22,10 +22,12 @@ import org.redisson.api.RedissonClient;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,7 +73,7 @@ class EvaluationWorkflowServiceImplTest {
     @DisplayName("evaluate should fail when batch lock is occupied")
     void evaluateShouldFailWhenBatchLockIsOccupied() {
         when(redissonClient.getLock(eq(LockConstants.BATCH_EVALUATE + 6))).thenReturn(rLock);
-        when(rLock.tryLock()).thenReturn(false);
+        doReturn(false).when(rLock).tryLock(eq(0L), eq(1800L), eq(TimeUnit.SECONDS));
 
         BusinessException exception = assertThrows(BusinessException.class, () -> service.evaluateBatch(6L));
 
@@ -83,7 +85,7 @@ class EvaluationWorkflowServiceImplTest {
     @DisplayName("evaluate should reject non reviewing batch")
     void evaluateShouldRejectNonReviewingBatch() {
         when(redissonClient.getLock(eq(LockConstants.BATCH_EVALUATE + 9))).thenReturn(rLock);
-        when(rLock.tryLock()).thenReturn(true);
+        doReturn(true).when(rLock).tryLock(eq(0L), eq(1800L), eq(TimeUnit.SECONDS));
         when(rLock.isHeldByCurrentThread()).thenReturn(true);
         doThrow(new BusinessException("当前批次状态不允许评定"))
                 .when(evaluationBatchService).validateForEvaluation(9L);
@@ -107,7 +109,7 @@ class EvaluationWorkflowServiceImplTest {
         summary.setPageCount(2);
 
         when(redissonClient.getLock(eq(LockConstants.BATCH_EVALUATE + 11))).thenReturn(rLock);
-        when(rLock.tryLock()).thenReturn(true);
+        doReturn(true).when(rLock).tryLock(eq(0L), eq(1800L), eq(TimeUnit.SECONDS));
         when(rLock.isHeldByCurrentThread()).thenReturn(true);
         when(evaluationBatchService.getById(11L)).thenReturn(batch);
         when(evaluationCalculationService.calculateBatchApplications(11L)).thenReturn(summary);

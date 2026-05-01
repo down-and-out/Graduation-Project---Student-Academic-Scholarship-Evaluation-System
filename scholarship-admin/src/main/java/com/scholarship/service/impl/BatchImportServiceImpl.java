@@ -3,6 +3,7 @@ package com.scholarship.service.impl;
 import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scholarship.common.support.LockConstants;
+import com.scholarship.common.support.RedissonLockSupport;
 import com.scholarship.dto.StudentImportDTO;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.mapper.StudentInfoMapper;
@@ -11,7 +12,6 @@ import com.scholarship.service.BatchImportService;
 import com.scholarship.service.StudentInfoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -45,18 +45,7 @@ public class BatchImportServiceImpl implements BatchImportService {
     public Map<String, Object> importStudents(List<StudentImportDTO> students) {
         log.info("开始批量导入学生信息，数量：{}", students.size());
 
-        RLock lock = redissonClient.getLock(LockConstants.BATCH_IMPORT_STUDENTS);
-        boolean locked;
-        try {
-            locked = lock.tryLock(0, 30, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("导入操作被中断");
-        }
-        if (!locked) {
-            throw new RuntimeException("正在导入中，请稍后再试");
-        }
-        try {
+        return RedissonLockSupport.executeWithLock(redissonClient, LockConstants.BATCH_IMPORT_STUDENTS, () -> {
             // 批量查询已存在的学号，避免 N+1 逐条 selectOne
             List<String> allStudentNos = students.stream()
                     .map(StudentImportDTO::getStudentNo)
@@ -138,11 +127,7 @@ public class BatchImportServiceImpl implements BatchImportService {
 
             log.info("批量导入完成：成功 {} 条，失败 {} 条", successNames.size(), failures.size());
             return result;
-        } finally {
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
-            }
-        }
+        });
     }
 
     @Override

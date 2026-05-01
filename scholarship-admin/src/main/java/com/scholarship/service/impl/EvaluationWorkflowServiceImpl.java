@@ -1,10 +1,9 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.scholarship.common.exception.BusinessException;
 import com.scholarship.common.support.LockConstants;
+import com.scholarship.common.support.RedissonLockSupport;
 import com.scholarship.config.ScholarshipProperties;
-import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import com.scholarship.dto.BatchCalculationSummary;
 import com.scholarship.entity.EvaluationResult;
@@ -21,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -38,42 +38,36 @@ public class EvaluationWorkflowServiceImpl implements EvaluationWorkflowService 
     @Override
     public Map<String, Object> evaluateBatch(Long batchId) {
         String lockKey = LockConstants.BATCH_EVALUATE + batchId;
-        RLock lock = redissonClient.getLock(lockKey);
-        if (!lock.tryLock()) {
-            throw new BusinessException("该批次正在评定中，请勿重复操作");
-        }
+        return RedissonLockSupport.executeWithTryLock(redissonClient, lockKey,
+                0, scholarshipProperties.getLock().getBatchEvaluateSeconds(), TimeUnit.SECONDS,
+                () -> {
+                    evaluationBatchService.validateForEvaluation(batchId);
+                    log.info("Start evaluation workflow for batchId={}", batchId);
 
-        try {
-            evaluationBatchService.validateForEvaluation(batchId);
-            log.info("Start evaluation workflow for batchId={}", batchId);
+                    Map<String, Object> result = new HashMap<>();
+                    BatchCalculationSummary calcSummary = evaluationCalculationService.calculateBatchApplications(batchId);
+                    result.put("calculatedCount", calcSummary.getWrittenCount());
+                    result.put("calculationPageCount", calcSummary.getPageCount());
 
-            Map<String, Object> result = new HashMap<>();
-            BatchCalculationSummary calcSummary = evaluationCalculationService.calculateBatchApplications(batchId);
-            result.put("calculatedCount", calcSummary.getWrittenCount());
-            result.put("calculationPageCount", calcSummary.getPageCount());
+                    // 统一加载一次全量结果，复用给排名和奖项分配，消除重复 DB 查询
+                    List<EvaluationResult> sortedResults = evaluationResultMapper.selectList(
+                            new LambdaQueryWrapper<EvaluationResult>()
+                                    .eq(EvaluationResult::getBatchId, batchId)
+                                    .orderByDesc(EvaluationResult::getTotalScore)
+                    );
 
-            // 统一加载一次全量结果，复用给排名和奖项分配，消除重复 DB 查询
-            List<EvaluationResult> sortedResults = evaluationResultMapper.selectList(
-                    new LambdaQueryWrapper<EvaluationResult>()
-                            .eq(EvaluationResult::getBatchId, batchId)
-                            .orderByDesc(EvaluationResult::getTotalScore)
-            );
+                    Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId, sortedResults);
+                    result.put("rankedCount", rankResults.size());
 
-            Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId, sortedResults);
-            result.put("rankedCount", rankResults.size());
+                    AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId, sortedResults);
+                    result.put("awardResult", awardResult);
+                    result.put("batchId", batchId);
+                    result.put("status", "completed");
 
-            AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId, sortedResults);
-            result.put("awardResult", awardResult);
-            result.put("batchId", batchId);
-            result.put("status", "completed");
-
-            log.info("Evaluation workflow completed for batchId={}", batchId);
-            return result;
-        } finally {
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
-            }
-        }
+                    log.info("Evaluation workflow completed for batchId={}", batchId);
+                    return result;
+                },
+                "该批次正在评定中，请勿重复操作");
     }
 
 }

@@ -5,8 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scholarship.common.enums.EvaluationTaskStatusEnum;
 import com.scholarship.common.exception.BusinessException;
 import com.scholarship.common.support.LockConstants;
+import com.scholarship.common.support.RedissonLockSupport;
 import com.scholarship.config.ScholarshipProperties;
-import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import com.scholarship.dto.BatchCalculationSummary;
 import com.scholarship.dto.EvaluationTaskResponse;
@@ -57,54 +57,43 @@ public class EvaluationTaskServiceImpl implements EvaluationTaskService {
         evaluationBatchService.validateForEvaluation(batchId);
 
         String lockKey = LockConstants.TASK_CREATE + batchId;
-        RLock lock = redissonClient.getLock(lockKey);
-        boolean locked;
-        try {
-            locked = lock.tryLock(0, scholarshipProperties.getLock().getEvaluationTaskCreateSeconds(),
-                    TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new BusinessException("该批次已有评审任务正在创建，请勿重复操作");
-        }
-        if (!locked) {
-            EvaluationTask activeTask = findLatestActiveTask(batchId);
-            if (activeTask != null) {
-                return buildTaskResponse(activeTask, true, "该批次已有评审任务在执行，返回现有任务");
-            }
-            throw new BusinessException("该批次已有评审任务正在创建，请勿重复操作");
-        }
+        return RedissonLockSupport.executeWithTryLockOrFallback(redissonClient, lockKey,
+                0, scholarshipProperties.getLock().getEvaluationTaskCreateSeconds(), TimeUnit.SECONDS,
+                () -> {
+                    EvaluationTask activeTask = findLatestActiveTask(batchId);
+                    if (activeTask != null) {
+                        return buildTaskResponse(activeTask, true, "该批次已有评审任务在执行，返回现有任务");
+                    }
 
-        try {
-            EvaluationTask activeTask = findLatestActiveTask(batchId);
-            if (activeTask != null) {
-                return buildTaskResponse(activeTask, true, "该批次已有评审任务在执行，返回现有任务");
-            }
+                    EvaluationTask task = new EvaluationTask();
+                    task.setBatchId(batchId);
+                    task.setTaskType(TASK_TYPE_BATCH_EVALUATION);
+                    task.setStatus(EvaluationTaskStatusEnum.PENDING.getCode());
+                    task.setTriggeredBy(triggeredBy);
+                    task.setTriggeredByName(triggeredByName);
+                    task.setCreateTime(LocalDateTime.now());
 
-            EvaluationTask task = new EvaluationTask();
-            task.setBatchId(batchId);
-            task.setTaskType(TASK_TYPE_BATCH_EVALUATION);
-            task.setStatus(EvaluationTaskStatusEnum.PENDING.getCode());
-            task.setTriggeredBy(triggeredBy);
-            task.setTriggeredByName(triggeredByName);
-            task.setCreateTime(LocalDateTime.now());
+                    try {
+                        evaluationTaskMapper.insert(task);
+                    } catch (DataIntegrityViolationException ex) {
+                        EvaluationTask latestActiveTask = findLatestActiveTask(batchId);
+                        if (latestActiveTask != null) {
+                            return buildTaskResponse(latestActiveTask, true, "该批次已有评审任务在执行，返回现有任务");
+                        }
+                        throw new BusinessException("该批次已有评审任务正在执行，请勿重复操作");
+                    }
 
-            try {
-                evaluationTaskMapper.insert(task);
-            } catch (DataIntegrityViolationException ex) {
-                EvaluationTask latestActiveTask = findLatestActiveTask(batchId);
-                if (latestActiveTask != null) {
-                    return buildTaskResponse(latestActiveTask, true, "该批次已有评审任务在执行，返回现有任务");
-                }
-                throw new BusinessException("该批次已有评审任务正在执行，请勿重复操作");
-            }
-
-            log.info("Created evaluation task, taskId={}, batchId={}, triggeredBy={}", task.getId(), batchId, triggeredBy);
-            return buildTaskResponse(task, false, "评审任务已创建，正在等待执行");
-        } finally {
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
-            }
-        }
+                    log.info("Created evaluation task, taskId={}, batchId={}, triggeredBy={}", task.getId(), batchId, triggeredBy);
+                    return buildTaskResponse(task, false, "评审任务已创建，正在等待执行");
+                },
+                () -> {
+                    EvaluationTask activeTask = findLatestActiveTask(batchId);
+                    if (activeTask != null) {
+                        return buildTaskResponse(activeTask, true, "该批次已有评审任务在执行，返回现有任务");
+                    }
+                    throw new BusinessException("该批次已有评审任务正在创建，请勿重复操作");
+                },
+                "该批次已有评审任务正在创建，请勿重复操作");
     }
 
     @Override
@@ -161,55 +150,52 @@ public class EvaluationTaskServiceImpl implements EvaluationTaskService {
         cacheEvictionService.evictTaskDetail(taskId);
 
         String executeLockKey = LockConstants.TASK_EXECUTE + taskId;
-        RLock executeLock = redissonClient.getLock(executeLockKey);
-        executeLock.lock();
-        boolean succeeded = false;
-        try {
-            Long batchId = task.getBatchId();
-            LocalDateTime startedAt = task.getStartedAt();
-            log.info("Start evaluation task execution, taskId={}, batchId={}", taskId, batchId);
+        boolean succeeded = RedissonLockSupport.executeWithLock(redissonClient, executeLockKey, () -> {
+            boolean innerSucceeded = false;
+            try {
+                Long batchId = task.getBatchId();
+                LocalDateTime startedAt = task.getStartedAt();
+                log.info("Start evaluation task execution, taskId={}, batchId={}", taskId, batchId);
 
-            BatchCalculationSummary calcSummary = evaluationCalculationService.calculateBatchApplications(batchId);
+                BatchCalculationSummary calcSummary = evaluationCalculationService.calculateBatchApplications(batchId);
 
-            // 加载批次下所有已计算的评定结果（仅一次 DB 查询），供排名和奖项分配合用
-            List<EvaluationResult> sortedResults = evaluationResultMapper.selectList(
-                    new LambdaQueryWrapper<EvaluationResult>()
-                            .eq(EvaluationResult::getBatchId, batchId)
-                            .orderByDesc(EvaluationResult::getTotalScore)
-            );
-            Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId, sortedResults);
-            AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId, sortedResults);
+                // 加载批次下所有已计算的评定结果（仅一次 DB 查询），供排名和奖项分配合用
+                List<EvaluationResult> sortedResults = evaluationResultMapper.selectList(
+                        new LambdaQueryWrapper<EvaluationResult>()
+                                .eq(EvaluationResult::getBatchId, batchId)
+                                .orderByDesc(EvaluationResult::getTotalScore)
+                );
+                Map<Long, EvaluationResult> rankResults = evaluationRankService.generateBatchRanks(batchId, sortedResults);
+                AwardAllocationService.AwardAllocationResult awardResult = awardAllocationService.allocateAwards(batchId, sortedResults);
 
-            TaskSummary summary = new TaskSummary();
-            summary.setProcessedCount(calcSummary.getProcessedCount());
-            summary.setWrittenCount(calcSummary.getWrittenCount());
-            summary.setPageCount(calcSummary.getPageCount());
-            summary.setRankedCount(rankResults.size());
-            int totalAwarded = awardResult.getSpecialCount()
-                    + awardResult.getFirstCount()
-                    + awardResult.getSecondCount()
-                    + awardResult.getThirdCount();
-            summary.setAwardedCount(totalAwarded);
+                TaskSummary summary = new TaskSummary();
+                summary.setProcessedCount(calcSummary.getProcessedCount());
+                summary.setWrittenCount(calcSummary.getWrittenCount());
+                summary.setPageCount(calcSummary.getPageCount());
+                summary.setRankedCount(rankResults.size());
+                int totalAwarded = awardResult.getSpecialCount()
+                        + awardResult.getFirstCount()
+                        + awardResult.getSecondCount()
+                        + awardResult.getThirdCount();
+                summary.setAwardedCount(totalAwarded);
 
-            task.setResultSummaryJson(JSON.toJSONString(summary));
-            task.setStatus(EvaluationTaskStatusEnum.SUCCESS.getCode());
-            task.setFinishedAt(LocalDateTime.now());
-            evaluationTaskMapper.updateById(task);
-            succeeded = true;
+                task.setResultSummaryJson(JSON.toJSONString(summary));
+                task.setStatus(EvaluationTaskStatusEnum.SUCCESS.getCode());
+                task.setFinishedAt(LocalDateTime.now());
+                evaluationTaskMapper.updateById(task);
+                innerSucceeded = true;
 
-            log.info("Evaluation task completed, taskId={}, batchId={}, durationMs={}, summary={}",
-                    taskId, batchId, durationMillis(startedAt, task.getFinishedAt()), summary);
-        } catch (Exception ex) {
-            log.error("Evaluation task failed, taskId={}, batchId={}", taskId, task.getBatchId(), ex);
-            task.setStatus(EvaluationTaskStatusEnum.FAILED.getCode());
-            task.setErrorMessage(truncateMessage(ex.getMessage()));
-            task.setFinishedAt(LocalDateTime.now());
-            evaluationTaskMapper.updateById(task);
-        } finally {
-            if (executeLock.isHeldByCurrentThread()) {
-                executeLock.unlock();
+                log.info("Evaluation task completed, taskId={}, batchId={}, durationMs={}, summary={}",
+                        taskId, batchId, durationMillis(startedAt, task.getFinishedAt()), summary);
+            } catch (Exception ex) {
+                log.error("Evaluation task failed, taskId={}, batchId={}", taskId, task.getBatchId(), ex);
+                task.setStatus(EvaluationTaskStatusEnum.FAILED.getCode());
+                task.setErrorMessage(truncateMessage(ex.getMessage()));
+                task.setFinishedAt(LocalDateTime.now());
+                evaluationTaskMapper.updateById(task);
             }
-        }
+            return innerSucceeded;
+        });
 
         // 缓存清除在锁外执行，减小锁持有时间
         if (succeeded) {
