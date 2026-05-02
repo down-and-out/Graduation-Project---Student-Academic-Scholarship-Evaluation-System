@@ -17,6 +17,7 @@ import com.scholarship.mapper.ResearchPaperMapper;
 import com.scholarship.mapper.ResearchPatentMapper;
 import com.scholarship.mapper.ResearchProjectMapper;
 import com.scholarship.mapper.ScholarshipApplicationMapper;
+import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.service.ApplicationAchievementService;
 import com.scholarship.service.CacheEvictionService;
 import com.scholarship.service.ReviewRecordService;
@@ -70,6 +71,8 @@ class ScholarshipApplicationServiceImplTest {
     private ResearchProjectMapper researchProjectMapper;
     @Mock
     private CompetitionAwardMapper competitionAwardMapper;
+    @Mock
+    private StudentInfoMapper studentInfoMapper;
 
     private ScholarshipApplicationServiceImpl service;
 
@@ -97,7 +100,8 @@ class ScholarshipApplicationServiceImplTest {
                 researchPaperMapper,
                 researchPatentMapper,
                 researchProjectMapper,
-                competitionAwardMapper
+                competitionAwardMapper,
+                studentInfoMapper
         );
     }
 

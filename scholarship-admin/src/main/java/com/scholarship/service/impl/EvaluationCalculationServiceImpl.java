@@ -404,7 +404,7 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         EvaluationResult latest = getOne(new LambdaQueryWrapper<EvaluationResult>()
                 .eq(EvaluationResult::getBatchId, batchId)
                 .orderByDesc(EvaluationResult::getCalculationRound)
-                .last("LIMIT 1"));
+                .last("LIMIT 1"), false);
         return (latest != null && latest.getCalculationRound() != null)
                 ? latest.getCalculationRound() + 1
                 : 1;

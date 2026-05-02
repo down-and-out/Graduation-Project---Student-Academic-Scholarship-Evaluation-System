@@ -316,11 +316,14 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
     }
 
     @Override
-    public List<CourseScore> queryForExport(CourseScoreQuery query) {
-        log.debug("查询成绩列表用于导出，query={}", query);
+    public List<CourseScore> queryForExport(CourseScoreQuery query, int maxRows) {
+        log.debug("查询成绩列表用于导出，query={}, maxRows={}", query, maxRows);
 
         LambdaQueryWrapper<CourseScore> wrapper = buildQueryWrapper(query);
         applyDefaultSort(wrapper);
+        if (maxRows > 0) {
+            wrapper.last("LIMIT " + maxRows);
+        }
 
         return list(wrapper);
     }

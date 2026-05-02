@@ -80,7 +80,8 @@ public interface EvaluationResultService extends IService<EvaluationResult> {
      * @param batchId 批次 ID（可选）
      * @param academicYear 学年（可选）
      * @param semester 学期（可选）
+     * @param maxRows 最大行数，>0 时追加 LIMIT，<=0 时不限制
      * @return 导出数据列表
      */
-    List<EvaluationResultExportVO> exportBatchResults(Long batchId, String academicYear, Integer semester);
+    List<EvaluationResultExportVO> exportBatchResults(Long batchId, String academicYear, Integer semester, int maxRows);
 }

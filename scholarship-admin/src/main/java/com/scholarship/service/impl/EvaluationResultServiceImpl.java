@@ -201,8 +201,8 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     }
 
     @Override
-    public List<EvaluationResultExportVO> exportBatchResults(Long batchId, String academicYear, Integer semester) {
-        log.info("Export evaluation results, batchId={}, academicYear={}, semester={}", batchId, academicYear, semester);
+    public List<EvaluationResultExportVO> exportBatchResults(Long batchId, String academicYear, Integer semester, int maxRows) {
+        log.info("Export evaluation results, batchId={}, academicYear={}, semester={}, maxRows={}", batchId, academicYear, semester, maxRows);
 
         LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
         if (batchId != null) {
@@ -215,6 +215,9 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
             wrapper.in(EvaluationResult::getBatchId, matchedBatchIds);
         }
         wrapper.orderByDesc(EvaluationResult::getTotalScore);
+        if (maxRows > 0) {
+            wrapper.last("LIMIT " + maxRows);
+        }
 
         List<EvaluationResult> results = list(wrapper);
         List<EvaluationResultExportVO> exportData = new ArrayList<>();

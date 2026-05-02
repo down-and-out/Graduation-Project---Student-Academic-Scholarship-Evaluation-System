@@ -5,7 +5,7 @@ import com.scholarship.common.support.LockConstants;
 import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.BatchCalculationSummary;
 import com.scholarship.entity.EvaluationBatch;
-import com.scholarship.entity.EvaluationResult;
+
 import com.scholarship.mapper.EvaluationResultMapper;
 import com.scholarship.service.AwardAllocationService;
 import com.scholarship.service.EvaluationBatchService;

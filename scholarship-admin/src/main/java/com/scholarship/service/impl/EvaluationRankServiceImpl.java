@@ -136,20 +136,20 @@ public class EvaluationRankServiceImpl extends ServiceImpl<EvaluationResultMappe
     @Override
     public Integer getDepartmentRank(Long batchId, Long studentId) {
         EvaluationResult result = getOne(
-            new LambdaQueryWrapper<EvaluationResult>()
-                .eq(EvaluationResult::getBatchId, batchId)
-                .eq(EvaluationResult::getStudentId, studentId)
-        );
+                new LambdaQueryWrapper<EvaluationResult>()
+                        .eq(EvaluationResult::getBatchId, batchId)
+                        .eq(EvaluationResult::getStudentId, studentId)
+                        .last("LIMIT 1"), false);
         return result != null ? result.getDepartmentRank() : null;
     }
 
     @Override
     public Integer getMajorRank(Long batchId, Long studentId) {
         EvaluationResult result = getOne(
-            new LambdaQueryWrapper<EvaluationResult>()
-                .eq(EvaluationResult::getBatchId, batchId)
-                .eq(EvaluationResult::getStudentId, studentId)
-        );
+                new LambdaQueryWrapper<EvaluationResult>()
+                        .eq(EvaluationResult::getBatchId, batchId)
+                        .eq(EvaluationResult::getStudentId, studentId)
+                        .last("LIMIT 1"), false);
         return result != null ? result.getMajorRank() : null;
     }
 

@@ -93,9 +93,10 @@ public interface CourseScoreService extends IService<CourseScore> {
      * 根据查询条件获取成绩列表（用于导出）
      *
      * @param query 查询参数
+     * @param maxRows 最大行数，>0 时追加 LIMIT，<=0 时不限制
      * @return 成绩列表
      */
-    List<CourseScore> queryForExport(CourseScoreQuery query);
+    List<CourseScore> queryForExport(CourseScoreQuery query, int maxRows);
 
     /**
      * 导入学生课程成绩。

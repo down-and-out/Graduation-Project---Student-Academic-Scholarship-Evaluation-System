@@ -15,6 +15,8 @@ import com.scholarship.common.support.CacheConstants;
 import com.scholarship.common.support.CursorPageHelper;
 import com.scholarship.common.support.LockConstants;
 import com.scholarship.common.support.RedissonLockSupport;
+import com.scholarship.common.util.DataScopeHelper;
+import com.scholarship.mapper.StudentInfoMapper;
 import org.redisson.api.RedissonClient;
 import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.ScholarshipApplicationSubmitResponse;
@@ -88,6 +90,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
     private final ResearchPatentMapper researchPatentMapper;
     private final ResearchProjectMapper researchProjectMapper;
     private final CompetitionAwardMapper competitionAwardMapper;
+    private final StudentInfoMapper studentInfoMapper;
 
     @Override
     @Cacheable(value = CacheConstants.APP_PAGE,
@@ -286,34 +289,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
     }
 
     private void ensureCanViewApplication(ScholarshipApplication application, LoginUser loginUser) {
-        if (loginUser == null || loginUser.getUserType() == null) {
-            throw new BusinessException(403, "鏃犳潈璁块棶璇ョ敵璇?");
-        }
-
-        if (UserTypeEnum.isAdmin(loginUser.getUserType())) {
-            return;
-        }
-
-        StudentInfo student = studentInfoService.getById(application.getStudentId());
-        if (student == null) {
-            throw new BusinessException("瀛︾敓淇℃伅涓嶅瓨鍦?");
-        }
-
-        if (UserTypeEnum.isStudent(loginUser.getUserType())) {
-            StudentInfo currentStudent = studentInfoService.getByUserId(loginUser.getUserId());
-            if (currentStudent == null || !application.getStudentId().equals(currentStudent.getId())) {
-                throw new BusinessException(403, "鏃犳潈璁块棶璇ョ敵璇?");
-            }
-            return;
-        }
-
-        if (UserTypeEnum.isTutor(loginUser.getUserType())
-                && student.getTutorId() != null
-                && student.getTutorId().equals(loginUser.getUserId())) {
-            return;
-        }
-
-        throw new BusinessException(403, "鏃犳潈璁块棶璇ョ敵璇?");
+        DataScopeHelper.ensureReadable(application.getStudentId(), loginUser, "申请", studentInfoMapper);
     }
 
     private void validateReviewableStatus(Integer currentStatus, Integer reviewStage) {

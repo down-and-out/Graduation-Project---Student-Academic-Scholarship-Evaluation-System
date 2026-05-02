@@ -57,6 +57,7 @@ public class ScholarshipProperties {
         private int writeBatchSize = 200;
         private long maxOffsetRows = 5000L;
         private boolean allowSyncEndpoints = false;
+        private int exportMaxRows = 5000;
     }
 
     @Data
