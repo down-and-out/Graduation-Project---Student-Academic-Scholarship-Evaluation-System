@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.result.Result;
 import com.scholarship.service.ScholarshipApplicationService;
-import com.scholarship.service.StudentInfoService;
 import com.scholarship.vo.ScholarshipApplicationDetailVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,21 +22,19 @@ class ScholarshipApplicationControllerTest {
 
     @Mock
     private ScholarshipApplicationService applicationService;
-    @Mock
-    private StudentInfoService studentInfoService;
 
     private ScholarshipApplicationController controller;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        controller = new ScholarshipApplicationController(applicationService, studentInfoService);
+        controller = new ScholarshipApplicationController(applicationService);
     }
 
     @Test
     void pageReturnsSuccess() {
         IPage<?> page = new Page<>(1, 10);
-        when(applicationService.pageApplications(1L, 10L, null, null, null)).thenReturn((IPage) page);
+        when(applicationService.pageApplications(eq(1L), eq(10L), isNull(), isNull(), isNull(), isNull())).thenReturn((IPage) page);
 
         Result<IPage<com.scholarship.entity.ScholarshipApplication>> result = controller.page(1L, 10L, null, null, null, null);
 

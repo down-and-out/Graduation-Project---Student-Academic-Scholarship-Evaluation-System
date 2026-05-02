@@ -3,8 +3,10 @@ package com.scholarship.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.entity.ResearchPaper;
+import com.scholarship.security.LoginUser;
 import com.scholarship.service.ResearchPaperService;
 import com.scholarship.service.StudentInfoService;
+import com.scholarship.vo.ResearchPaperVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,8 +45,8 @@ class ResearchPaperControllerTest {
     @Test
     @DisplayName("测试分页查询论文")
     void testPage() throws Exception {
-        IPage<ResearchPaper> page = new Page<>(1, 10);
-        when(researchPaperService.pagePapers(anyLong(), anyLong(), isNull(), isNull()))
+        IPage<ResearchPaperVO> page = new Page<>(1, 10);
+        when(researchPaperService.pagePapersWithUser(anyLong(), anyLong(), isNull(), isNull(), isNull(), nullable(LoginUser.class)))
                 .thenReturn(page);
 
         mockMvc.perform(get("/paper/page")
@@ -57,8 +59,8 @@ class ResearchPaperControllerTest {
     @Test
     @DisplayName("测试分页查询 - 带筛选条件")
     void testPageWithFilters() throws Exception {
-        IPage<ResearchPaper> page = new Page<>(1, 10);
-        when(researchPaperService.pagePapers(1L, 10L, 100L, 1))
+        IPage<ResearchPaperVO> page = new Page<>(1, 10);
+        when(researchPaperService.pagePapersWithUser(eq(1L), eq(10L), eq(100L), eq(1), isNull(), nullable(LoginUser.class)))
                 .thenReturn(page);
 
         mockMvc.perform(get("/paper/page")
@@ -78,7 +80,7 @@ class ResearchPaperControllerTest {
         paper.setPaperTitle("测试论文标题");
         paper.setStudentId(100L);
 
-        when(researchPaperService.getById(1L)).thenReturn(paper);
+        when(researchPaperService.getPaperById(eq(1L), nullable(LoginUser.class))).thenReturn(paper);
 
         mockMvc.perform(get("/paper/1"))
                 .andExpect(status().isOk())
@@ -90,7 +92,7 @@ class ResearchPaperControllerTest {
     @Test
     @DisplayName("测试获取论文详情 - 不存在")
     void testGetByIdNotExists() throws Exception {
-        when(researchPaperService.getById(999L)).thenReturn(null);
+        when(researchPaperService.getPaperById(eq(999L), nullable(LoginUser.class))).thenReturn(null);
 
         mockMvc.perform(get("/paper/999"))
                 .andExpect(status().isOk())
@@ -101,8 +103,8 @@ class ResearchPaperControllerTest {
     @Test
     @DisplayName("测试默认分页参数")
     void testDefaultPageParams() throws Exception {
-        IPage<ResearchPaper> page = new Page<>(1, 10);
-        when(researchPaperService.pagePapers(anyLong(), anyLong(), isNull(), isNull()))
+        IPage<ResearchPaperVO> page = new Page<>(1, 10);
+        when(researchPaperService.pagePapersWithUser(anyLong(), anyLong(), isNull(), isNull(), isNull(), nullable(LoginUser.class)))
                 .thenReturn(page);
 
         mockMvc.perform(get("/paper/page"))

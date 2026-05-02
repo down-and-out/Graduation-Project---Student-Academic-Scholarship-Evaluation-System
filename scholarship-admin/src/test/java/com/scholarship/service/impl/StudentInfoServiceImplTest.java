@@ -7,6 +7,7 @@ import com.scholarship.mapper.SysUserMapper;
 import com.scholarship.service.ResearchPaperService;
 import com.scholarship.service.ResearchPatentService;
 import com.scholarship.service.ResearchProjectService;
+import com.scholarship.service.CompetitionAwardService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,8 @@ class StudentInfoServiceImplTest {
     private ResearchPatentService researchPatentService;
     @Mock
     private ResearchProjectService researchProjectService;
+    @Mock
+    private CompetitionAwardService competitionAwardService;
 
     private StudentInfoServiceImpl studentInfoService;
 
@@ -48,7 +51,8 @@ class StudentInfoServiceImplTest {
                 sysUserMapper,
                 researchPaperService,
                 researchPatentService,
-                researchProjectService
+                researchProjectService,
+                competitionAwardService
         );
         Field baseMapperField = StudentInfoServiceImpl.class.getSuperclass().getDeclaredField("baseMapper");
         baseMapperField.setAccessible(true);
