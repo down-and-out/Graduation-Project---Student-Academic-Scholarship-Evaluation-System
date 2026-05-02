@@ -6,13 +6,14 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scholarship.common.enums.UserTypeEnum;
 import com.scholarship.common.result.Result;
+import com.scholarship.config.ScholarshipProperties;
 import com.scholarship.dto.CourseScoreImportResult;
 import com.scholarship.dto.query.CourseScoreQuery;
 import com.scholarship.entity.CourseScore;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.security.LoginUser;
 import com.scholarship.service.CourseScoreService;
-import com.scholarship.service.ExportTaskService;
+import com.scholarship.service.AsyncTaskService;
 import com.scholarship.service.StudentInfoService;
 import com.scholarship.vo.CourseScoreExportVO;
 import java.io.File;
@@ -49,7 +50,8 @@ public class CourseScoreController {
 
     private final CourseScoreService courseScoreService;
     private final StudentInfoService studentInfoService;
-    private final ExportTaskService exportTaskService;
+    private final AsyncTaskService asyncTaskService;
+    private final ScholarshipProperties scholarshipProperties;
 
     @GetMapping("/page")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
@@ -222,7 +224,7 @@ public class CourseScoreController {
             query.setStudentIds(List.of(-1L));
         }
 
-        List<CourseScoreExportVO> list = courseScoreService.queryForExport(query).stream()
+        List<CourseScoreExportVO> list = courseScoreService.queryForExport(query, scholarshipProperties.getEvaluation().getExportMaxRows()).stream()
                 .map(CourseScoreExportVO::from)
                 .toList();
 
@@ -235,8 +237,6 @@ public class CourseScoreController {
             .sheet("成绩列表")
             .doWrite(list);
     }
-
-    private static final int EXPORT_MAX_ROWS = 5000;
 
     @PostMapping("/export/submit")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
@@ -255,25 +255,23 @@ public class CourseScoreController {
             query.setStudentIds(List.of(-1L));
         }
 
-        int effectiveMaxRows = Math.min(maxRows, EXPORT_MAX_ROWS);
+        int effectiveMaxRows = Math.min(maxRows, scholarshipProperties.getEvaluation().getExportMaxRows());
 
-        String taskId = exportTaskService.submit("course-score", "成绩列表", id -> {
+        String taskId = asyncTaskService.submitExport("course-score", "成绩列表", ctx -> {
             try {
-                List<CourseScoreExportVO> data = courseScoreService.queryForExport(query).stream()
-                        .limit(effectiveMaxRows)
+                List<CourseScoreExportVO> data = courseScoreService.queryForExport(query, effectiveMaxRows).stream()
                         .map(CourseScoreExportVO::from)
                         .toList();
-                String tempDir = exportTaskService.getTempDir();
-                String filePath = tempDir + File.separator + id + ".xlsx";
+                String filePath = ctx.buildFilePath("xlsx");
                 try (FileOutputStream fos = new FileOutputStream(filePath)) {
                     EasyExcel.write(fos, CourseScoreExportVO.class)
                             .sheet("成绩列表")
                             .doWrite(data);
                 }
-                exportTaskService.markCompleted(id, "成绩列表.xlsx", filePath);
+                ctx.markCompleted("成绩列表.xlsx", filePath);
             } catch (Exception e) {
-                log.error("Async export failed: taskId={}", id, e);
-                exportTaskService.markFailed(id, e.getMessage());
+                log.error("Async export failed: taskId={}", ctx.getTaskId(), e);
+                ctx.markFailed(e.getMessage());
             }
         });
 
@@ -284,7 +282,7 @@ public class CourseScoreController {
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "查询导出任务状态")
     public Result<Map<String, Object>> exportStatus(@PathVariable String taskId) {
-        Map<String, Object> status = exportTaskService.getStatus(taskId);
+        Map<String, Object> status = asyncTaskService.getExportStatus(taskId);
         if (status == null) {
             return Result.error("任务不存在或已过期");
         }
@@ -295,7 +293,7 @@ public class CourseScoreController {
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "下载异步导出文件")
     public void exportDownload(@PathVariable String taskId, HttpServletResponse response) throws IOException {
-        String filePath = exportTaskService.getFilePath(taskId);
+        String filePath = asyncTaskService.getFilePath(taskId);
         if (filePath == null) {
             response.setStatus(404);
             response.getWriter().write("{\"message\":\"文件不存在或导出未完成\"}");

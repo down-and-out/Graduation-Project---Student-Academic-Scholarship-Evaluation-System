@@ -3,7 +3,7 @@ package com.scholarship.controller;
 import com.scholarship.common.result.Result;
 import com.scholarship.dto.StudentImportDTO;
 import com.scholarship.service.BatchImportService;
-import com.scholarship.service.ExportTaskService;
+import com.scholarship.service.AsyncTaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -29,7 +29,7 @@ import java.util.Map;
 public class BatchImportController {
 
     private final BatchImportService batchImportService;
-    private final ExportTaskService exportTaskService;
+    private final AsyncTaskService asyncTaskService;
 
     @PostMapping("/import/students")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
@@ -101,7 +101,7 @@ public class BatchImportController {
             return Result.error("Excel 文件中没有数据");
         }
 
-        String taskId = exportTaskService.submitImport("student-import", id -> {
+        String taskId = asyncTaskService.submitImport("student-import", id -> {
             Map<String, Object> result = batchImportService.importStudents(students);
             log.info("Async import completed: taskId={}, successCount={}", id, result.get("successCount"));
         });
@@ -113,7 +113,7 @@ public class BatchImportController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "查询异步导入任务状态")
     public Result<Map<String, Object>> importStatus(@PathVariable String taskId) {
-        Map<String, Object> state = exportTaskService.getImportStatus(taskId);
+        Map<String, Object> state = asyncTaskService.getImportStatus(taskId);
         if (state == null) {
             return Result.error("任务不存在或已过期");
         }

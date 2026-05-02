@@ -19,7 +19,7 @@ import com.scholarship.service.EvaluationCalculationService;
 import com.scholarship.service.EvaluationRankService;
 import com.scholarship.service.EvaluationResultService;
 import com.scholarship.service.EvaluationTaskService;
-import com.scholarship.service.ExportTaskService;
+import com.scholarship.service.AsyncTaskService;
 import com.scholarship.service.StudentInfoService;
 import com.scholarship.vo.AdminEvaluationResultVO;
 import com.scholarship.vo.EvaluationResultExportVO;
@@ -67,7 +67,7 @@ public class EvaluationResultController {
     private final AwardAllocationService awardAllocationService;
     private final EvaluationTaskService evaluationTaskService;
     private final StudentInfoService studentInfoService;
-    private final ExportTaskService exportTaskService;
+    private final AsyncTaskService asyncTaskService;
     private final ScholarshipProperties scholarshipProperties;
 
     @GetMapping("/page")
@@ -243,7 +243,7 @@ public class EvaluationResultController {
                        @RequestParam(required = false) String academicYear,
                        @RequestParam(required = false) Integer semester,
                        HttpServletResponse response) throws IOException {
-        List<EvaluationResultExportVO> exportData = evaluationResultService.exportBatchResults(batchId, academicYear, semester);
+        List<EvaluationResultExportVO> exportData = evaluationResultService.exportBatchResults(batchId, academicYear, semester, scholarshipProperties.getEvaluation().getExportMaxRows());
 
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -265,8 +265,6 @@ public class EvaluationResultController {
                 .doWrite(exportData);
     }
 
-    private static final int EXPORT_MAX_ROWS = 5000;
-
     @PostMapping("/export/submit")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "Submit async evaluation result export")
@@ -279,23 +277,21 @@ public class EvaluationResultController {
                 + (academicYear != null && !academicYear.isBlank() ? "_" + academicYear : "")
                 + (semester != null ? "_" + semester : "");
 
-        int effectiveMaxRows = Math.min(maxRows, EXPORT_MAX_ROWS);
+        int effectiveMaxRows = Math.min(maxRows, scholarshipProperties.getEvaluation().getExportMaxRows());
 
-        String taskId = exportTaskService.submit("evaluation-result", fileName, id -> {
+        String taskId = asyncTaskService.submitExport("evaluation-result", fileName, ctx -> {
             try {
-                List<EvaluationResultExportVO> data = evaluationResultService.exportBatchResults(batchId, academicYear, semester)
-                        .stream().limit(effectiveMaxRows).toList();
-                String tempDir = exportTaskService.getTempDir();
-                String filePath = tempDir + File.separator + id + ".xlsx";
+                List<EvaluationResultExportVO> data = evaluationResultService.exportBatchResults(batchId, academicYear, semester, effectiveMaxRows);
+                String filePath = ctx.buildFilePath("xlsx");
                 try (FileOutputStream fos = new FileOutputStream(filePath)) {
                     EasyExcel.write(fos, EvaluationResultExportVO.class)
                             .sheet("evaluation_results")
                             .doWrite(data);
                 }
-                exportTaskService.markCompleted(id, fileName + ".xlsx", filePath);
+                ctx.markCompleted(fileName + ".xlsx", filePath);
             } catch (Exception e) {
-                log.error("Async export failed: taskId={}", id, e);
-                exportTaskService.markFailed(id, e.getMessage());
+                log.error("Async export failed: taskId={}", ctx.getTaskId(), e);
+                ctx.markFailed(e.getMessage());
             }
         });
 
@@ -306,7 +302,7 @@ public class EvaluationResultController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "Query export task status")
     public Result<Map<String, Object>> exportStatus(@PathVariable String taskId) {
-        Map<String, Object> status = exportTaskService.getStatus(taskId);
+        Map<String, Object> status = asyncTaskService.getExportStatus(taskId);
         if (status == null) {
             return Result.error("任务不存在或已过期");
         }
@@ -317,7 +313,7 @@ public class EvaluationResultController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "Download async export file")
     public void exportDownload(@PathVariable String taskId, HttpServletResponse response) throws IOException {
-        String filePath = exportTaskService.getFilePath(taskId);
+        String filePath = asyncTaskService.getFilePath(taskId);
         if (filePath == null) {
             response.setStatus(404);
             response.getWriter().write("{\"message\":\"文件不存在或导出未完成\"}");

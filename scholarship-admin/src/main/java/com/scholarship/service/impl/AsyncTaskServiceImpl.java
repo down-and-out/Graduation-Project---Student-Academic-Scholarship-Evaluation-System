@@ -1,10 +1,11 @@
 package com.scholarship.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scholarship.service.ExportTaskService;
+import com.scholarship.service.AsyncTaskService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
@@ -22,79 +23,90 @@ import java.util.function.Consumer;
  */
 @Slf4j
 @Service
-public class ExportTaskServiceImpl implements ExportTaskService {
+public class AsyncTaskServiceImpl implements AsyncTaskService {
 
     private static final String TASK_KEY_PREFIX = "export:task:";
     private static final String IMPORT_TASK_PREFIX = "import:task:";
     private static final Duration TASK_TTL = Duration.ofMinutes(30);
     private static final String EXPORT_TEMP_DIR = System.getProperty("java.io.tmpdir") + File.separator + "scholarship-exports";
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final StringRedisTemplate redisTemplate;
     private final ThreadPoolTaskExecutor exportTaskExecutor;
     private final ThreadPoolTaskExecutor batchImportTaskExecutor;
+    private final ObjectMapper objectMapper;
 
-    public ExportTaskServiceImpl(StringRedisTemplate redisTemplate,
-                                 @Qualifier("exportTaskExecutor") ThreadPoolTaskExecutor exportTaskExecutor,
-                                 @Qualifier("batchImportTaskExecutor") ThreadPoolTaskExecutor batchImportTaskExecutor) {
+    public AsyncTaskServiceImpl(StringRedisTemplate redisTemplate,
+                                @Qualifier("exportTaskExecutor") ThreadPoolTaskExecutor exportTaskExecutor,
+                                @Qualifier("batchImportTaskExecutor") ThreadPoolTaskExecutor batchImportTaskExecutor,
+                                ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.exportTaskExecutor = exportTaskExecutor;
         this.batchImportTaskExecutor = batchImportTaskExecutor;
+        this.objectMapper = objectMapper;
         File dir = new File(EXPORT_TEMP_DIR);
-        if (!dir.exists()) {
-            dir.mkdirs();
+        if (!dir.exists() && !dir.mkdirs()) {
+            log.warn("Failed to create export temp directory: {}", EXPORT_TEMP_DIR);
         }
     }
 
     @Override
-    public String submit(String taskType, String fileName, Consumer<String> exportTask) {
+    public String submitExport(String taskType, String fileName, Consumer<TaskContext> exportTask) {
         String taskId = UUID.randomUUID().toString().replace("-", "");
         Map<String, Object> initialState = new HashMap<>();
         initialState.put("status", Status.PROCESSING.name());
         initialState.put("fileName", fileName);
         initialState.put("taskType", taskType);
 
-        writeTaskState(taskId, initialState);
+        writeTaskState(TASK_KEY_PREFIX, taskId, initialState);
         log.info("Export task created: taskId={}, taskType={}", taskId, taskType);
 
-        exportTaskExecutor.execute(() -> exportTask.accept(taskId));
+        TaskContext ctx = new TaskContext() {
+            @Override
+            public String getTaskId() {
+                return taskId;
+            }
+            @Override
+            public String buildFilePath(String extension) {
+                return EXPORT_TEMP_DIR + File.separator + taskId + "." + extension;
+            }
+            @Override
+            public void markCompleted(String fn, String fp) {
+                AsyncTaskServiceImpl.this.markCompleted(taskId, fn, fp);
+            }
+            @Override
+            public void markFailed(String errorMsg) {
+                AsyncTaskServiceImpl.this.markFailed(taskId, errorMsg);
+            }
+        };
+        exportTaskExecutor.execute(() -> exportTask.accept(ctx));
 
         return taskId;
     }
 
-    /**
-     * 由导出任务在完成时调用，标记任务完成并记录文件路径。
-     */
-    public void markCompleted(String taskId, String fileName, String filePath) {
+    private void markCompleted(String taskId, String fileName, String filePath) {
         Map<String, Object> state = new HashMap<>();
         state.put("status", Status.COMPLETED.name());
         state.put("fileName", fileName);
         state.put("filePath", filePath);
-        writeTaskState(taskId, state);
+        writeTaskState(TASK_KEY_PREFIX, taskId, state);
         log.info("Export task completed: taskId={}, filePath={}", taskId, filePath);
     }
 
-    @Override
-    public void markFailed(String taskId, String errorMsg) {
+    private void markFailed(String taskId, String errorMsg) {
         Map<String, Object> state = new HashMap<>();
         state.put("status", Status.FAILED.name());
         state.put("errorMsg", errorMsg != null ? errorMsg : "Unknown error");
-        writeTaskState(taskId, state);
+        writeTaskState(TASK_KEY_PREFIX, taskId, state);
     }
 
     @Override
-    public String getTempDir() {
-        return EXPORT_TEMP_DIR;
-    }
-
-    @Override
-    public Map<String, Object> getStatus(String taskId) {
-        return readTaskState(taskId);
+    public Map<String, Object> getExportStatus(String taskId) {
+        return readTaskState(TASK_KEY_PREFIX, taskId);
     }
 
     @Override
     public String getFilePath(String taskId) {
-        Map<String, Object> state = readTaskState(taskId);
+        Map<String, Object> state = readTaskState(TASK_KEY_PREFIX, taskId);
         if (state == null || !Status.COMPLETED.name().equals(state.get("status"))) {
             return null;
         }
@@ -133,21 +145,13 @@ public class ExportTaskServiceImpl implements ExportTaskService {
         return readTaskState(IMPORT_TASK_PREFIX, taskId);
     }
 
-    private void writeTaskState(String taskId, Map<String, Object> state) {
-        writeTaskState(TASK_KEY_PREFIX, taskId, state);
-    }
-
     private void writeTaskState(String prefix, String taskId, Map<String, Object> state) {
         try {
-            String json = OBJECT_MAPPER.writeValueAsString(state);
+            String json = objectMapper.writeValueAsString(state);
             redisTemplate.opsForValue().set(prefix + taskId, json, TASK_TTL);
         } catch (Exception e) {
             log.warn("Failed to write task state: prefix={}, taskId={}", prefix, taskId, e);
         }
-    }
-
-    private Map<String, Object> readTaskState(String taskId) {
-        return readTaskState(TASK_KEY_PREFIX, taskId);
     }
 
     private Map<String, Object> readTaskState(String prefix, String taskId) {
@@ -157,11 +161,37 @@ public class ExportTaskServiceImpl implements ExportTaskService {
                 return null;
             }
             @SuppressWarnings("unchecked")
-            Map<String, Object> state = OBJECT_MAPPER.readValue(json, Map.class);
+            Map<String, Object> state = objectMapper.readValue(json, Map.class);
             return state;
         } catch (Exception e) {
             log.warn("Failed to read task state: prefix={}, taskId={}", prefix, taskId, e);
             return null;
+        }
+    }
+
+    @Scheduled(fixedDelay = 3_600_000)
+    public void cleanTempExportFiles() {
+        File dir = new File(EXPORT_TEMP_DIR);
+        if (!dir.exists() || !dir.isDirectory()) {
+            return;
+        }
+        long cutoff = System.currentTimeMillis() - Duration.ofHours(1).toMillis();
+        File[] files = dir.listFiles();
+        if (files == null || files.length == 0) {
+            return;
+        }
+        int deletedCount = 0;
+        for (File file : files) {
+            if (file.isFile() && file.lastModified() < cutoff) {
+                if (file.delete()) {
+                    deletedCount++;
+                } else {
+                    log.warn("Failed to delete expired temp export file: {}", file.getAbsolutePath());
+                }
+            }
+        }
+        if (deletedCount > 0) {
+            log.info("Cleaned {} expired temp export files from {}", deletedCount, EXPORT_TEMP_DIR);
         }
     }
 }
