@@ -1,6 +1,7 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -172,11 +173,28 @@ public class ResearchPatentServiceImpl extends ServiceImpl<ResearchPatentMapper,
             throw new BusinessException("无权审核该专利成果");
         }
 
-        patent.setAuditStatus(auditStatus);
-        patent.setAuditComment(auditComment);
-        patent.setAuditTime(LocalDateTime.now());
-        patent.setAuditorId(auditorId);
-        return updateById(patent);
+        // 状态机校验：仅待审核状态(auditStatus=0)允许审核
+        if (patent.getAuditStatus() != 0) {
+            throw new BusinessException("仅待审核的专利允许审核");
+        }
+        // 状态机校验：审核状态只能为1(通过)或2(驳回)
+        if (auditStatus != 1 && auditStatus != 2) {
+            throw new BusinessException("无效的审核状态，允许值：1(通过)、2(驳回)");
+        }
+
+        // 条件更新 + 并发保护：仅当状态仍为0时才执行更新
+        LambdaUpdateWrapper<ResearchPatent> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(ResearchPatent::getId, id)
+                .eq(ResearchPatent::getAuditStatus, 0)
+                .set(ResearchPatent::getAuditStatus, auditStatus)
+                .set(ResearchPatent::getAuditComment, auditComment)
+                .set(ResearchPatent::getAuditorId, auditorId)
+                .set(ResearchPatent::getAuditTime, LocalDateTime.now());
+        int updated = baseMapper.update(null, updateWrapper);
+        if (updated == 0) {
+            throw new BusinessException("状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
 }

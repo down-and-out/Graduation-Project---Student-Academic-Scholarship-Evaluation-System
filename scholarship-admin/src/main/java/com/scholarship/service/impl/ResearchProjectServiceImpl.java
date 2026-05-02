@@ -1,6 +1,7 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -89,6 +90,7 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
         if (project == null) {
             throw new BusinessException("项目不存在");
         }
+        log.info("审核项目，id={}, auditStatus={}", id, auditStatus);
 
         StudentInfo student = DataScopeHelper.requireStudentById(project.getStudentId(), studentInfoMapper);
         if (!isAdmin && student.getTutorId() != null && !student.getTutorId().equals(auditorId)) {
@@ -96,11 +98,28 @@ public class ResearchProjectServiceImpl extends ServiceImpl<ResearchProjectMappe
             throw new BusinessException("无权审核该项目成果");
         }
 
-        project.setAuditStatus(auditStatus);
-        project.setAuditComment(auditComment);
-        project.setAuditorId(auditorId);
-        project.setAuditTime(LocalDateTime.now());
-        return updateById(project);
+        // 状态机校验：仅待审核状态(auditStatus=0)允许审核
+        if (project.getAuditStatus() != 0) {
+            throw new BusinessException("仅待审核的项目允许审核");
+        }
+        // 状态机校验：审核状态只能为1(通过)或2(驳回)
+        if (auditStatus != 1 && auditStatus != 2) {
+            throw new BusinessException("无效的审核状态，允许值：1(通过)、2(驳回)");
+        }
+
+        // 条件更新 + 并发保护：仅当状态仍为0时才执行更新
+        LambdaUpdateWrapper<ResearchProject> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(ResearchProject::getId, id)
+                .eq(ResearchProject::getAuditStatus, 0)
+                .set(ResearchProject::getAuditStatus, auditStatus)
+                .set(ResearchProject::getAuditComment, auditComment)
+                .set(ResearchProject::getAuditorId, auditorId)
+                .set(ResearchProject::getAuditTime, LocalDateTime.now());
+        int updated = baseMapper.update(null, updateWrapper);
+        if (updated == 0) {
+            throw new BusinessException("状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override

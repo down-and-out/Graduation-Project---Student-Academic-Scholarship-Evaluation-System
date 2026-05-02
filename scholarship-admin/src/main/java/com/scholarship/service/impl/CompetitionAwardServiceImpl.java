@@ -1,6 +1,7 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -76,6 +77,7 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
         if (award == null) {
             throw new BusinessException("竞赛成果不存在");
         }
+        log.info("审核竞赛成果，id={}, auditStatus={}", id, auditStatus);
 
         StudentInfo student = DataScopeHelper.requireStudentById(award.getStudentId(), studentInfoMapper);
         if (!isAdmin && student.getTutorId() != null && !student.getTutorId().equals(auditorId)) {
@@ -83,11 +85,28 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
             throw new BusinessException("无权审核该竞赛成果");
         }
 
-        award.setAuditStatus(auditStatus);
-        award.setAuditComment(auditComment);
-        award.setAuditorId(auditorId);
-        award.setAuditTime(LocalDateTime.now());
-        return updateById(award);
+        // 状态机校验：仅待审核状态(auditStatus=0)允许审核
+        if (award.getAuditStatus() != 0) {
+            throw new BusinessException("仅待审核的竞赛成果允许审核");
+        }
+        // 状态机校验：审核状态只能为1(通过)或2(驳回)
+        if (auditStatus != 1 && auditStatus != 2) {
+            throw new BusinessException("无效的审核状态，允许值：1(通过)、2(驳回)");
+        }
+
+        // 条件更新 + 并发保护：仅当状态仍为0时才执行更新
+        LambdaUpdateWrapper<CompetitionAward> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(CompetitionAward::getId, id)
+                .eq(CompetitionAward::getAuditStatus, 0)
+                .set(CompetitionAward::getAuditStatus, auditStatus)
+                .set(CompetitionAward::getAuditComment, auditComment)
+                .set(CompetitionAward::getAuditorId, auditorId)
+                .set(CompetitionAward::getAuditTime, LocalDateTime.now());
+        int updated = baseMapper.update(null, updateWrapper);
+        if (updated == 0) {
+            throw new BusinessException("状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override
@@ -117,6 +136,8 @@ public class CompetitionAwardServiceImpl extends ServiceImpl<CompetitionAwardMap
         if (award.getScore() == null) {
             award.setScore(BigDecimal.ZERO);
         }
+        award.setDeleted(0);
+        award.setCreateTime(LocalDateTime.now());
         return save(award);
     }
 
