@@ -1,6 +1,7 @@
 package com.scholarship.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -208,11 +209,28 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
             throw new BusinessException("无权审核该论文，只能审核自己指导学生的论文");
         }
 
-        paper.setStatus(status);
-        paper.setReviewComment(reviewComment);
-        paper.setReviewerId(reviewerId);
-        paper.setReviewTime(LocalDateTime.now());
-        return researchPaperMapper.updateById(paper) > 0;
+        // 状态机校验：仅待审核状态(status=0)允许审核
+        if (paper.getStatus() != 0) {
+            throw new BusinessException("仅待审核的论文允许审核");
+        }
+        // 状态机校验：导师审核只能设为1(通过)或3(不通过)，不包括2(院系通过)
+        if (status != 1 && status != 3) {
+            throw new BusinessException("无效的审核状态，允许值：1(通过)、3(不通过)");
+        }
+
+        // 条件更新 + 并发保护：仅当状态仍为0时才执行更新
+        LambdaUpdateWrapper<ResearchPaper> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(ResearchPaper::getId, paperId)
+                .eq(ResearchPaper::getStatus, 0)
+                .set(ResearchPaper::getStatus, status)
+                .set(ResearchPaper::getReviewComment, reviewComment)
+                .set(ResearchPaper::getReviewerId, reviewerId)
+                .set(ResearchPaper::getReviewTime, LocalDateTime.now());
+        int updated = researchPaperMapper.update(null, updateWrapper);
+        if (updated == 0) {
+            throw new BusinessException("状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override
@@ -223,7 +241,7 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
 
         List<ResearchPaper> papers = list(new LambdaQueryWrapper<ResearchPaper>()
                 .in(ResearchPaper::getStudentId, studentIds)
-                .eq(ResearchPaper::getStatus, 2));
+                .eq(ResearchPaper::getStatus, 2));  // 只有院系审查通过(status=2)才能用于奖学金评定
 
         return papers.stream().collect(Collectors.groupingBy(ResearchPaper::getStudentId));
     }
@@ -232,13 +250,23 @@ public class ResearchPaperServiceImpl extends ServiceImpl<ResearchPaperMapper, R
     public long countByStudentId(Long studentId) {
         return count(new LambdaQueryWrapper<ResearchPaper>()
                 .eq(ResearchPaper::getStudentId, studentId)
-                .eq(ResearchPaper::getStatus, 1));
+                .eq(ResearchPaper::getStatus, 2));  // 只有院系审查通过(status=2)才能用于奖学金评定
     }
 
     @Override
     public long countOwnedByStudentId(Long studentId) {
         return count(new LambdaQueryWrapper<ResearchPaper>()
                 .eq(ResearchPaper::getStudentId, studentId));
+    }
+
+    @Override
+    public ResearchPaper getPaperById(Long id, LoginUser loginUser) {
+        ResearchPaper paper = getById(id);
+        if (paper == null) {
+            return null;
+        }
+        DataScopeHelper.ensureReadable(paper.getStudentId(), loginUser, "论文成果", studentInfoMapper);
+        return paper;
     }
 
     @Override

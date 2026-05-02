@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.List;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -33,6 +34,13 @@ import java.time.LocalDateTime;
 public class ResearchPaper implements Serializable {
 
     private static final long serialVersionUID = 1L;
+
+    /**
+     * 论文已通过的状态集合（导师审核通过 或 院系审核通过）
+     * 因 reviewPaper 方法仅允许设置 status=1 或 status=3，
+     * status=2 需通过管理员界面设置，故此处同时包含 1 和 2
+     */
+    public static final List<Integer> PASSED_STATUSES = List.of(1, 2);
 
     /**
      * ID（主键）

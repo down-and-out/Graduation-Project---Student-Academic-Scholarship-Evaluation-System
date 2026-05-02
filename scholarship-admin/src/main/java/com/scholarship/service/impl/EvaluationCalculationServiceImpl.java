@@ -216,7 +216,7 @@ public class EvaluationCalculationServiceImpl extends ServiceImpl<EvaluationResu
         List<ResearchPaper> papers = researchPaperService.list(
                 new LambdaQueryWrapper<ResearchPaper>()
                         .eq(ResearchPaper::getStudentId, studentId)
-                        .eq(ResearchPaper::getStatus, 2)
+                        .in(ResearchPaper::getStatus, ResearchPaper.PASSED_STATUSES)
         );
         for (ResearchPaper paper : papers) {
             totalScore = totalScore.add(calculatePaperScore(paper, paperRules));
