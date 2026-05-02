@@ -133,6 +133,10 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 学生个人信息页面逻辑
+ * 功能：查看和编辑个人基本信息、联系方式等
+ */
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -141,9 +145,13 @@ import type { Student } from '@/api/student'
 import { EDUCATION_LEVEL_TEXT_MAP, GENDER_TEXT_MAP } from '@/constants/user'
 import { extractApiData, isRequestCanceled, isValidIdCard, maskIdCard } from '@/utils/helpers'
 
+// 是否处于编辑模式
 const isEdit = ref(false)
+// 保存按钮loading状态
 const saving = ref(false)
+// 表单引用，用于表单验证
 const formRef = ref<FormInstance | null>(null)
+// 表单数据，存储学生个人信息
 const formData = reactive<Student>({
   id: 0,
   studentNo: '',
@@ -165,6 +173,7 @@ const formData = reactive<Student>({
   email: ''
 })
 
+// 表单验证规则
 const rules: FormRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   phone: [{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }],
@@ -173,6 +182,7 @@ const rules: FormRules = {
     {
       validator: (_rule, value, callback) => {
         if (!value) { callback(); return }
+        // 验证身份证号格式是否合法
         if (!isValidIdCard(value as string)) {
           callback(new Error('请输入正确的身份证号'))
           return
@@ -186,6 +196,10 @@ const rules: FormRules = {
   address: [{ required: true, message: '请输入家庭住址', trigger: 'blur' }]
 }
 
+/**
+ * 加载当前学生的个人信息
+ * 从API获取数据并填充到表单
+ */
 async function loadInfo(): Promise<void> {
   try {
     const response = await getMyInfo()
@@ -194,6 +208,7 @@ async function loadInfo(): Promise<void> {
       throw new Error('学生信息为空')
     }
 
+    // 将获取到的信息合并到表单数据中
     Object.keys(formData).forEach((key) => {
       const field = key as keyof Student
       if (profile[field] !== undefined) {
@@ -207,14 +222,20 @@ async function loadInfo(): Promise<void> {
   }
 }
 
+/**
+ * 保存修改后的个人信息
+ * 验证表单后提交到后端API
+ */
 async function handleSave(): Promise<void> {
   if (!formRef.value) return
 
+  // 先进行表单验证，验证失败则不提交
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
   saving.value = true
   try {
+    // 仅提交可编辑的字段：电话、邮箱、研究方向、身份证号、籍贯、家庭住址
     await updateMyInfo({
       phone: formData.phone,
       email: formData.email,
@@ -234,11 +255,16 @@ async function handleSave(): Promise<void> {
   }
 }
 
+/**
+ * 取消编辑，恢复原数据
+ * 直接重新加载数据，不保留编辑内容
+ */
 function handleCancel(): void {
   isEdit.value = false
   loadInfo()
 }
 
+// 页面加载时自动获取个人信息
 onMounted(() => {
   loadInfo()
 })

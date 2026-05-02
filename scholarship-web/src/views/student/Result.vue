@@ -134,6 +134,10 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 学生评定结果查询页面
+ * 功能：查看本人最新评定结果、历史评定记录、提出异议、导出证书
+ */
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
@@ -152,6 +156,7 @@ import {
   type ResultTagType
 } from '@/constants/evaluationResult'
 
+// 扩展结果类型，包含展示用字段
 interface StudentResultView extends EvaluationResult {
   rank?: number
   status?: number
@@ -159,56 +164,80 @@ interface StudentResultView extends EvaluationResult {
   publishDate?: string
 }
 
+// 评分细项行类型，用于详情弹窗表格
 interface ScoreDetailRow {
   item: string
   score: number | string
 }
 
+// 当前最新评定结果
 const result = ref<StudentResultView | null>(null)
+// 历史评定记录列表
 const historyList = ref<StudentResultView[]>([])
+// 详情弹窗数据
 const detailResult = ref<StudentResultView | null>(null)
+// 异议弹窗显示状态
 const appealDialogVisible = ref(false)
+// 详情弹窗显示状态
 const detailDialogVisible = ref(false)
+// 异议表单引用
 const appealFormRef = ref<FormInstance | null>(null)
+// 页面加载状态
 const loading = ref(false)
+// 提交按钮loading状态
 const submitting = ref(false)
+// 历史记录分页大小
 const HISTORY_PAGE_SIZE = 20
 
+// 异议表单数据
 const appealForm = reactive({
   reason: '',
   content: ''
 })
 
+// 异议表单验证规则
 const appealRules: FormRules = {
   reason: [{ required: true, message: '请输入异议理由', trigger: 'blur' }],
   content: [{ required: true, message: '请输入详细说明', trigger: 'blur' }]
 }
 
+// 是否显示奖学金金额（仅有效获奖等级区间内且金额大于0时显示）
 const showAmount = computed(() => {
   const level = normalizeAwardLevel(result.value?.awardLevel)
   return level >= AWARD_LEVEL_MIN && level <= AWARD_LEVEL_MAX && (result.value?.awardAmount ?? 0) > 0
 })
 
+// 获取获奖等级标题文本
 function getAwardTitle(level?: number | null): string {
   return getAwardLevelConfig(level).text
 }
 
+// 获取获奖等级CSS类名（用于动态样式）
 function getAwardClass(level?: number | null): string {
   return getAwardLevelConfig(level).className
 }
 
+// 获取获奖等级对应的el-tag类型
 function getAwardTagType(level?: number | null): ResultTagType {
   return getAwardLevelConfig(level).type
 }
 
+// 获取结果状态文本
 function getStatusText(status?: number | null): string {
   return getResultStatusConfig(status).text
 }
 
+// 获取结果状态对应的el-tag类型
 function getStatusType(status?: number | null): ResultTagType {
   return getResultStatusConfig(status).type
 }
 
+/**
+ * 规范化结果数据，兼容后端返回的多种字段名
+ * rank字段可能来自rank/departmentRank/majorRank
+ * status可能来自status/resultStatus
+ * publishDate可能是publishDate/publicityDate
+ */
 function normalizeResult(payload: EvaluationResult): StudentResultView {
   return {
     ...payload,
@@ -219,6 +248,7 @@ function normalizeResult(payload: EvaluationResult): StudentResultView {
   }
 }
 
+// 构建评分细项表格数据
 function buildScoreDetails(current: StudentResultView): ScoreDetailRow[] {
   return [
     { item: '课程成绩', score: current.courseScore ?? 0 },
@@ -228,6 +258,7 @@ function buildScoreDetails(current: StudentResultView): ScoreDetailRow[] {
   ]
 }
 
+// 下载文本文件工具函数
 function downloadTextFile(content: string, fileName: string): void {
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
   const url = window.URL.createObjectURL(blob)
@@ -235,13 +266,18 @@ function downloadTextFile(content: string, fileName: string): void {
   link.href = url
   link.download = fileName
   link.click()
+  // 释放blob URL，避免内存泄漏
   window.URL.revokeObjectURL(url)
 }
 
+/**
+ * 加载当前学生的最新评定结果
+ */
 async function loadResult(): Promise<void> {
   try {
     const response = await getMyResult()
     const raw = extractApiData<EvaluationResult | null>(response)
+    // 仅当有评分时才显示结果
     result.value = raw && raw.totalScore != null ? normalizeResult(raw) : null
   } catch (error) {
     console.error('加载评定结果失败:', error)
@@ -250,6 +286,9 @@ async function loadResult(): Promise<void> {
   }
 }
 
+/**
+ * 加载历史评定记录列表
+ */
 async function loadHistory(): Promise<void> {
   try {
     const response = await getResultPage({ current: 1, size: HISTORY_PAGE_SIZE })
@@ -262,6 +301,9 @@ async function loadHistory(): Promise<void> {
   }
 }
 
+/**
+ * 页面初始化，并行加载最新结果和历史记录
+ */
 async function initializePage(): Promise<void> {
   loading.value = true
   try {
@@ -271,10 +313,14 @@ async function initializePage(): Promise<void> {
   }
 }
 
+// 打开异议弹窗
 function handleAppeal(): void {
   appealDialogVisible.value = true
 }
 
+/**
+ * 提交异议申请
+ */
 async function handleSubmitAppeal(): Promise<void> {
   if (!appealFormRef.value) return
   const valid = await appealFormRef.value.validate().catch(() => false)
@@ -297,9 +343,13 @@ async function handleSubmitAppeal(): Promise<void> {
   }
 }
 
+/**
+ * 导出评定结果证明为txt文件
+ */
 function handleExport(): void {
   if (!result.value) return
 
+  // 构建证明文件内容
   const content = [
     '研究生学业奖学金评定结果证明',
     '',
@@ -316,10 +366,14 @@ function handleExport(): void {
     '说明：本文件由系统根据当前评定结果导出，仅供个人留存与核对。'
   ].join('\r\n')
 
+  // 清理文件名中的非法字符
   const safeBatchName = (result.value.batchName || 'result').replace(/[\\/:*?"<>|]/g, '_')
   downloadTextFile(content, `${safeBatchName}_评定结果证明.txt`)
 }
 
+/**
+ * 查看评定结果详情
+ */
 async function handleViewDetail(row: StudentResultView): Promise<void> {
   if (!row.id) return
 

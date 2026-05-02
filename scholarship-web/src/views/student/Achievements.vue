@@ -356,6 +356,10 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 学生科研成果管理页面
+ * 功能：管理论文、专利、项目、竞赛四类科研成果，支持增删改查和导师审核状态查看
+ */
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -413,15 +417,20 @@ import { PATENT_STATUS_OPTIONS, PATENT_TYPE_OPTIONS } from '@/constants/patent'
 
 defineOptions({ name: 'StudentAchievements' })
 
+// 成果类型：论文、专利、项目、竞赛
 type AchievementType = 'paper' | 'patent' | 'project' | 'competition'
+// 规范化的论文数据类型，兼容后端返回的多种字段名
 type NormalizedPaper = Paper & {
   title: string
   journalName: string
   publicationDate: string
 }
+// 已审核的成果行类型（专利、项目、竞赛共用）
 type AuditedAchievementRow = ResearchPatent | ResearchProject | CompetitionAward
+// 表格行数据联合类型
 type AchievementRow = NormalizedPaper | AuditedAchievementRow
 
+// 论文表单数据结构
 interface PaperForm {
   id: number | null
   paperTitle: string
@@ -433,6 +442,7 @@ interface PaperForm {
   publicationDate: string
 }
 
+// 专利表单数据结构
 interface PatentForm {
   id: number | null
   patentName: string
@@ -447,6 +457,7 @@ interface PatentForm {
   remark: string
 }
 
+// 项目表单数据结构
 interface ProjectForm {
   id: number | null
   projectName: string
@@ -465,6 +476,7 @@ interface ProjectForm {
   remark: string
 }
 
+// 竞赛表单数据结构
 interface CompetitionForm {
   id: number | null
   competitionName: string
@@ -481,29 +493,43 @@ interface CompetitionForm {
   remark: string
 }
 
+// 成果类型选项，转换为指定类型数组
 const achievementTypeOptions = [...ACHIEVEMENT_TYPE_OPTIONS] as Array<{ label: string; value: AchievementType }>
 
-
+// 路由相关，用于URL参数同步
 const route = useRoute()
 const router = useRouter()
+// 表格加载状态
 const loading = ref(false)
+// 保存操作loading状态
 const saving = ref(false)
+// 防止分页大小切换时重复请求
 const sizeChangePending = ref(false)
+// 总记录数，用于分页
 const total = ref(0)
+// 新增/编辑弹窗显示状态
 const dialogVisible = ref(false)
+// 详情弹窗显示状态
 const detailVisible = ref(false)
+// 是否为编辑模式
 const isEdit = ref(false)
+// 当前选中的成果类型
 const activeType = ref<AchievementType>('paper')
+// 表单引用，用于验证
 const formRef = ref<FormInstance | null>(null)
+// 表格数据列表
 const tableData = ref<AchievementRow[]>([])
+// 当前查看的详情行数据
 const currentRow = ref<AchievementRow | null>(null)
 
+// 查询参数，包含分页和状态筛选
 const queryParams = reactive({
   current: 1,
   size: 10,
   status: undefined as number | undefined | ''
 })
 
+// 论文表单默认值
 const PAPER_FORM_DEFAULTS: PaperForm = {
   id: null,
   paperTitle: '',
@@ -515,6 +541,7 @@ const PAPER_FORM_DEFAULTS: PaperForm = {
   publicationDate: ''
 }
 
+// 专利表单默认值
 const PATENT_FORM_DEFAULTS: PatentForm = {
   id: null,
   patentName: '',
@@ -529,6 +556,7 @@ const PATENT_FORM_DEFAULTS: PatentForm = {
   remark: ''
 }
 
+// 项目表单默认值
 const PROJECT_FORM_DEFAULTS: ProjectForm = {
   id: null,
   projectName: '',
@@ -547,6 +575,7 @@ const PROJECT_FORM_DEFAULTS: ProjectForm = {
   remark: ''
 }
 
+// 竞赛表单默认值
 const COMPETITION_FORM_DEFAULTS: CompetitionForm = {
   id: null,
   competitionName: '',
@@ -563,14 +592,19 @@ const COMPETITION_FORM_DEFAULTS: CompetitionForm = {
   remark: ''
 }
 
+// 论文表单响应式数据
 const paperForm = reactive<PaperForm>({ ...PAPER_FORM_DEFAULTS })
 
+// 专利表单响应式数据
 const patentForm = reactive<PatentForm>({ ...PATENT_FORM_DEFAULTS })
 
+// 项目表单响应式数据
 const projectForm = reactive<ProjectForm>({ ...PROJECT_FORM_DEFAULTS })
 
+// 竞赛表单响应式数据
 const competitionForm = reactive<CompetitionForm>({ ...COMPETITION_FORM_DEFAULTS })
 
+// 论文表单验证规则
 const paperRules: FormRules<PaperForm> = {
   paperTitle: [{ required: true, message: '请输入论文标题', trigger: 'blur' }],
   authors: [{ required: true, message: '请输入作者列表', trigger: 'blur' }],
@@ -578,6 +612,7 @@ const paperRules: FormRules<PaperForm> = {
   journalLevel: [{ required: true, message: '请选择期刊级别', trigger: 'change' }]
 }
 
+// 专利表单验证规则
 const patentRules: FormRules<PatentForm> = {
   patentName: [{ required: true, message: '请输入专利名称', trigger: 'blur' }],
   patentNo: [{ required: true, message: '请输入专利号', trigger: 'blur' }],
@@ -586,20 +621,24 @@ const patentRules: FormRules<PatentForm> = {
   inventors: [{ required: true, message: '请输入发明人', trigger: 'blur' }]
 }
 
+// 项目表单验证规则
 const projectRules: FormRules<ProjectForm> = {
   projectName: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
   projectType: [{ required: true, message: '请选择项目类型', trigger: 'change' }],
   projectLevel: [{ required: true, message: '请选择项目级别', trigger: 'change' }]
 }
 
+// 竞赛表单验证规则
 const competitionRules: FormRules<CompetitionForm> = {
   competitionName: [{ required: true, message: '请输入竞赛名称', trigger: 'blur' }],
   competitionLevel: [{ required: true, message: '请选择竞赛级别', trigger: 'change' }],
   awardLevel: [{ required: true, message: '请选择获奖等级', trigger: 'change' }]
 }
 
+// 获取当前选中类型的显示标签
 const activeTypeLabel = computed(() => achievementTypeOptions.find(item => item.value === activeType.value)?.label || '成果')
 
+// 根据成果类型获取对应的状态选项（论文使用独立状态， 其他共用）
 const currentStatusOptions = computed(() =>
   activeType.value === 'paper'
     ? [
@@ -611,15 +650,23 @@ const currentStatusOptions = computed(() =>
     : SHARED_GENERIC_AUDIT_OPTIONS
 )
 
+// 获取当前类型的表单模型（用于动态渲染表单）
 const currentFormModel = computed<Record<string, any>>(() =>
   TYPE_FIELD_CONFIG[activeType.value]?.formModel ?? paperForm
 )
 
+// 获取当前类型的表单验证规则
 const currentFormRules = computed<FormRules>(() =>
   TYPE_FIELD_CONFIG[activeType.value]?.rules ?? (paperRules as FormRules)
 )
 
+// 动态计算弹窗标题（添加/编辑 + 类型名）
 const dialogTitle = computed(() => `${isEdit.value ? '编辑' : '添加'}${activeTypeLabel.value}`)
+
+/**
+ * 规范化论文数据，兼容后端返回的多种字段名
+ * 后端可能返回 title/paperTitle、journalName/journal、publicationDate/publishDate/date
+ */
 function normalizePaper(row: Paper): NormalizedPaper {
   return {
     ...row,
@@ -629,70 +676,87 @@ function normalizePaper(row: Paper): NormalizedPaper {
   }
 }
 
+// 类型守卫：判断是否为论文行
 function isPaperRow(row: AchievementRow): row is NormalizedPaper {
   return 'title' in row && typeof (row as NormalizedPaper).title === 'string'
 }
 
+// 类型守卫：判断是否为专利行
 function isPatentRow(row: AchievementRow): row is ResearchPatent {
   return 'patentName' in row && typeof (row as ResearchPatent).patentName === 'string'
 }
 
+// 类型守卫：判断是否为项目行
 function isProjectRow(row: AchievementRow): row is ResearchProject {
   return 'projectName' in row && typeof (row as ResearchProject).projectName === 'string'
 }
 
+// 类型守卫：判断是否为竞赛行
 function isCompetitionRow(row: AchievementRow): row is CompetitionAward {
   return 'competitionName' in row && typeof (row as CompetitionAward).competitionName === 'string'
 }
 
+// 获取作者排名标签文本
 function getAuthorRankLabel(value?: number): string {
   return getAchievementOptionLabel(AUTHOR_RANK_OPTIONS, value)
 }
 
+// 获取期刊级别标签文本
 function getJournalLevelLabel(value?: number): string {
   return getAchievementOptionLabel(JOURNAL_LEVEL_OPTIONS, value)
 }
 
+// 获取专利类型标签文本
 function getPatentTypeLabel(value?: number): string {
   return getAchievementOptionLabel(PATENT_TYPE_OPTIONS, value)
 }
 
+// 获取专利状态标签文本
 function getPatentStatusLabel(value?: number): string {
   return getAchievementOptionLabel(PATENT_STATUS_OPTIONS, value)
 }
 
+// 获取项目类型标签文本
 function getProjectTypeLabel(value?: number): string {
   return getAchievementOptionLabel(PROJECT_TYPE_OPTIONS, value)
 }
 
+// 获取项目级别标签文本
 function getProjectLevelLabel(value?: number): string {
   return getAchievementOptionLabel(PROJECT_LEVEL_OPTIONS, value)
 }
 
+// 获取项目角色标签文本
 function getProjectRoleLabel(value?: number): string {
   return getAchievementOptionLabel(PROJECT_ROLE_OPTIONS, value)
 }
 
+// 获取项目状态标签文本
 function getProjectStatusLabel(value?: number): string {
   return getAchievementOptionLabel(PROJECT_STATUS_OPTIONS, value)
 }
 
+// 获取竞赛级别标签文本
 function getCompetitionLevelLabel(value?: number): string {
   return getAchievementOptionLabel(COMPETITION_LEVEL_OPTIONS, value)
 }
 
+// 获取获奖等级标签文本
 function getCompetitionAwardLevelLabel(value?: number): string {
   return getAchievementOptionLabel(COMPETITION_AWARD_LEVEL_OPTIONS, value)
 }
 
+// 获取获奖类型标签文本
 function getCompetitionAwardTypeLabel(value?: number): string {
   return getAchievementOptionLabel(COMPETITION_AWARD_TYPE_OPTIONS, value)
 }
 
+// 从行数据中获取状态值（论文用status，其他用auditStatus）
 function getRowStatusValue(row: AchievementRow): number | undefined {
   return isPaperRow(row) ? row.status : row.auditStatus
 }
 
+// 获取状态对应的中文标签
 function getRowStatusLabel(row: AchievementRow): string {
   const status = getRowStatusValue(row)
   if (status === undefined || status === null) return '-'
@@ -701,6 +765,7 @@ function getRowStatusLabel(row: AchievementRow): string {
     : SHARED_GENERIC_AUDIT_LABELS[status] || '未知状态'
 }
 
+// 获取状态对应的标签类型（用于el-tag的type属性）
 function getRowStatusType(row: AchievementRow): 'warning' | 'success' | 'danger' | 'info' | 'primary' {
   const status = getRowStatusValue(row)
   if (status === undefined || status === null) return 'info'
@@ -709,14 +774,17 @@ function getRowStatusType(row: AchievementRow): 'warning' | 'success' | 'danger'
     : SHARED_GENERIC_AUDIT_TYPES[status] || 'info'
 }
 
+// 判断当前行是否可编辑（仅待审核状态可编辑）
 function canEditRow(row: AchievementRow): boolean {
   return getRowStatusValue(row) === APPLICATION_AUDIT_STATUS.PENDING
 }
 
+// 判断当前行是否可删除（仅论文且待审核状态可删除）
 function canDeleteRow(row: AchievementRow): boolean {
   return isPaperRow(row) && row.status === APPLICATION_AUDIT_STATUS.PENDING
 }
 
+// 重置当前类型对应的表单为默认值
 function resetCurrentForm() {
   const config = TYPE_FIELD_CONFIG[activeType.value]
   if (config?.formModel && config?.defaultValues) {
@@ -724,6 +792,10 @@ function resetCurrentForm() {
   }
 }
 
+/**
+ * 获取表格数据
+ * 根据当前选中的成果类型调用对应API并处理响应数据
+ */
 async function fetchTableData(): Promise<void> {
   loading.value = true
   try {
@@ -734,6 +806,7 @@ async function fetchTableData(): Promise<void> {
         status: queryParams.status === '' ? undefined : (queryParams.status as PaperPageParams['status'])
       })
       const pageData = extractPageData<Paper>(response)
+      // 规范化论文数据后赋值给表格
       tableData.value = (pageData?.records || []).map(normalizePaper)
       total.value = pageData?.total || 0
       return
@@ -763,6 +836,7 @@ async function fetchTableData(): Promise<void> {
       return
     }
 
+    // 竞赛类型
     const response = await getCompetitionPage({
       current: queryParams.current,
       size: queryParams.size,
@@ -780,12 +854,14 @@ async function fetchTableData(): Promise<void> {
   }
 }
 
+// 同步路由查询参数，用于分享链接时保持状态
 function syncRouteQuery(action?: 'add') {
   const query: Record<string, string> = { type: activeType.value }
   if (action) query.action = action
   router.replace({ path: '/app/student/achievements', query })
 }
 
+// 切换成果类型时重置查询条件并重新加载数据
 function handleTypeChange(name: string | number) {
   activeType.value = name as AchievementType
   queryParams.current = 1
@@ -794,11 +870,13 @@ function handleTypeChange(name: string | number) {
   void fetchTableData()
 }
 
+// 点击查询按钮，从第一页开始搜索
 function handleSearch(): void {
   queryParams.current = 1
   void fetchTableData()
 }
 
+// 分页当前页变化处理（排除大小切换时的重复请求）
 function handlePageChange(_page: number): void {
   if (sizeChangePending.value) {
     sizeChangePending.value = false
@@ -807,18 +885,21 @@ function handlePageChange(_page: number): void {
   void fetchTableData()
 }
 
+// 重置筛选条件
 function handleReset(): void {
   queryParams.status = undefined
   queryParams.current = 1
   void fetchTableData()
 }
 
+// 分页大小变化时标记并重置到第一页
 function handleSizeChange(): void {
   sizeChangePending.value = true
   queryParams.current = 1
   void fetchTableData()
 }
 
+// 点击添加按钮，打开新增弹窗
 function handleAdd(): void {
   isEdit.value = false
   resetCurrentForm()
@@ -827,17 +908,20 @@ function handleAdd(): void {
   syncRouteQuery('add')
 }
 
+// 点击查看按钮，打开详情弹窗
 function handleView(row: AchievementRow): void {
   currentRow.value = row
   detailVisible.value = true
 }
 
+// 详情弹窗字段定义结构
 interface DetailField {
   label: string
   span?: number
   value: (row: any) => string
 }
 
+// 表格列配置结构
 interface TableColumnConfig {
   type?: 'index'
   prop?: string
@@ -848,6 +932,7 @@ interface TableColumnConfig {
   tagType?: (row: any) => 'warning' | 'success' | 'danger' | 'info' | 'primary'
 }
 
+// 各成果类型的字段映射配置，包含表单模型、验证规则、列配置、提交方法等
 interface TypeFieldMapping {
   formModel?: Record<string, any>
   rules?: FormRules
@@ -860,6 +945,7 @@ interface TypeFieldMapping {
   tableColumns: TableColumnConfig[]
 }
 
+// 四类成果的完整字段配置映射表
 const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
   paper: {
     formModel: paperForm,
@@ -873,6 +959,7 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
       { label: '审核状态', width: 120, formatter: (row) => getRowStatusLabel(row), tagType: (row) => getRowStatusType(row) },
       { prop: 'createTime', label: '创建时间', width: 180 }
     ],
+    // 编辑时从行数据提取表单字段
     extractEditFields: (row) => ({
       id: row.id ?? null,
       paperTitle: row.title || row.paperTitle || '',
@@ -883,6 +970,7 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
       impactFactor: row.impactFactor ?? null,
       publicationDate: row.publicationDate || ''
     }),
+    // 构建提交时的请求体，兼容后端字段命名
     getFormPayload: (form, isEdit) => ({
       title: form.paperTitle,
       paperTitle: form.paperTitle,
@@ -897,6 +985,7 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
     }),
     submitCreate: submitPaper,
     submitUpdate: (id, payload) => updatePaper(id, payload),
+    // 详情弹窗显示的字段列表
     detailFields: [
       { label: '论文标题', span: 2, value: (row) => row.title || '-' },
       { label: '作者', value: (row) => row.authors || '-' },
@@ -1091,14 +1180,17 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
   }
 }
 
+// 动态获取当前类型的详情字段配置
 const detailFields = computed<DetailField[]>(() =>
   TYPE_FIELD_CONFIG[activeType.value]?.detailFields ?? []
 )
 
+// 动态获取当前类型的表格列配置
 const currentTableColumns = computed<TableColumnConfig[]>(() =>
   TYPE_FIELD_CONFIG[activeType.value]?.tableColumns ?? []
 )
 
+// 点击编辑按钮，填充表单数据并打开弹窗
 function handleEdit(row: AchievementRow): void {
   const config = TYPE_FIELD_CONFIG[activeType.value]
   if (!config || !config.formModel || !config.extractEditFields) return
@@ -1109,6 +1201,7 @@ function handleEdit(row: AchievementRow): void {
   syncRouteQuery()
 }
 
+// 点击删除按钮，确认后执行删除操作
 function handleDelete(row: AchievementRow): void {
   if (!isPaperRow(row)) return
   ElMessageBox.confirm('确定要删除该论文吗？', '提示', {
@@ -1129,6 +1222,10 @@ function handleDelete(row: AchievementRow): void {
     })
 }
 
+/**
+ * 提交表单（新增或编辑）
+ * 根据isEdit标志调用不同的提交方法
+ */
 async function handleSubmit(): Promise<void> {
   if (!formRef.value) return
   const valid = await formRef.value.validate().catch(() => false)
@@ -1141,6 +1238,7 @@ async function handleSubmit(): Promise<void> {
   try {
     const payload = config.getFormPayload(config.formModel, isEdit.value)
     const id = config.formModel.id
+    // 根据编辑状态选择更新或创建
     if (isEdit.value && id) {
       await config.submitUpdate(id, payload)
     } else {
@@ -1159,17 +1257,20 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
+// 弹窗关闭时重置表单
 function handleDialogClose(): void {
   formRef.value?.resetFields()
   resetCurrentForm()
   syncRouteQuery()
 }
 
+// 从路由参数中获取成果类型
 function getRouteType(): AchievementType {
   const type = Array.isArray(route.query.type) ? route.query.type[0] : route.query.type
   return achievementTypeOptions.some(item => item.value === type) ? (type as AchievementType) : 'paper'
 }
 
+// 监听路由参数变化，同步激活的成果类型
 const stopTypeWatcher = watch(
   () => route.query.type,
   () => {
@@ -1183,10 +1284,12 @@ const stopTypeWatcher = watch(
   }
 )
 
+// 页面加载时初始化数据
 onMounted(async () => {
   activeType.value = getRouteType()
   await fetchTableData()
   const action = Array.isArray(route.query.action) ? route.query.action[0] : route.query.action
+  // 如果URL带有action=add，则自动打开添加弹窗
   if (action === 'add') {
     handleAdd()
   } else {
@@ -1194,6 +1297,7 @@ onMounted(async () => {
   }
 })
 
+// 组件卸载时停止监听
 onUnmounted(() => {
   stopTypeWatcher()
 })

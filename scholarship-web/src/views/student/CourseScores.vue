@@ -105,6 +105,10 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 学生课程成绩页面
+ * 功能：查看个人课程成绩列表、按学年学期筛选、导入Excel成绩
+ */
 import { onMounted, reactive, ref } from 'vue'
 import type { UploadFile, UploadFiles } from 'element-plus'
 import { ElMessage } from 'element-plus'
@@ -119,14 +123,22 @@ import {
 
 defineOptions({ name: 'StudentCourseScores' })
 
+// 表格加载状态
 const loading = ref(false)
+// 导入操作loading状态
 const uploading = ref(false)
+// 防止分页大小切换时重复请求
 const sizeChangePending = ref(false)
+// 总记录数
 const total = ref(0)
+// 表格数据列表
 const tableData = ref<CourseScore[]>([])
+// 已选择的Excel文件
 const selectedFile = ref<File | null>(null)
+// 学年下拉选项
 const academicYearOptions = ref<Array<{ label: string; value: string }>>([])
 
+// 查询参数，包含分页和筛选条件
 const queryParams = reactive<CourseScorePageParams>({
   current: 1,
   size: 10,
@@ -135,14 +147,22 @@ const queryParams = reactive<CourseScorePageParams>({
   courseName: ''
 })
 
+/**
+ * 构建学年下拉选项
+ * 从后端返回的学年列表去重并降序排列
+ */
 function buildAcademicYearOptions(years: string[]): Array<{ label: string; value: string }> {
+  // 去重并过滤空值
   const values = Array.from(
     new Set(years.filter((value): value is string => Boolean(value)))
-  ).sort((a, b) => b.localeCompare(a, 'zh-CN'))
+  ).sort((a, b) => b.localeCompare(a, 'zh-CN')) // 降序排列，最新年份在前
 
   return values.map(value => ({ label: value, value }))
 }
 
+/**
+ * 加载学年下拉选项
+ */
 async function fetchAcademicYearOptions(): Promise<void> {
   try {
     const response = await getMyCourseScoreYears()
@@ -153,20 +173,29 @@ async function fetchAcademicYearOptions(): Promise<void> {
   }
 }
 
+// 格式化学期显示文本
 function formatSemester(value?: number): string {
   return value === undefined ? '-' : (COURSE_SCORE_SEMESTER_LABELS[value] || '-')
 }
 
+// 格式化课程性质显示文本
 function formatCourseType(value?: number): string {
   return value === undefined ? '-' : (COURSE_TYPE_LABELS[value] || '-')
 }
 
+/**
+ * 格式化成绩显示
+ * 优先显示文本成绩（如"合格"、"通过"），其次显示数值成绩，都没有则显示"-"
+ */
 function formatScoreDisplay(row: CourseScore): string {
   if (row.scoreText) return row.scoreText
   if (row.score !== undefined && row.score !== null) return String(row.score)
   return '-'
 }
 
+/**
+ * 获取课程成绩分页列表
+ */
 async function fetchTableData(): Promise<void> {
   loading.value = true
   try {
@@ -187,6 +216,7 @@ async function fetchTableData(): Promise<void> {
   }
 }
 
+// 重置筛选条件
 function handleReset(): void {
   queryParams.current = 1
   queryParams.academicYear = ''
@@ -195,11 +225,13 @@ function handleReset(): void {
   void fetchTableData()
 }
 
+// 点击查询按钮
 function handleSearch(): void {
   queryParams.current = 1
   void fetchTableData()
 }
 
+// 分页当前页变化处理
 function handlePageChange(_page: number): void {
   if (sizeChangePending.value) {
     sizeChangePending.value = false
@@ -208,21 +240,28 @@ function handlePageChange(_page: number): void {
   void fetchTableData()
 }
 
+// 分页大小变化处理
 function handleSizeChange(): void {
   sizeChangePending.value = true
   queryParams.current = 1
   void fetchTableData()
 }
 
+// Excel文件选择变化时记录文件
 function handleFileChange(uploadFile: UploadFile, uploadFiles: UploadFiles): void {
   const latestFile = uploadFile.raw || uploadFiles.at(-1)?.raw || null
   selectedFile.value = latestFile ?? null
 }
 
+// 移除已选文件时清空记录
 function handleFileRemove(): void {
   selectedFile.value = null
 }
 
+/**
+ * 执行成绩导入操作
+ * 将Excel文件上传到后端进行解析和导入
+ */
 async function handleImport(): Promise<void> {
   if (!selectedFile.value) {
     ElMessage.warning('请先选择 Excel 文件')
@@ -234,6 +273,7 @@ async function handleImport(): Promise<void> {
     const response = await importMyCourseScores(selectedFile.value)
     const importResult = extractApiData<CourseScoreImportResult>(response)
     ElMessage.success(importResult?.message || '成绩导入成功')
+    // 导入成功后清空文件并刷新数据
     selectedFile.value = null
     queryParams.current = 1
     await Promise.all([fetchAcademicYearOptions(), fetchTableData()])
@@ -245,6 +285,7 @@ async function handleImport(): Promise<void> {
   }
 }
 
+// 页面加载时并行获取学年选项和成绩列表
 onMounted(async () => {
   await Promise.allSettled([fetchAcademicYearOptions(), fetchTableData()])
 })

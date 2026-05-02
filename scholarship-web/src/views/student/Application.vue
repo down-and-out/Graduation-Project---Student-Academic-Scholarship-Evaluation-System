@@ -176,6 +176,10 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 学生奖学金申请页面
+ * 功能：查看当前批次信息、提交奖学金申请、选择关联的科研成果
+ */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -210,9 +214,12 @@ import {
   type BatchDisplayStatus
 } from '@/constants/application'
 
+// el-tag类型别名
 type TagType = 'primary' | 'success' | 'info' | 'warning' | 'danger'
+// 成果类型枚举：1论文 2专利 3项目 4竞赛
 type AchievementType = 1 | 2 | 3 | 4
 
+// 当前批次信息展示用数据结构
 interface BatchCardInfo {
   id: number | null
   name: string
@@ -224,6 +231,7 @@ interface BatchCardInfo {
   description: string
 }
 
+// 申请表单数据结构
 interface ApplicationForm {
   batchId: number | null
   selfEvaluation: string
@@ -231,24 +239,37 @@ interface ApplicationForm {
   agreed: boolean
 }
 
+// 成果类型ID选项值类型
 type AchievementTypeId = typeof ACHIEVEMENT_TYPE_ID_OPTIONS[number]['value']
+// 已选成果映射表，按类型分组存储成果ID列表
 type SelectedAchievementMap = Record<AchievementTypeId, number[]>
 
+// 所有成果类型枚举值列表
 const ALL_ACHIEVEMENT_TYPES = ACHIEVEMENT_TYPE_ID_OPTIONS.map(item => item.value as AchievementType)
 
+// 弹窗显示状态
 const dialogVisible = ref(false)
+// 提交按钮loading状态
 const submitting = ref(false)
+// 页面加载状态
 const loading = ref(false)
+// 是否为查看模式（查看模式下表单禁用）
 const isViewMode = ref(false)
+// 表单引用，用于验证
 const formRef = ref<FormInstance | null>(null)
+// 我的申请记录
 const myApplication = ref<Application | null>(null)
+// 申请详情数据（用于查看模式）
 const applicationDetail = ref<ApplicationDetail | null>(null)
+// 可用于申请的成果列表
 const availableAchievements = ref<ApplicationAchievementItem[]>([])
 
+// 已选成果ID映射，按成果类型分组（多选checkbox用）
 const selectedIds = reactive<SelectedAchievementMap>(
   Object.fromEntries(ACHIEVEMENT_TYPE_ID_OPTIONS.map(o => [o.value, []])) as SelectedAchievementMap
 )
 
+// 当前批次信息
 const batchInfo = ref<BatchCardInfo>({
   id: null,
   name: '',
@@ -260,6 +281,7 @@ const batchInfo = ref<BatchCardInfo>({
   description: ''
 })
 
+// 申请表单默认数据
 const formData = reactive<ApplicationForm>({
   batchId: null,
   selfEvaluation: '',
@@ -267,6 +289,7 @@ const formData = reactive<ApplicationForm>({
   agreed: false
 })
 
+// 表单验证规则：自我评价必填，10-1000字符
 const formRules: FormRules<ApplicationForm> = {
   selfEvaluation: [
     { required: true, message: '请输入自我评价', trigger: 'blur' },
@@ -274,10 +297,14 @@ const formRules: FormRules<ApplicationForm> = {
   ]
 }
 
+// 根据批次状态判断当前是否可以申请
 const canApply = computed(() => canApplyForBatch(batchInfo.value.status))
+// 判断是否已提交过申请
 const hasApplied = computed(() => myApplication.value !== null)
+// 弹窗标题动态计算
 const dialogTitle = computed(() => isViewMode.value ? '查看申请详情' : '提交申请')
 
+// 按成果类型分组展示可选成果，用于多选checkbox面板
 const achievementGroups = computed(() =>
   ALL_ACHIEVEMENT_TYPES.map(type => ({
     type,
@@ -286,11 +313,15 @@ const achievementGroups = computed(() =>
   }))
 )
 
+// 已选成果列表计算属性
+// 查看模式：直接使用后端返回的已关联成果
+// 编辑模式：根据selectedIds构建已选列表
 const selectedAchievements = computed<ApplicationAchievementItem[]>(() => {
   if (isViewMode.value) {
     return applicationDetail.value?.achievements || []
   }
 
+  // 将多维ID数组展平为唯一键集合，用于过滤
   const selectedKeySet = new Set(
     ALL_ACHIEVEMENT_TYPES.flatMap(type => selectedIds[type].map(id => `${type}-${id}`))
   )
@@ -300,19 +331,27 @@ const selectedAchievements = computed<ApplicationAchievementItem[]>(() => {
   )
 })
 
+// 获取成果类型对应的中文标签
 function getTypeLabel(type: number): string {
   return ACHIEVEMENT_TYPE_ID_LABELS[type as AchievementType] || '未知类型'
 }
 
+// 根据申请状态获取对应的流程步骤索引（用于el-steps组件）
 function getApplicationStep(status: number): number {
   return APPLICATION_STATUS_STEP_MAP[status] ?? 0
 }
 
+// 获取申请状态对应的el-tag类型
 function getApplicationTagType(status: number): TagType {
   return applicationStatusMapper.getType(status) as TagType
 }
 
+/**
+ * 规范化批次信息，用于UI展示
+ * 合并后端返回的多种字段名和状态值
+ */
 function normalizeBatchInfo(batch: EvaluationBatch): BatchCardInfo {
+  // 申请时间段格式化为 "开始日期 至 结束日期"
   const period = batch.startDate && batch.endDate
     ? `${batch.startDate} 至 ${batch.endDate}`
     : batch.startDate || batch.endDate || '-'
@@ -330,11 +369,16 @@ function normalizeBatchInfo(batch: EvaluationBatch): BatchCardInfo {
   }
 }
 
+/**
+ * 加载当前可申请的批次信息
+ * @returns 批次ID，null表示无可用批次
+ */
 async function loadBatchInfo(): Promise<number | null> {
   try {
     const response = await getAvailableBatches()
     const batches = extractApiData<EvaluationBatch[]>(response) || []
     if (!batches.length) {
+      // 无可用批次时显示空状态
       batchInfo.value = {
         id: null,
         name: '',
@@ -348,6 +392,7 @@ async function loadBatchInfo(): Promise<number | null> {
       return null
     }
 
+    // 默认取第一个可用批次
     batchInfo.value = normalizeBatchInfo(batches[0])
     return batchInfo.value.id
   } catch (error) {
@@ -358,6 +403,10 @@ async function loadBatchInfo(): Promise<number | null> {
   return null
 }
 
+/**
+ * 加载当前学生指定批次的申请记录
+ * 用于判断是否已申请以及显示已申请状态
+ */
 async function loadMyApplication(batchId: number | null): Promise<void> {
   if (batchId == null) {
     myApplication.value = null
@@ -367,6 +416,7 @@ async function loadMyApplication(batchId: number | null): Promise<void> {
   try {
     const response = await getApplicationPage({ current: 1, size: 1, batchId })
     const pageData = extractPageData<Application>(response)
+    // 只取最新一条申请记录
     myApplication.value = pageData?.records?.[0] || null
   } catch (error) {
     console.error('加载申请信息失败:', error)
@@ -375,6 +425,10 @@ async function loadMyApplication(batchId: number | null): Promise<void> {
   }
 }
 
+/**
+ * 加载可用于申请的科研成果列表
+ * 仅加载已通过导师审核的成果
+ */
 async function loadAvailableAchievements(): Promise<void> {
   try {
     const response = await getAvailableApplicationAchievements()
@@ -386,11 +440,18 @@ async function loadAvailableAchievements(): Promise<void> {
   }
 }
 
+/**
+ * 加载申请详情，用于查看模式展示
+ */
 async function loadApplicationDetail(applicationId: number): Promise<void> {
   const response = await getApplicationById(applicationId)
   applicationDetail.value = extractApiData<ApplicationDetail>(response)
 }
 
+/**
+ * 点击申请按钮
+ * 已申请过则打开查看弹窗，未申请则打开申请表单弹窗
+ */
 async function handleApply(): Promise<void> {
   if (hasApplied.value && myApplication.value?.id) {
     await handleViewApplication()
@@ -406,10 +467,14 @@ async function handleApply(): Promise<void> {
   dialogVisible.value = true
 }
 
+/**
+ * 查看已提交的申请详情
+ */
 async function handleViewApplication(): Promise<void> {
   if (!myApplication.value?.id) return
   try {
     await loadApplicationDetail(myApplication.value.id)
+    // 填充表单用于展示
     formData.selfEvaluation = applicationDetail.value?.selfEvaluation || ''
     formData.remark = applicationDetail.value?.remark || ''
     isViewMode.value = true
@@ -419,12 +484,18 @@ async function handleViewApplication(): Promise<void> {
   }
 }
 
+/**
+ * 提交奖学金申请
+ * 包含表单验证、成果关联、批次关联等
+ */
 async function handleSubmit(): Promise<void> {
+  // 已申请过则阻止重复提交
   if (hasApplied.value) {
     ElMessage.warning('您已提交过申请')
     return
   }
 
+  // 必须勾选申请声明
   if (!formData.agreed) {
     ElMessage.warning('请先阅读并同意申请声明')
     return
@@ -442,6 +513,7 @@ async function handleSubmit(): Promise<void> {
 
   submitting.value = true
   try {
+    // 将各类型成果ID转换为API期望的格式
     const achievements = ALL_ACHIEVEMENT_TYPES.flatMap(type =>
       selectedIds[type].map(id => ({
         achievementType: type,
@@ -468,12 +540,14 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
+// 重置所有成果类型的选择状态
 function resetSelections(): void {
   for (const key of Object.keys(selectedIds)) {
     selectedIds[Number(key) as AchievementTypeId] = []
   }
 }
 
+// 弹窗关闭时重置表单和状态
 function handleDialogClose(): void {
   formRef.value?.resetFields()
   formData.batchId = null
@@ -485,6 +559,10 @@ function handleDialogClose(): void {
   resetSelections()
 }
 
+/**
+ * 页面初始化
+ * 并行加载批次信息和我的申请记录
+ */
 async function initializePage(): Promise<void> {
   loading.value = true
   try {
