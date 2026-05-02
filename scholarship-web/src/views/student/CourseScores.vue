@@ -56,7 +56,7 @@
         <el-input v-model="queryParams.courseName" placeholder="请输入课程名称" clearable />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleQuery">查询</el-button>
+        <el-button type="primary" @click="handleSearch">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
@@ -99,7 +99,7 @@
       layout="total, sizes, prev, pager, next, jumper"
       class="pagination"
       @size-change="handleSizeChange"
-      @current-change="handleQuery"
+      @current-change="handlePageChange"
     />
   </div>
 </template>
@@ -121,6 +121,7 @@ defineOptions({ name: 'StudentCourseScores' })
 
 const loading = ref(false)
 const uploading = ref(false)
+const sizeChangePending = ref(false)
 const total = ref(0)
 const tableData = ref<CourseScore[]>([])
 const selectedFile = ref<File | null>(null)
@@ -194,12 +195,21 @@ function handleReset(): void {
   void fetchTableData()
 }
 
-function handleQuery(page?: number | Event): void {
-  queryParams.current = typeof page === 'number' ? page : 1
+function handleSearch(): void {
+  queryParams.current = 1
+  void fetchTableData()
+}
+
+function handlePageChange(_page: number): void {
+  if (sizeChangePending.value) {
+    sizeChangePending.value = false
+    return
+  }
   void fetchTableData()
 }
 
 function handleSizeChange(): void {
+  sizeChangePending.value = true
   queryParams.current = 1
   void fetchTableData()
 }

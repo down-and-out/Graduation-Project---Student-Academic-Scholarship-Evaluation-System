@@ -33,7 +33,7 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleQuery">查询</el-button>
+        <el-button type="primary" @click="handleSearch">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
@@ -150,7 +150,7 @@
       layout="total, sizes, prev, pager, next, jumper"
       class="pagination"
       @size-change="handleSizeChange"
-      @current-change="handleQuery"
+      @current-change="handlePageChange"
     />
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="700px" @close="handleDialogClose">
@@ -551,6 +551,7 @@ const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
+const sizeChangePending = ref(false)
 const total = ref(0)
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
@@ -926,8 +927,16 @@ function handleTypeChange(name: string | number) {
   void fetchTableData()
 }
 
-function handleQuery(page?: number | Event): void {
-  queryParams.current = typeof page === 'number' ? page : 1
+function handleSearch(): void {
+  queryParams.current = 1
+  void fetchTableData()
+}
+
+function handlePageChange(_page: number): void {
+  if (sizeChangePending.value) {
+    sizeChangePending.value = false
+    return
+  }
   void fetchTableData()
 }
 
@@ -938,6 +947,7 @@ function handleReset(): void {
 }
 
 function handleSizeChange(): void {
+  sizeChangePending.value = true
   queryParams.current = 1
   void fetchTableData()
 }
@@ -963,11 +973,11 @@ interface DetailField {
 }
 
 interface TypeFieldMapping {
-  formModel: Record<string, any>
-  extractEditFields: (row: Record<string, any>) => Record<string, any>
-  getFormPayload: (form: Record<string, any>, isEdit: boolean) => Record<string, any>
-  submitCreate: (payload: any) => Promise<any>
-  submitUpdate: (id: number, payload: any) => Promise<any>
+  formModel?: Record<string, any>
+  extractEditFields?: (row: Record<string, any>) => Record<string, any>
+  getFormPayload?: (form: Record<string, any>, isEdit: boolean) => Record<string, any>
+  submitCreate?: (payload: any) => Promise<any>
+  submitUpdate?: (id: number, payload: any) => Promise<any>
   detailFields: DetailField[]
 }
 
@@ -1055,42 +1065,6 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
     ]
   },
   project: {
-    formModel: projectForm,
-    extractEditFields: (row) => ({
-      id: row.id ?? null,
-      projectName: row.projectName || '',
-      projectType: row.projectType || 1,
-      projectLevel: row.projectLevel ?? 1,
-      projectNo: row.projectNo || '',
-      projectSource: row.projectSource || '',
-      leaderName: row.leaderName || '',
-      memberRank: row.memberRank ?? 1,
-      projectRole: row.projectRole ?? 1,
-      participants: row.participants || '',
-      startDate: row.startDate || '',
-      endDate: row.endDate || '',
-      funding: row.funding ?? null,
-      projectStatus: row.projectStatus ?? 1,
-      remark: row.remark || ''
-    }),
-    getFormPayload: (form, isEdit) => ({
-      projectName: form.projectName,
-      projectType: form.projectType,
-      projectLevel: form.projectLevel ?? undefined,
-      projectNo: form.projectNo || undefined,
-      projectSource: form.projectSource || undefined,
-      leaderName: form.leaderName || undefined,
-      memberRank: form.memberRank ?? undefined,
-      projectRole: form.projectRole ?? undefined,
-      participants: form.participants || undefined,
-      startDate: form.startDate || undefined,
-      endDate: form.endDate || undefined,
-      funding: form.funding ?? undefined,
-      projectStatus: form.projectStatus ?? undefined,
-      remark: form.remark || undefined
-    }),
-    submitCreate: () => Promise.reject(new Error('Current type is read-only for students')),
-    submitUpdate: () => Promise.reject(new Error('Current type is read-only for students')),
     detailFields: [
       { label: '项目名称', span: 2, value: (row) => row.projectName || '-' },
       { label: '项目类型', value: (row) => getProjectTypeLabel(row.projectType) },
@@ -1111,38 +1085,6 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
     ]
   },
   competition: {
-    formModel: competitionForm,
-    extractEditFields: (row) => ({
-      id: row.id ?? null,
-      competitionName: row.competitionName || '',
-      competitionLevel: row.competitionLevel ?? 1,
-      awardLevel: row.awardLevel ?? 2,
-      awardRank: row.awardRank ?? 1,
-      awardType: row.awardType ?? 1,
-      memberRank: row.memberRank ?? 1,
-      instructor: row.instructor || '',
-      issuingUnit: row.issuingUnit || '',
-      organizer: row.organizer || '',
-      teamMembers: row.teamMembers || '',
-      awardDate: row.awardDate || '',
-      remark: row.remark || ''
-    }),
-    getFormPayload: (form, isEdit) => ({
-      competitionName: form.competitionName,
-      competitionLevel: form.competitionLevel ?? undefined,
-      awardLevel: form.awardLevel ?? undefined,
-      awardRank: form.awardRank ?? undefined,
-      awardType: form.awardType ?? undefined,
-      memberRank: form.memberRank ?? undefined,
-      instructor: form.instructor || undefined,
-      issuingUnit: form.issuingUnit || undefined,
-      organizer: form.organizer || undefined,
-      teamMembers: form.teamMembers || undefined,
-      awardDate: form.awardDate || undefined,
-      remark: form.remark || undefined
-    }),
-    submitCreate: () => Promise.reject(new Error('Current type is read-only for students')),
-    submitUpdate: () => Promise.reject(new Error('Current type is read-only for students')),
     detailFields: [
       { label: '竞赛名称', span: 2, value: (row) => row.competitionName || '-' },
       { label: '竞赛级别', value: (row) => getCompetitionLevelLabel(row.competitionLevel) },
@@ -1169,7 +1111,7 @@ const detailFields = computed<DetailField[]>(() =>
 function handleEdit(row: AchievementRow): void {
   if (!isTypeEditable.value) return
   const config = TYPE_FIELD_CONFIG[activeType.value as 'paper' | 'patent']
-  if (!config) return
+  if (!config || !config.formModel || !config.extractEditFields) return
   isEdit.value = true
   Object.assign(config.formModel, config.extractEditFields(row as Record<string, any>))
   formRef.value?.clearValidate()
@@ -1204,7 +1146,7 @@ async function handleSubmit(): Promise<void> {
   if (!valid) return
 
   const config = TYPE_FIELD_CONFIG[activeType.value as 'paper' | 'patent']
-  if (!config) return
+  if (!config || !config.formModel || !config.getFormPayload || !config.submitCreate || !config.submitUpdate) return
 
   saving.value = true
   try {
