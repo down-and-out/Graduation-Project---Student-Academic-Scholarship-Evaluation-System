@@ -44,6 +44,7 @@ export interface TutorStudent {
   paperCount?: number
   patentCount?: number
   projectCount?: number
+  competitionCount?: number
 }
 
 /**
@@ -187,9 +188,21 @@ export function deleteStudent(id: number): Promise<API.Response<null>> {
   })
 }
 
+/**
+ * 获取导师名下学生年级列表
+ * @returns 去重后的年级列表，按年份倒序排列
+ */
+export function getTutorGrades(): Promise<API.Response<string[]>> {
+  return request({
+    url: '/student-info/tutor/grades',
+    method: 'get'
+  })
+}
+
 export default {
   getStudentPage,
   getTutorStudentPage,
+  getTutorGrades,
   getMyInfo,
   getStudentById,
   addStudent,

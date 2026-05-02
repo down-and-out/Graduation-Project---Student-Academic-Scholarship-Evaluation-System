@@ -48,4 +48,7 @@ public class TutorStudentVO {
 
     @Schema(description = "项目数量")
     private Integer projectCount;
+
+    @Schema(description = "竞赛数量")
+    private Integer competitionCount;
 }

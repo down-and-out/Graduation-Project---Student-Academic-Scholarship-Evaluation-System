@@ -73,14 +73,17 @@
       <div class="statistics-section">
         <h4>科研成果统计</h4>
         <el-row :gutter="20">
-          <el-col :span="8">
+          <el-col :span="6">
             <el-statistic title="论文数量" :value="currentRow.paperCount || 0" />
           </el-col>
-          <el-col :span="8">
+          <el-col :span="6">
             <el-statistic title="专利数量" :value="currentRow.patentCount || 0" />
           </el-col>
-          <el-col :span="8">
+          <el-col :span="6">
             <el-statistic title="项目数量" :value="currentRow.projectCount || 0" />
+          </el-col>
+          <el-col :span="6">
+            <el-statistic title="竞赛数量" :value="currentRow.competitionCount || 0" />
           </el-col>
         </el-row>
       </div>
@@ -97,19 +100,24 @@
       </el-descriptions>
 
       <el-row :gutter="16" class="achievement-cards">
-        <el-col :span="8">
+        <el-col :span="6">
           <el-card shadow="never">
             <el-statistic title="论文" :value="currentRow.paperCount || 0" />
           </el-card>
         </el-col>
-        <el-col :span="8">
+        <el-col :span="6">
           <el-card shadow="never">
             <el-statistic title="专利" :value="currentRow.patentCount || 0" />
           </el-card>
         </el-col>
-        <el-col :span="8">
+        <el-col :span="6">
           <el-card shadow="never">
             <el-statistic title="项目" :value="currentRow.projectCount || 0" />
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="never">
+            <el-statistic title="竞赛" :value="currentRow.competitionCount || 0" />
           </el-card>
         </el-col>
       </el-row>
@@ -123,14 +131,11 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getTutorStudentPage } from '@/api/student'
+import { getTutorStudentPage, getTutorGrades } from '@/api/student'
 import { GENDER_TEXT_MAP } from '@/constants/user'
-import { LARGE_QUERY_SIZE } from '@/constants'
 import { isRequestCanceled } from '@/utils/helpers'
 
 defineOptions({ name: 'TutorStudents' })
-
-const GRADE_FALLBACK_COUNT = 10
 
 const loading = ref(false)
 const tableData = ref([])
@@ -147,62 +152,22 @@ const queryParams = reactive({
   grade: undefined
 })
 
+/** 归一化年级值，用于 handleQuery 中确保传给后端的 grade 参数为纯字符串 */
 function normalizeGradeValue(value) {
   if (value === undefined || value === null) return undefined
   const normalized = String(value).trim()
   return normalized || undefined
 }
 
-function compareGradeValues(a, b) {
-  const aNum = Number(a)
-  const bNum = Number(b)
-  const aIsNumeric = !Number.isNaN(aNum)
-  const bIsNumeric = !Number.isNaN(bNum)
-
-  if (aIsNumeric && bIsNumeric) {
-    return bNum - aNum
-  }
-
-  return String(b).localeCompare(String(a), 'zh-CN')
-}
-
-function buildFallbackGradeOptions() {
-  const currentYear = new Date().getFullYear()
-  return Array.from({ length: GRADE_FALLBACK_COUNT }, (_, index) => {
-    const year = String(currentYear - index)
-    return { label: year, value: year }
-  })
-}
-
-function buildGradeOptions(records = []) {
-  const gradeSet = new Set()
-
-  records.forEach(record => {
-    const normalized = normalizeGradeValue(record?.grade)
-    if (normalized) {
-      gradeSet.add(normalized)
-    }
-  })
-
-  const gradeValues = Array.from(gradeSet).sort(compareGradeValues)
-  if (gradeValues.length === 0) {
-    return buildFallbackGradeOptions()
-  }
-
-  return gradeValues.map(value => ({ label: value, value }))
-}
-
+/** 通过专用后端接口获取导师名下学生的去重年级列表 */
 async function fetchGradeOptions() {
   try {
-    const res = await getTutorStudentPage({
-      current: 1,
-      size: LARGE_QUERY_SIZE
-    })
-    const records = res.data?.data?.records || []
-    gradeOptions.value = buildGradeOptions(records)
+    const res = await getTutorGrades()
+    const grades = res.data?.data || []
+    gradeOptions.value = grades.map(value => ({ label: value, value }))
   } catch (error) {
     console.error('加载导师学生年级选项失败:', error)
-    gradeOptions.value = buildFallbackGradeOptions()
+    gradeOptions.value = []
   }
 }
 
