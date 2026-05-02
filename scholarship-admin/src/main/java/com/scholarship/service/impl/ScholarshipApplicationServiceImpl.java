@@ -93,18 +93,14 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
     private final StudentInfoMapper studentInfoMapper;
 
     @Override
-    @Cacheable(value = CacheConstants.APP_PAGE,
-            key = "T(com.scholarship.common.support.CacheConstants).appPageKey(#current, #size, #batchId, #studentId, #status)",
-            unless = "#result == null || #result.records == null || #result.records.isEmpty()")
-    public IPage<ScholarshipApplication> pageApplications(Long current, Long size, Long batchId, Long studentId, Integer status) {
+    public IPage<ScholarshipApplication> pageApplications(Long current, Long size, Long batchId, Long studentId, Integer status, LoginUser loginUser) {
         CursorPageHelper.validateOffset(current, size, scholarshipProperties.getEvaluation().getMaxOffsetRows());
         Page<ScholarshipApplication> page = new Page<>(current, size);
         LambdaQueryWrapper<ScholarshipApplication> wrapper = new LambdaQueryWrapper<>();
+        // 根据角色进行数据域裁剪：admin全量、student仅自己、tutor仅名下学生
+        DataScopeHelper.applyDataScope(wrapper, studentId, loginUser, ScholarshipApplication::getStudentId, studentInfoMapper);
         if (batchId != null) {
             wrapper.eq(ScholarshipApplication::getBatchId, batchId);
-        }
-        if (studentId != null) {
-            wrapper.eq(ScholarshipApplication::getStudentId, studentId);
         }
         if (status != null) {
             wrapper.eq(ScholarshipApplication::getStatus, status);
@@ -400,7 +396,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
         }
         return researchPaperMapper.selectList(new LambdaQueryWrapper<ResearchPaper>()
                         .eq(ResearchPaper::getStudentId, studentId)
-                        .eq(ResearchPaper::getStatus, APPROVED_STATUS)
+                        .in(ResearchPaper::getStatus, ResearchPaper.PASSED_STATUSES)
                         .in(ResearchPaper::getId, ids))
                 .stream()
                 .collect(Collectors.toMap(ResearchPaper::getId, Function.identity(), (a, b) -> a));
@@ -456,7 +452,7 @@ public class ScholarshipApplicationServiceImpl extends ServiceImpl<ScholarshipAp
     private List<ResearchPaper> loadAvailablePapers(Long studentId) {
         return researchPaperMapper.selectList(new LambdaQueryWrapper<ResearchPaper>()
                 .eq(ResearchPaper::getStudentId, studentId)
-                .eq(ResearchPaper::getStatus, APPROVED_STATUS)
+                .in(ResearchPaper::getStatus, ResearchPaper.PASSED_STATUSES)
                 .orderByDesc(ResearchPaper::getCreateTime));
     }
 

@@ -72,6 +72,7 @@ public class StudentInfoController {
      * @return 分页后的研究生信息列表
      */
     @GetMapping("/page")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "分页查询研究生信息", description = "支持按关键字、院系、入学年份、学籍状态筛选")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "查询成功")
@@ -119,6 +120,20 @@ public class StudentInfoController {
     }
 
     /**
+     * 获取导师名下学生年级列表
+     * 返回当前导师名下学生的去重年级列表，按年份倒序排列
+     *
+     * @param loginUser 当前登录导师
+     * @return 去重后的年级列表
+     */
+    @GetMapping("/tutor/grades")
+    @PreAuthorize("hasRole('ROLE_TUTOR')")
+    @Operation(summary = "获取导师名下学生年级列表", description = "返回当前导师名下学生的去重年级列表，按年份倒序")
+    public Result<List<String>> getTutorGrades(@AuthenticationPrincipal LoginUser loginUser) {
+        return Result.success(studentInfoService.listTutorGrades(loginUser.getUserId()));
+    }
+
+    /**
      * 获取当前登录学生的学籍信息
      * 如果有导师，同时返回导师姓名
      *
@@ -126,6 +141,7 @@ public class StudentInfoController {
      * @return 学生学籍信息
      */
     @GetMapping("/my")
+    @PreAuthorize("hasRole('ROLE_STUDENT')")
     @Operation(summary = "获取当前学生信息", description = "获取当前登录研究生的学籍信息")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "获取成功"),
@@ -149,19 +165,23 @@ public class StudentInfoController {
     }
 
     /**
-     * 根据 ID 获取学生信息
+     * 根据 ID 获取学生信息（带权限校验）
+     * admin/student/tutor 均可访问，但数据域受角色限制
      *
-     * @param id 学生ID
+     * @param id        学生ID
+     * @param loginUser 当前登录用户
      * @return 学生信息
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ROLE_STUDENT','ROLE_TUTOR','ROLE_ADMIN')")
     @Operation(summary = "根据 ID 获取学生信息")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "获取成功"),
             @ApiResponse(responseCode = "404", description = "学生信息不存在")
     })
-    public Result<StudentInfo> getById(@PathVariable Long id) {
-        StudentInfo studentInfo = studentInfoService.getById(id);
+    public Result<StudentInfo> getById(@PathVariable Long id,
+                                       @AuthenticationPrincipal LoginUser loginUser) {
+        StudentInfo studentInfo = studentInfoService.getStudentDetailById(id, loginUser);
         if (studentInfo == null) {
             return Result.error("学生信息不存在");
         }

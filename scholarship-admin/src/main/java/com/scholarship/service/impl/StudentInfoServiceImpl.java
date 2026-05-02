@@ -4,10 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.scholarship.common.util.DataScopeHelper;
 import com.scholarship.entity.StudentInfo;
 import com.scholarship.entity.SysUser;
 import com.scholarship.mapper.StudentInfoMapper;
 import com.scholarship.mapper.SysUserMapper;
+import com.scholarship.security.LoginUser;
+import com.scholarship.service.CompetitionAwardService;
 import com.scholarship.service.ResearchPaperService;
 import com.scholarship.service.ResearchPatentService;
 import com.scholarship.service.ResearchProjectService;
@@ -48,19 +51,22 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
     private final ResearchPaperService researchPaperService;
     private final ResearchPatentService researchPatentService;
     private final ResearchProjectService researchProjectService;
+    private final CompetitionAwardService competitionAwardService;
 
     public StudentInfoServiceImpl(
             StudentInfoMapper studentInfoMapper,
             SysUserMapper sysUserMapper,
             ResearchPaperService researchPaperService,
             ResearchPatentService researchPatentService,
-            ResearchProjectService researchProjectService
+            ResearchProjectService researchProjectService,
+            CompetitionAwardService competitionAwardService
     ) {
         this.studentInfoMapper = studentInfoMapper;
         this.sysUserMapper = sysUserMapper;
         this.researchPaperService = researchPaperService;
         this.researchPatentService = researchPatentService;
         this.researchProjectService = researchProjectService;
+        this.competitionAwardService = competitionAwardService;
     }
 
     /**
@@ -167,6 +173,9 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().size()));
         Map<Long, Integer> projectCountMap = researchProjectService.mapByStudentIds(studentIds).entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().size()));
+        // 竞赛数量统计（复用 CompetitionAwardService.mapByStudentIds，过滤 auditStatus=1）
+        Map<Long, Integer> competitionCountMap = competitionAwardService.mapByStudentIds(studentIds).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().size()));
 
         // 组装 VO
         List<TutorStudentVO> records = new ArrayList<>();
@@ -185,11 +194,45 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
             vo.setPaperCount(paperCountMap.getOrDefault(student.getId(), 0));
             vo.setPatentCount(patentCountMap.getOrDefault(student.getId(), 0));
             vo.setProjectCount(projectCountMap.getOrDefault(student.getId(), 0));
+            vo.setCompetitionCount(competitionCountMap.getOrDefault(student.getId(), 0));
             records.add(vo);
         }
 
         resultPage.setRecords(records);
         return resultPage;
+    }
+
+    /**
+     * 根据学生ID获取详情（带权限校验和导师姓名填充）
+     *
+     * admin：直接放行
+     * student：仅能查看自己的信息
+     * tutor：仅能查看自己名下学生的信息
+     *
+     * @param id        学生ID
+     * @param loginUser 当前登录用户
+     * @return 学生信息（含导师姓名），不存在返回 null
+     */
+    @Override
+    public StudentInfo getStudentDetailById(Long id, LoginUser loginUser) {
+        // 1. 查询学生信息
+        StudentInfo studentInfo = getById(id);
+        if (studentInfo == null) {
+            return null;
+        }
+
+        // 2. 权限校验：统一使用 DataScopeHelper 消除重复逻辑，同时覆盖未知角色兜底和空值防御
+        DataScopeHelper.ensureReadable(id, loginUser, "学生信息", studentInfoMapper);
+
+        // 3. 如果有导师，填充导师姓名
+        if (studentInfo.getTutorId() != null) {
+            SysUser tutor = sysUserMapper.selectById(studentInfo.getTutorId());
+            if (tutor != null) {
+                studentInfo.setTutorName(tutor.getRealName());
+            }
+        }
+
+        return studentInfo;
     }
 
     /**
@@ -204,6 +247,28 @@ public class StudentInfoServiceImpl extends ServiceImpl<StudentInfoMapper, Stude
 
         String normalized = enrollmentYear.trim();
         return normalized.length() == 4 && StringUtils.isNumeric(normalized) ? normalized : null;
+    }
+
+    /**
+     * 获取当前导师名下学生的去重年级列表
+     * 通过 database-level groupBy 去重，避免拉取全量数据到应用层
+     *
+     * @param tutorUserId 导师用户ID
+     * @return 去重后的年级列表（入学年份字符串），按年份倒序排列
+     */
+    @Override
+    public List<String> listTutorGrades(Long tutorUserId) {
+        List<StudentInfo> students = list(new LambdaQueryWrapper<StudentInfo>()
+                .select(StudentInfo::getEnrollmentYear)
+                .eq(StudentInfo::getTutorId, tutorUserId)
+                .isNotNull(StudentInfo::getEnrollmentYear)
+                .groupBy(StudentInfo::getEnrollmentYear)
+                .orderByDesc(StudentInfo::getEnrollmentYear));
+
+        return students.stream()
+                .map(s -> String.valueOf(s.getEnrollmentYear()))
+                .distinct()
+                .toList();
     }
 
     /**

@@ -16,7 +16,7 @@ import java.util.List;
  */
 public interface ScholarshipApplicationService extends IService<ScholarshipApplication> {
 
-    IPage<ScholarshipApplication> pageApplications(Long current, Long size, Long batchId, Long studentId, Integer status);
+    IPage<ScholarshipApplication> pageApplications(Long current, Long size, Long batchId, Long studentId, Integer status, LoginUser loginUser);
 
     List<ScholarshipApplication> listApprovedBatchPage(Long batchId, Long lastId, Long size);
 

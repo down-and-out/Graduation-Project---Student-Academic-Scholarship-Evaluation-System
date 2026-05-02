@@ -98,4 +98,13 @@ public interface ResearchPaperService extends IService<ResearchPaper> {
     long countByStudentId(Long studentId);
 
     long countOwnedByStudentId(Long studentId);
+
+    /**
+     * 按角色数据边界获取论文详情（带数据范围校验）
+     *
+     * @param id        论文 ID
+     * @param loginUser 当前登录用户
+     * @return 论文实体，不存在或无权限时返回 null 或抛异常
+     */
+    ResearchPaper getPaperById(Long id, LoginUser loginUser);
 }
