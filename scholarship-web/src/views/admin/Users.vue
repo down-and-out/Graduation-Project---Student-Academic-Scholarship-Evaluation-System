@@ -1,4 +1,9 @@
+<!--
+  管理员 - 用户管理页面
+  功能：用户CRUD、批量删除、按角色/院系/状态筛选
+-->
 <template>
+  <!-- 页面头部：标题 + 添加用户按钮 -->
   <div class="users-page">
     <div class="page-header">
       <h2 class="page-title">用户管理</h2>
@@ -8,7 +13,9 @@
       </el-button>
     </div>
 
+    <!-- 搜索表单：关键词、角色、院系、状态筛选 -->
     <el-form :inline="true" class="search-form">
+      <!-- 关键词搜索：用户名或姓名 -->
       <el-form-item label="关键词">
         <el-input
           v-model="queryParams.keyword"
@@ -18,11 +25,13 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
+      <!-- 角色筛选：学生/导师/管理员 -->
       <el-form-item label="角色">
         <el-select v-model="queryParams.userType" placeholder="请选择" multiple clearable>
           <el-option v-for="opt in ROLE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
+      <!-- 院系筛选（支持多选） -->
       <el-form-item label="院系">
         <el-select
           v-model="queryParams.department"
@@ -35,17 +44,20 @@
           <el-option v-for="opt in departmentOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
+      <!-- 状态筛选：启用/禁用 -->
       <el-form-item label="状态">
         <el-select v-model="queryParams.status" placeholder="请选择" multiple clearable>
           <el-option v-for="opt in USER_STATUS_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
+      <!-- 查询、重置按钮 -->
       <el-form-item>
         <el-button type="primary" @click="handleQuery">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
 
+    <!-- 批量操作工具栏：当选中多项时显示 -->
     <div v-if="selectedRows.length > 0" class="batch-toolbar">
       <span class="batch-info">已选择 {{ selectedRows.length }} 项</span>
       <el-button type="danger" size="small" :loading="batchDeleting" @click="handleBatchDelete">
@@ -54,6 +66,7 @@
       </el-button>
     </div>
 
+    <!-- 用户数据表格 -->
     <el-table
       ref="selectionRef"
       v-loading="loading"
@@ -64,14 +77,19 @@
       style="width: 100%"
       @selection-change="handleSelectionChange"
     >
+      <!-- 多选框列 -->
       <el-table-column type="selection" width="55" />
+      <!-- 序号列 -->
       <el-table-column type="index" label="序号" width="60" />
+      <!-- 用户名列 -->
       <el-table-column prop="username" label="用户名" width="140" />
+      <!-- 姓名列（兼容 realName 和 name 两种字段名） -->
       <el-table-column prop="realName" label="姓名" width="120">
         <template #default="{ row }">
           {{ row.realName || row.name }}
         </template>
       </el-table-column>
+      <!-- 角色列：以标签形式展示 -->
       <el-table-column prop="userType" label="角色" width="100">
         <template #default="{ row }">
           <el-tag :type="getUserTypeTagType(row.userType)">
@@ -79,9 +97,13 @@
           </el-tag>
         </template>
       </el-table-column>
+      <!-- 院系列 -->
       <el-table-column prop="department" label="院系" width="160" />
+      <!-- 联系电话列 -->
       <el-table-column prop="phone" label="联系电话" width="140" />
+      <!-- 邮箱列（最小宽度自适应） -->
       <el-table-column prop="email" label="邮箱" min-width="200" />
+      <!-- 状态列：以标签形式展示 -->
       <el-table-column prop="status" label="状态" width="90">
         <template #default="{ row }">
           <el-tag :type="getUserStatusTagType(row.status)">
@@ -89,11 +111,13 @@
           </el-tag>
         </template>
       </el-table-column>
+      <!-- 创建时间列 -->
       <el-table-column prop="createTime" label="创建时间" width="180">
         <template #default="{ row }">
           {{ formatDateTime(row.createTime) }}
         </template>
       </el-table-column>
+      <!-- 操作列：查看、编辑、重置密码、删除 -->
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handleView(row)">
@@ -116,6 +140,7 @@
       </el-table-column>
     </el-table>
 
+    <!-- 分页组件 -->
     <el-pagination
       v-model:current-page="queryParams.current"
       v-model:page-size="queryParams.size"
@@ -127,9 +152,11 @@
       @current-change="handleCurrentChange"
     />
 
+    <!-- 添加/编辑用户对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="760px" @close="handleDialogClose">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
+          <!-- 用户名（编辑时禁用） -->
           <el-col :span="12">
             <el-form-item label="用户名" prop="username">
               <el-input
@@ -139,6 +166,7 @@
               />
             </el-form-item>
           </el-col>
+          <!-- 姓名 -->
           <el-col :span="12">
             <el-form-item label="姓名" prop="realName">
               <el-input v-model="formData.realName" placeholder="请输入姓名" />
@@ -147,6 +175,7 @@
         </el-row>
 
         <el-row :gutter="20">
+          <!-- 角色选择 -->
           <el-col :span="12">
             <el-form-item label="角色" prop="userType">
               <el-select v-model="formData.userType" style="width: 100%">
@@ -154,6 +183,7 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <!-- 院系 -->
           <el-col :span="12">
             <el-form-item label="院系" prop="department">
               <el-input v-model="formData.department" placeholder="请输入院系" />
@@ -161,13 +191,16 @@
           </el-col>
         </el-row>
 
+        <!-- 仅当用户类型为学生时，显示学籍相关信息 -->
         <template v-if="isStudentUserType(formData.userType)">
           <el-row :gutter="20">
+            <!-- 学号 -->
             <el-col :span="12">
               <el-form-item label="学号" prop="studentNo">
                 <el-input v-model="formData.studentNo" placeholder="请输入学号" />
               </el-form-item>
             </el-col>
+            <!-- 性别 -->
             <el-col :span="12">
               <el-form-item label="性别" prop="gender">
                 <el-select v-model="formData.gender" style="width: 100%" placeholder="请选择性别">
@@ -178,6 +211,7 @@
           </el-row>
 
           <el-row :gutter="20">
+            <!-- 入学年份 -->
             <el-col :span="12">
               <el-form-item label="入学年份" prop="enrollmentYear">
                 <el-select v-model="formData.enrollmentYear" style="width: 100%" placeholder="请选择入学年份">
@@ -185,6 +219,7 @@
                 </el-select>
               </el-form-item>
             </el-col>
+            <!-- 学历层次 -->
             <el-col :span="12">
               <el-form-item label="学历层次" prop="educationLevel">
                 <el-select v-model="formData.educationLevel" style="width: 100%" placeholder="请选择学历层次">
@@ -200,6 +235,7 @@
           </el-row>
 
           <el-row :gutter="20">
+            <!-- 培养方式 -->
             <el-col :span="12">
               <el-form-item label="培养方式" prop="trainingMode">
                 <el-select v-model="formData.trainingMode" style="width: 100%" placeholder="请选择培养方式">
@@ -212,6 +248,7 @@
                 </el-select>
               </el-form-item>
             </el-col>
+            <!-- 学籍状态 -->
             <el-col :span="12">
               <el-form-item label="学籍状态" prop="studentStatus">
                 <el-select v-model="formData.studentStatus" style="width: 100%" placeholder="请选择学籍状态">
@@ -227,11 +264,13 @@
           </el-row>
 
           <el-row :gutter="20">
+            <!-- 专业 -->
             <el-col :span="12">
               <el-form-item label="专业" prop="major">
                 <el-input v-model="formData.major" placeholder="请输入专业" />
               </el-form-item>
             </el-col>
+            <!-- 身份证号 -->
             <el-col :span="12">
               <el-form-item label="身份证号" prop="idCard">
                 <el-input v-model="formData.idCard" placeholder="请输入身份证号" />
@@ -240,11 +279,13 @@
           </el-row>
 
           <el-row :gutter="20">
+            <!-- 籍贯 -->
             <el-col :span="12">
               <el-form-item label="籍贯" prop="nativePlace">
                 <el-input v-model="formData.nativePlace" placeholder="请输入籍贯" />
               </el-form-item>
             </el-col>
+            <!-- 家庭住址 -->
             <el-col :span="12">
               <el-form-item label="家庭住址" prop="address">
                 <el-input v-model="formData.address" placeholder="请输入家庭住址" />
@@ -254,11 +295,13 @@
         </template>
 
         <el-row :gutter="20">
+          <!-- 联系电话 -->
           <el-col :span="12">
             <el-form-item label="联系电话" prop="phone">
               <el-input v-model="formData.phone" placeholder="请输入手机号" />
             </el-form-item>
           </el-col>
+          <!-- 邮箱 -->
           <el-col :span="12">
             <el-form-item label="邮箱" prop="email">
               <el-input v-model="formData.email" placeholder="请输入邮箱" />
@@ -266,6 +309,7 @@
           </el-col>
         </el-row>
 
+        <!-- 状态：启用/禁用 -->
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="formData.status">
             <el-radio :value="USER_STATUS.ENABLED">启用</el-radio>
@@ -280,6 +324,7 @@
       </template>
     </el-dialog>
 
+    <!-- 用户详情查看对话框（只读） -->
     <el-dialog v-model="viewDialogVisible" title="用户详情" width="700px">
       <el-descriptions v-if="viewData" :column="2" border>
         <el-descriptions-item label="用户 ID">{{ viewData.id }}</el-descriptions-item>
@@ -309,6 +354,15 @@
 </template>
 
 <script setup>
+/**
+ * 用户管理页面
+ * 功能：
+ * - 分页查询用户列表（支持关键词、角色、院系、状态筛选）
+ * - 添加用户 / 编辑用户信息
+ * - 重置用户密码（恢复为系统默认密码）
+ * - 删除用户 / 批量删除用户
+ * - 查看用户详情
+ */
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Plus, RefreshLeft, View } from '@element-plus/icons-vue'
@@ -332,34 +386,54 @@ import { LARGE_QUERY_SIZE } from '@/constants'
 
 defineOptions({ name: 'AdminUsers' })
 
+// 入学年份范围：当前年份往前10年
 const ENROLLMENT_YEAR_RANGE = 10
 const currentYear = new Date().getFullYear()
 const enrollmentYearOptions = ref(Array.from({ length: ENROLLMENT_YEAR_RANGE }, (_, index) => currentYear - index))
 
+/**
+ * 判断用户类型是否为学生
+ * @param userType 用户类型枚举值
+ */
 function isStudentUserType(userType) {
   return Number(userType) === USER_TYPE.STUDENT
 }
 
+/**
+ * 获取用户类型的显示文本
+ */
 function getUserTypeText(userType) {
   if (userType === undefined || userType === null || userType === '') return ''
   return USER_TYPE_MAP[userType]?.text || '未知'
 }
 
+/**
+ * 获取用户类型的标签颜色类型
+ */
 function getUserTypeTagType(userType) {
   if (userType === undefined || userType === null || userType === '') return ''
   return USER_TYPE_MAP[userType]?.type || ''
 }
 
+/**
+ * 获取用户状态的显示文本
+ */
 function getUserStatusText(status) {
   if (status === undefined || status === null || status === '') return ''
   return USER_STATUS_MAP[status]?.text || '未知'
 }
 
+/**
+ * 获取用户状态的标签颜色类型
+ */
 function getUserStatusTagType(status) {
   if (status === undefined || status === null || status === '') return ''
   return USER_STATUS_MAP[status]?.type || ''
 }
 
+/**
+ * 格式化日期时间为字符串（yyyy-MM-dd HH:mm:ss）
+ */
 function formatDateTime(dateTime) {
   if (!dateTime) return ''
   const date = new Date(dateTime)
@@ -372,6 +446,10 @@ function formatDateTime(dateTime) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
+/**
+ * 学生专属字段的验证器
+ * 仅当用户类型为学生时，才要求填写该字段
+ */
 function validateStudentRequired(value, callback, message) {
   if (!isStudentUserType(formData.userType)) {
     callback()
@@ -391,34 +469,55 @@ function validateStudentRequired(value, callback, message) {
   callback()
 }
 
+// ==================== 状态 ====================
+
+/** 表格加载状态 */
 const loading = ref(false)
+/** 表格数据列表 */
 const tableData = ref([])
+/** 数据总数（用于分页） */
 const total = ref(0)
+/** 院系列表选项（从后端加载） */
 const departmentOptions = ref([])
+/** 添加/编辑对话框是否显示 */
 const dialogVisible = ref(false)
+/** 用户详情查看对话框是否显示 */
 const viewDialogVisible = ref(false)
+/** 是否为编辑模式（true=编辑，false=添加） */
 const isEdit = ref(false)
+/** 表单提交中状态（防止重复提交） */
 const submitting = ref(false)
+/** 批量删除中状态 */
 const batchDeleting = ref(false)
+/** 当前选中的行（用于批量操作） */
 const selectedRows = ref([])
+/** 表格 selection 引用 */
 const selectionRef = ref(null)
+/** 表单引用（用于验证） */
 const formRef = ref(null)
+/** 查看详情时的用户数据 */
 const viewData = ref(null)
 
+// ==================== 查询参数 ====================
+
+/** 查询参数（分页 + 筛选条件） */
 const queryParams = reactive({
-  current: 1,
-  size: 10,
-  keyword: '',
-  department: [],
-  userType: [],
-  status: []
+  current: 1,       // 当前页码
+  size: 10,         // 每页条数
+  keyword: '',       // 关键词（用户名/姓名）
+  department: [],   // 院系列表
+  userType: [],     // 用户类型列表
+  status: []        // 状态列表
 })
 
+// ==================== 表单数据 ====================
+
+/** 表单默认值 */
 const defaultFormData = {
   id: null,
   username: '',
   realName: '',
-  userType: USER_TYPE.STUDENT,
+  userType: USER_TYPE.STUDENT,   // 默认角色为学生
   department: '',
   studentNo: '',
   gender: 1,
@@ -435,10 +534,18 @@ const defaultFormData = {
   status: USER_STATUS.ENABLED
 }
 
+/** 对话框中使用的表单数据（响应式） */
 const formData = reactive({ ...defaultFormData })
 
+/** 对话框标题：动态切换"添加用户"和"编辑用户" */
 const dialogTitle = computed(() => (isEdit.value ? '编辑用户' : '添加用户'))
 
+// ==================== 表单验证规则 ====================
+
+/**
+ * 表单验证规则
+ * 学生专属字段使用动态验证：仅当用户类型为学生时才要求填写
+ */
 const formRules = computed(() => ({
   username: [
     { required: !isEdit.value, message: '请输入用户名', trigger: 'blur' },
@@ -456,6 +563,7 @@ const formRules = computed(() => ({
   realName: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   userType: [{ required: true, message: '请选择角色', trigger: 'change' }],
   department: [{ required: true, message: '请输入院系', trigger: 'blur' }],
+  // 以下为学生专属字段的验证（使用 validateStudentRequired 动态验证）
   studentNo: [
     {
       validator: (rule, value, callback) => validateStudentRequired(value, callback, '请输入学号'),
@@ -545,6 +653,11 @@ const formRules = computed(() => ({
   status: [{ required: true, message: '请选择状态', trigger: 'change' }]
 }))
 
+// ==================== 方法 ====================
+
+/**
+ * 构建查询参数（过滤掉空值）
+ */
 function getQueryParams() {
   return {
     current: queryParams.current,
@@ -556,6 +669,9 @@ function getQueryParams() {
   }
 }
 
+/**
+ * 加载院系列表选项（用于筛选下拉框）
+ */
 async function loadDepartmentOptions() {
   try {
     const res = await getDepartments()
@@ -568,6 +684,10 @@ async function loadDepartmentOptions() {
   }
 }
 
+/**
+ * 加载入学年份选项（基于已有学生的入学年份动态生成）
+ * 如果没有学生数据，则使用默认的10年范围
+ */
 async function loadEnrollmentYearOptions() {
   try {
     const response = await getStudentPage({ current: 1, size: LARGE_QUERY_SIZE })
@@ -595,6 +715,9 @@ async function loadEnrollmentYearOptions() {
   }
 }
 
+/**
+ * 加载用户列表数据
+ */
 async function loadData() {
   loading.value = true
   try {
@@ -611,11 +734,13 @@ async function loadData() {
   }
 }
 
+/** 点击查询按钮：从第一页开始查询 */
 function handleQuery() {
   queryParams.current = 1
   loadData()
 }
 
+/** 点击重置按钮：清空所有筛选条件并重新查询 */
 function handleReset() {
   queryParams.current = 1
   queryParams.keyword = ''
@@ -625,8 +750,10 @@ function handleReset() {
   loadData()
 }
 
+/** 防抖查询（300ms），避免输入时频繁请求 */
 const debouncedQuery = debounce(handleQuery, 300)
 
+/** 监听关键词变化，自动触发查询（防抖） */
 watch(
   () => queryParams.keyword,
   () => {
@@ -635,6 +762,10 @@ watch(
   }
 )
 
+/**
+ * 监听用户类型变化
+ * 当切换为非学生类型时，清空学生专属字段
+ */
 watch(
   () => formData.userType,
   userType => {
@@ -657,27 +788,35 @@ watch(
   }
 )
 
+/** 每页条数变化时，从第一页重新查询 */
 function handleSizeChange(size) {
   queryParams.size = size
   queryParams.current = 1
   loadData()
 }
 
+/** 页码变化时，重新查询 */
 function handleCurrentChange(current) {
   queryParams.current = current
   loadData()
 }
 
+/** 表格选中行变化时，更新已选行列表 */
 function handleSelectionChange(selection) {
   selectedRows.value = selection.map(item => deepClone(item))
 }
 
+/** 点击添加用户按钮：清空表单并打开对话框 */
 function handleAdd() {
   isEdit.value = false
   Object.assign(formData, deepClone(defaultFormData))
   dialogVisible.value = true
 }
 
+/**
+ * 点击编辑按钮：以当前行数据填充表单并打开对话框
+ * 注意：realName 和 name 两种字段名兼容处理
+ */
 function handleEdit(row) {
   isEdit.value = true
   Object.assign(formData, deepClone(defaultFormData), deepClone(row), {
@@ -686,15 +825,20 @@ function handleEdit(row) {
   dialogVisible.value = true
 }
 
+/** 点击查看按钮：以只读模式显示用户详细信息 */
 function handleView(row) {
   viewData.value = deepClone(row)
   viewDialogVisible.value = true
 }
 
+/**
+ * 点击重置密码按钮：将用户密码恢复为系统默认密码
+ * 需要二次确认
+ */
 function handleResetPassword(row) {
   const displayName = row.realName || row.name || '该用户'
   ElMessageBox.confirm(
-    `确定要重置用户”${displayName}”的密码吗？\n\n重置后密码将恢复为系统默认密码。`,
+    `确定要重置用户"${displayName}"的密码吗？\n\n重置后密码将恢复为系统默认密码。`,
     '警告',
     {
       confirmButtonText: '确定',
@@ -715,9 +859,13 @@ function handleResetPassword(row) {
     })
 }
 
+/**
+ * 点击删除按钮：删除单个用户
+ * 需要二次确认，删除操作不可恢复
+ */
 function handleDelete(row) {
   const displayName = row.realName || row.name || '该用户'
-  ElMessageBox.confirm(`确定要删除用户“${displayName}”吗？此操作不可恢复。`, '警告', {
+  ElMessageBox.confirm(`确定要删除用户"${displayName}"吗？此操作不可恢复。`, '警告', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
@@ -735,6 +883,10 @@ function handleDelete(row) {
     })
 }
 
+/**
+ * 点击批量删除按钮：删除所有选中的用户
+ * 需要二次确认，显示选中数量
+ */
 async function handleBatchDelete() {
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请选择要删除的用户')
@@ -766,6 +918,10 @@ async function handleBatchDelete() {
     })
 }
 
+/**
+ * 点击确定按钮：提交表单（添加或编辑）
+ * 编辑模式下仅更新用户基本信息；添加模式下同时包含学籍信息
+ */
 async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -773,6 +929,7 @@ async function handleSubmit() {
   submitting.value = true
   try {
     if (isEdit.value) {
+      // 编辑用户：只更新基本字段
       await updateUser({
         id: formData.id,
         username: formData.username,
@@ -784,6 +941,7 @@ async function handleSubmit() {
         status: formData.status
       })
     } else {
+      // 添加用户：根据用户类型决定是否包含学籍字段
       await addUser({
         user: {
           username: formData.username,
@@ -818,15 +976,24 @@ async function handleSubmit() {
   }
 }
 
+/**
+ * 对话框关闭时的处理：
+ * 1. 重置表单验证状态
+ * 2. 恢复表单数据为默认值（避免残留数据影响下次打开）
+ */
 function handleDialogClose() {
   formRef.value?.resetFields()
   Object.assign(formData, deepClone(defaultFormData))
 }
 
+// ==================== 生命周期 ====================
+
+/** 组件挂载时：并发加载院系选项、入学年份选项、用户列表 */
 onMounted(() => {
   void Promise.allSettled([loadDepartmentOptions(), loadEnrollmentYearOptions(), loadData()])
 })
 
+/** 组件卸载时：取消未完成的防抖查询 */
 onUnmounted(() => {
   debouncedQuery.cancel()
 })
@@ -847,6 +1014,7 @@ $danger-color: #f56c6c;
   padding: $layout-padding;
 }
 
+/* 页面头部：标题 + 操作按钮水平排列 */
 .page-header {
   display: flex;
   align-items: center;
@@ -863,6 +1031,7 @@ $danger-color: #f56c6c;
   font-weight: 500;
 }
 
+/* 搜索表单容器：浅灰背景 + 圆角 */
 .search-form {
   margin-bottom: $layout-margin;
   padding: $layout-gap;
@@ -870,6 +1039,7 @@ $danger-color: #f56c6c;
   border-radius: 4px;
 }
 
+/* 批量操作工具栏：红色警示背景 */
 .batch-toolbar {
   display: flex;
   align-items: center;
@@ -886,6 +1056,7 @@ $danger-color: #f56c6c;
   font-weight: 500;
 }
 
+/* 分页组件：右对齐 */
 .pagination {
   display: flex;
   justify-content: flex-end;

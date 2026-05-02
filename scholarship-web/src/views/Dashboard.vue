@@ -1,10 +1,18 @@
 <!--
   系统首页（Dashboard）组件
-  展示系统概览信息、快捷操作等
+  角色说明：
+  - 学生：显示统计数据卡片（论文/专利/项目数量、综合评分）、快捷操作、通知公告
+  - 导师/管理员：仅显示通知公告
+
+  功能：
+  - 欢迎卡片（显示当前用户信息）
+  - 统计数据（仅学生可见）：论文数量、专利数量、项目数量、综合评分
+  - 快捷操作（仅学生可见）：添加论文/专利/项目、奖学金申请
+  - 通知公告列表
 -->
 <template>
   <div class="dashboard-container">
-    <!-- 欢迎卡片 -->
+    <!-- 欢迎卡片：显示当前用户信息和欢迎语 -->
     <el-card class="welcome-card">
       <div class="welcome-content">
         <div class="welcome-text">
@@ -15,7 +23,7 @@
       </div>
     </el-card>
 
-    <!-- 统计卡片 - 仅学生可见 -->
+    <!-- 统计卡片（仅学生可见）：论文/专利/项目数量、综合评分 -->
     <el-row v-if="isStudent" :gutter="20" class="stats-row">
       <el-col :span="6">
         <el-card class="stats-card">
@@ -63,24 +71,28 @@
       </el-col>
     </el-row>
 
-    <!-- 快捷操作 - 仅学生可见 -->
+    <!-- 快捷操作（仅学生可见）：添加成果、奖学金申请 -->
     <el-card v-if="isStudent" class="quick-actions-card">
       <template #header>
         <span>快捷操作</span>
       </template>
       <div class="quick-actions">
+        <!-- 添加论文 -->
         <el-button type="primary" @click="handleAction('addPaper')">
           <el-icon><Plus /></el-icon>
           添加论文
         </el-button>
+        <!-- 添加专利 -->
         <el-button type="success" @click="handleAction('addPatent')">
           <el-icon><Plus /></el-icon>
           添加专利
         </el-button>
+        <!-- 添加项目（暂未开放） -->
         <el-button type="warning" @click="handleAction('addProject')">
           <el-icon><Plus /></el-icon>
           添加项目
         </el-button>
+        <!-- 奖学金申请 -->
         <el-button type="danger" @click="handleAction('apply')">
           <el-icon><DocumentAdd /></el-icon>
           奖学金申请
@@ -88,11 +100,12 @@
       </div>
     </el-card>
 
-    <!-- 通知公告 -->
+    <!-- 通知公告：显示系统公告列表 -->
     <el-card class="notice-card">
       <template #header>
         <span>通知公告</span>
       </template>
+      <!-- 有公告时显示时间线形式 -->
       <el-timeline v-if="notices.length > 0">
         <el-timeline-item
           v-for="notice in notices"
@@ -104,12 +117,26 @@
           <p class="notice-content">{{ notice.content }}</p>
         </el-timeline-item>
       </el-timeline>
+      <!-- 无公告时显示空状态 -->
       <el-empty v-else description="暂无通知公告" :image-size="80" />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
+/**
+ * 系统首页（Dashboard）
+ *
+ * 功能说明：
+ * - 欢迎卡片：显示当前登录用户的姓名和头像，以及根据当前时间段的欢迎语
+ * - 统计卡片（仅学生）：显示论文数量、专利数量、项目数量、综合评分
+ * - 快捷操作（仅学生）：跳转到成果添加页面或奖学金申请页面
+ * - 通知公告：显示系统公告列表
+ *
+ * 注意：
+ * - 统计数据使用 Promise.allSettled 并发加载，单个请求失败不影响其他请求
+ * - 导师/管理员登录后首页不显示统计卡片和快捷操作，仅显示欢迎卡片和通知公告
+ */
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -124,19 +151,15 @@ import { countPaper } from '@/api/paper'
 import { countPatent } from '@/api/patent'
 import { countProject } from '@/api/project'
 
-/**
- * 统计数据接口
- */
+/** 统计数据接口 */
 interface Stats {
-  paperCount: number
-  patentCount: number
-  projectCount: number
-  score: number
+  paperCount: number      // 论文数量
+  patentCount: number     // 专利数量
+  projectCount: number   // 项目数量
+  score: number          // 综合评分
 }
 
-/**
- * 通知公告接口
- */
+/** 通知公告接口 */
 interface Notice {
   id: Notification['id']
   title: Notification['title']
@@ -144,15 +167,22 @@ interface Notice {
   createTime: Notification['createTime']
 }
 
-// ========== 路由 ==========
+// ==================== 路由 ====================
+
 const router = useRouter()
 
-// ========== 状态管理 ==========
+// ==================== 状态管理 ====================
+
+/** 用户状态仓库 */
 const userStore = useUserStore()
+/** 当前登录用户信息 */
 const userInfo = computed(() => userStore.userInfo) as Ref<UserInfo>
+/** 是否为学生角色 */
 const isStudent = computed(() => userInfo.value.userType === USER_TYPE.STUDENT)
 
-// ========== 状态 ==========
+// ==================== 状态 ====================
+
+/** 统计数据 */
 const stats = ref<Stats>({
   paperCount: 0,
   patentCount: 0,
@@ -160,11 +190,14 @@ const stats = ref<Stats>({
   score: 0
 })
 
+/** 通知公告列表 */
 const notices = ref<Notice[]>([])
+
+// ==================== 工具方法 ====================
 
 /**
  * 根据当前小时获取欢迎消息
- * @returns 欢迎消息
+ * @returns 欢迎消息文本
  */
 function getWelcomeMessage(): string {
   const hour = new Date().getHours()
@@ -177,7 +210,7 @@ function getWelcomeMessage(): string {
 
 /**
  * 处理快捷操作跳转
- * @param action - 操作类型
+ * @param action - 操作类型：addPaper/addPatent/addProject/apply
  */
 function handleAction(action: string): void {
   switch (action) {
@@ -196,9 +229,12 @@ function handleAction(action: string): void {
   }
 }
 
+// ==================== 数据加载 ====================
+
 /**
  * 加载统计数据
  * 使用 Promise.allSettled 处理并发请求，确保单个请求失败不影响其他请求
+ * 统计数据仅对学生有意义
  */
 async function loadStats(): Promise<void> {
   const [paperRes, patentRes, projectRes] = await Promise.allSettled([
@@ -223,12 +259,13 @@ async function loadStats(): Promise<void> {
     paperCount: extractTotal(paperRes),
     patentCount: extractTotal(patentRes),
     projectCount: extractTotal(projectRes),
-    score: 0
+    score: 0  // 综合评分接口暂未提供
   }
 }
 
 /**
- * 加载通知公告
+ * 加载通知公告列表
+ * 失败时静默处理，公告列表保持为空
  */
 async function loadNotices(): Promise<void> {
   try {
@@ -245,7 +282,13 @@ async function loadNotices(): Promise<void> {
   }
 }
 
-// ========== 生命周期 ==========
+// ==================== 生命周期 ====================
+
+/**
+ * 组件挂载时：
+ * - 如果是学生，加载统计数据
+ * - 加载通知公告（所有角色都需要）
+ */
 onMounted(() => {
   // 只有学生才加载统计数据
   if (isStudent.value) {
@@ -260,6 +303,7 @@ onMounted(() => {
   padding: 20px;
 }
 
+/* 欢迎卡片 */
 .welcome-card {
   margin-bottom: 20px;
 
@@ -283,10 +327,12 @@ onMounted(() => {
   }
 }
 
+/* 统计卡片行 */
 .stats-row {
   margin-bottom: 20px;
 }
 
+/* 统计卡片样式 */
 .stats-card {
   .stats-content {
     display: flex;
@@ -314,6 +360,7 @@ onMounted(() => {
   }
 }
 
+/* 快捷操作卡片 */
 .quick-actions-card {
   margin-bottom: 20px;
 
@@ -324,6 +371,7 @@ onMounted(() => {
   }
 }
 
+/* 通知公告卡片 */
 .notice-card {
   :deep(.el-timeline-item__timestamp) {
     color: #909399;

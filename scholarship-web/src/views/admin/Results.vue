@@ -1,5 +1,10 @@
+<!--
+  管理员 - 结果管理页面
+  功能：查看评定结果、调整奖项等级、导出结果、统计数据（各级奖学金人数）
+-->
 <template>
   <div class="results-page">
+    <!-- 页面头部：标题 + 导出结果按钮 -->
     <div class="page-header">
       <h2 class="page-title">结果管理</h2>
       <el-button type="success" :loading="exporting" @click="handleExport">
@@ -8,7 +13,9 @@
       </el-button>
     </div>
 
+    <!-- 搜索表单：学年、学期、关键词、状态筛选 -->
     <el-form :inline="true" class="search-form">
+      <!-- 学年筛选 -->
       <el-form-item label="学年">
         <el-select v-model="queryParams.academicYear" placeholder="请选择" clearable>
           <el-option
@@ -19,6 +26,7 @@
           />
         </el-select>
       </el-form-item>
+      <!-- 学期筛选 -->
       <el-form-item label="学期">
         <el-select v-model="queryParams.semester" placeholder="请选择" clearable>
           <el-option
@@ -29,9 +37,11 @@
           />
         </el-select>
       </el-form-item>
+      <!-- 关键词搜索：学号或姓名 -->
       <el-form-item label="关键词">
         <el-input v-model="queryParams.keyword" placeholder="学号/姓名" clearable />
       </el-form-item>
+      <!-- 结果状态筛选 -->
       <el-form-item label="状态">
         <el-select v-model="queryParams.status" placeholder="请选择" clearable>
           <el-option
@@ -42,12 +52,14 @@
           />
         </el-select>
       </el-form-item>
+      <!-- 查询、重置按钮 -->
       <el-form-item>
         <el-button type="primary" @click="handleQuery">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
 
+    <!-- 统计数据卡片：显示各级奖学金人数 -->
     <el-row :gutter="20" class="stats-row">
       <el-col :span="6">
         <el-card shadow="hover">
@@ -77,13 +89,21 @@
       </el-col>
     </el-row>
 
+    <!-- 评定结果数据表格 -->
     <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
+      <!-- 序号列 -->
       <el-table-column type="index" label="序号" width="60" />
+      <!-- 评定批次列 -->
       <el-table-column prop="batchName" label="评定批次" min-width="180" />
+      <!-- 学号列 -->
       <el-table-column prop="studentNo" label="学号" width="130" />
+      <!-- 姓名列 -->
       <el-table-column prop="studentName" label="姓名" width="110" />
+      <!-- 院系列 -->
       <el-table-column prop="department" label="院系" width="150" />
+      <!-- 专业列 -->
       <el-table-column prop="major" label="专业" width="150" />
+      <!-- 奖项等级列（以标签形式展示） -->
       <el-table-column label="奖项等级" width="120">
         <template #default="{ row }">
           <el-tag :type="getLevelConfig(row.awardLevel).type">
@@ -91,12 +111,15 @@
           </el-tag>
         </template>
       </el-table-column>
+      <!-- 综合得分列 -->
       <el-table-column prop="totalScore" label="综合得分" width="100" />
+      <!-- 排名列（优先显示院系排名，其次专业排名） -->
       <el-table-column label="排名" width="90">
         <template #default="{ row }">
           {{ getDisplayRank(row) }}
         </template>
       </el-table-column>
+      <!-- 结果状态列（以标签形式展示） -->
       <el-table-column label="结果状态" width="110">
         <template #default="{ row }">
           <el-tag :type="getStatusConfig(getResultStatusValue(row)).type">
@@ -104,6 +127,7 @@
           </el-tag>
         </template>
       </el-table-column>
+      <!-- 操作列：查看详情、调整奖项 -->
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handleView(row)">查看详情</el-button>
@@ -112,6 +136,7 @@
       </el-table-column>
     </el-table>
 
+    <!-- 分页组件 -->
     <el-pagination
       v-model:current-page="queryParams.current"
       v-model:page-size="queryParams.size"
@@ -122,8 +147,10 @@
       @size-change="handleSizeChange"
     />
 
+    <!-- 评定结果详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="评定结果详情" width="820px">
       <template v-if="detailData">
+        <!-- 基本信息展示 -->
         <el-descriptions :column="2" border class="result-detail">
           <el-descriptions-item label="评定批次">{{ detailData.batchName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="学号">{{ detailData.studentNo || '-' }}</el-descriptions-item>
@@ -147,6 +174,7 @@
 
         <el-divider />
 
+        <!-- 得分明细表格 -->
         <h4>得分明细</h4>
         <el-table :data="buildScoreDetails(detailData)" border size="small">
           <el-table-column prop="item" label="项目" width="160" />
@@ -159,6 +187,7 @@
       </template>
     </el-dialog>
 
+    <!-- 调整奖项等级对话框 -->
     <el-dialog v-model="adjustDialogVisible" title="调整奖项等级" width="500px">
       <el-form
         v-if="currentRow"
@@ -167,14 +196,17 @@
         :rules="adjustRules"
         label-width="100px"
       >
+        <!-- 学生姓名（只读显示） -->
         <el-form-item label="学生姓名">
           <span>{{ currentRow.studentName }}</span>
         </el-form-item>
+        <!-- 原奖项等级（只读显示） -->
         <el-form-item label="原等级">
           <el-tag :type="getLevelConfig(currentRow.awardLevel).type">
             {{ getLevelConfig(currentRow.awardLevel).text }}
           </el-tag>
         </el-form-item>
+        <!-- 调整后奖项等级（可选择） -->
         <el-form-item label="调整后" prop="awardLevel">
           <el-select v-model="adjustForm.awardLevel">
             <el-option label="特等奖学金" :value="1" />
@@ -184,6 +216,7 @@
             <el-option label="未获奖" :value="5" />
           </el-select>
         </el-form-item>
+        <!-- 调整原因（必填） -->
         <el-form-item label="调整原因" prop="reason">
           <el-input v-model="adjustForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit />
         </el-form-item>
@@ -197,6 +230,17 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 结果管理页面
+ * 功能：
+ * - 分页查询评定结果列表（支持学年、学期、关键词、状态筛选）
+ * - 统计数据卡片：显示各级奖学金获奖人数（基于当前筛选结果的当页数据）
+ * - 查看评定结果详情（包括基本信息和得分明细）
+ * - 调整奖项等级（用于异议处理）
+ * - 导出评定结果为 Excel 文件
+ *
+ * 注意：统计数据卡片只统计当页数据，不代表全量数据
+ */
 import { onMounted, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -220,16 +264,19 @@ import {
 
 defineOptions({ name: 'AdminResults' })
 
+/** 学期选项接口 */
 interface SemesterOption {
   label: string
   value: number
 }
 
+/** 得分明细行接口 */
 interface ScoreDetailRow {
   item: string
   score: number | string
 }
 
+/** 查询参数接口 */
 interface QueryParams {
   current: number
   size: number
@@ -239,72 +286,114 @@ interface QueryParams {
   status: number | null
 }
 
+/** 调整表单数据结构 */
 interface AdjustFormState {
-  awardLevel: number | null
-  reason: string
+  awardLevel: number | null   // 调整后的奖项等级
+  reason: string              // 调整原因
 }
 
+// ==================== 状态 ====================
+
+/** 表格加载状态 */
 const loading = ref(false)
+/** 导出中状态 */
 const exporting = ref(false)
+/** 调整提交中状态 */
 const adjustSubmitting = ref(false)
+/** 表格数据列表 */
 const tableData = ref<EvaluationResult[]>([])
+/** 数据总数（用于分页） */
 const total = ref(0)
+/** 学年下拉选项 */
 const academicYearOptions = ref<string[]>([])
+/** 详情对话框是否显示 */
 const detailDialogVisible = ref(false)
+/** 调整对话框是否显示 */
 const adjustDialogVisible = ref(false)
+/** 当前操作的行数据（用于调整） */
 const currentRow = ref<EvaluationResult | null>(null)
+/** 详情数据 */
 const detailData = ref<EvaluationResult | null>(null)
+/** 调整表单引用 */
 const adjustFormRef = ref<FormInstance | null>(null)
+
+/** 结果状态选项（排除"全部"选项） */
 const resultStatusOptions = RESULT_STATUS_OPTIONS.filter(option => option.value !== 0)
+
+/** 学期选项列表 */
 const semesterOptions: SemesterOption[] = [
   { label: '第一学期', value: 1 },
   { label: '第二学期', value: 2 }
 ]
 
+/** 统计数据（基于当页数据） */
 const stats = reactive({
-  total: 0,
-  firstLevel: 0,
-  secondLevel: 0,
-  thirdLevel: 0
+  total: 0,         // 获奖总人数
+  firstLevel: 0,    // 一等奖学金人数
+  secondLevel: 0,   // 二等奖学金人数
+  thirdLevel: 0     // 三等奖学金人数
 })
 
+// ==================== 查询参数 ====================
+
+/** 查询参数（分页 + 筛选条件） */
 const queryParams = reactive<QueryParams>({
-  current: 1,
-  size: 10,
-  academicYear: '',
-  semester: null,
-  keyword: '',
-  status: null
+  current: 1,       // 当前页码
+  size: 10,         // 每页条数
+  academicYear: '',  // 学年
+  semester: null,   // 学期
+  keyword: '',      // 关键词（学号/姓名）
+  status: null      // 结果状态
 })
 
+/** 调整表单数据 */
 const adjustForm = reactive<AdjustFormState>({
   awardLevel: null,
   reason: ''
 })
 
+/** 调整表单验证规则 */
 const adjustRules: FormRules<AdjustFormState> = {
   awardLevel: [{ required: true, message: '请选择调整后的等级', trigger: 'change' }],
   reason: [{ required: true, message: '请输入调整原因', trigger: 'blur' }]
 }
 
+// ==================== 工具方法 ====================
+
+/**
+ * 获取奖项等级配置（文本和颜色类型）
+ */
 function getLevelConfig(level?: number): { text: string; type: ResultTagType } {
   return getAwardLevelConfig(level)
 }
 
+/**
+ * 获取结果状态配置（文本和颜色类型）
+ */
 function getStatusConfig(status?: number): { text: string; type: ResultTagType } {
   return getResultStatusConfig(status)
 }
 
+/**
+ * 获取结果状态值（兼容多种状态字段）
+ */
 function getResultStatusValue(row: EvaluationResult): number {
   return normalizeResultStatus(row.resultStatus, row.status)
 }
 
+/**
+ * 获取显示用的排名（优先院系排名，其次专业排名）
+ */
 function getDisplayRank(row: EvaluationResult): number | string {
   if (row.departmentRank != null) return row.departmentRank
   if (row.majorRank != null) return row.majorRank
   return '-'
 }
 
+/**
+ * 更新统计数据（基于当页数据）
+ * 注意：只统计当页数据，不代表全量数据真实统计
+ */
 function updateStats(records: EvaluationResult[]): void {
   const nextStats = records.reduce(
     (acc, item) => {
@@ -322,6 +411,9 @@ function updateStats(records: EvaluationResult[]): void {
   Object.assign(stats, nextStats)
 }
 
+/**
+ * 构建得分明细表格数据
+ */
 function buildScoreDetails(row: EvaluationResult): ScoreDetailRow[] {
   return [
     { item: '课程成绩', score: row.courseScore ?? 0 },
@@ -331,6 +423,9 @@ function buildScoreDetails(row: EvaluationResult): ScoreDetailRow[] {
   ]
 }
 
+/**
+ * 下载 Blob 文件
+ */
 function downloadBlob(blob: Blob, fileName: string): void {
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -340,6 +435,11 @@ function downloadBlob(blob: Blob, fileName: string): void {
   window.URL.revokeObjectURL(url)
 }
 
+// ==================== 方法 ====================
+
+/**
+ * 加载学年下拉选项
+ */
 async function loadAcademicYearOptions(): Promise<void> {
   try {
     const response = await getEvaluationAcademicYears()
@@ -351,6 +451,9 @@ async function loadAcademicYearOptions(): Promise<void> {
   }
 }
 
+/**
+ * 查询评定结果列表
+ */
 async function handleQuery(): Promise<void> {
   loading.value = true
   try {
@@ -366,6 +469,7 @@ async function handleQuery(): Promise<void> {
     const records = pageData?.records || []
     tableData.value = records
     total.value = pageData?.total || 0
+    // 更新统计数据（基于当页）
     updateStats(records)
   } catch (error) {
     console.error('查询失败:', error)
@@ -378,6 +482,9 @@ async function handleQuery(): Promise<void> {
   }
 }
 
+/**
+ * 点击重置按钮：清空筛选条件并重新查询
+ */
 function handleReset(): void {
   queryParams.academicYear = ''
   queryParams.semester = null
@@ -387,11 +494,17 @@ function handleReset(): void {
   handleQuery()
 }
 
+/**
+ * 每页条数变化时，从第一页重新查询
+ */
 function handleSizeChange(): void {
   queryParams.current = 1
   handleQuery()
 }
 
+/**
+ * 点击"查看详情"按钮：获取并显示评定结果详细信息
+ */
 async function handleView(row: EvaluationResult): Promise<void> {
   if (!row.id) return
   try {
@@ -406,6 +519,9 @@ async function handleView(row: EvaluationResult): Promise<void> {
   }
 }
 
+/**
+ * 点击"调整"按钮：打开发整对话框，填充当前行数据
+ */
 function handleAdjust(row: EvaluationResult): void {
   currentRow.value = row
   adjustForm.awardLevel = row.awardLevel ?? null
@@ -413,6 +529,10 @@ function handleAdjust(row: EvaluationResult): void {
   adjustDialogVisible.value = true
 }
 
+/**
+ * 点击"确定"按钮：提交调整表单
+ * 需要二次确认，显示调整前后对比
+ */
 async function handleAdjustSubmit(): Promise<void> {
   const valid = await adjustFormRef.value?.validate().catch(() => false)
   if (!valid || !currentRow.value?.id || adjustForm.awardLevel === null) return
@@ -446,6 +566,9 @@ async function handleAdjustSubmit(): Promise<void> {
   }
 }
 
+/**
+ * 点击"导出结果"按钮：导出符合筛选条件的评定结果为 Excel 文件
+ */
 async function handleExport(): Promise<void> {
   try {
     exporting.value = true
@@ -453,6 +576,7 @@ async function handleExport(): Promise<void> {
       academicYear: queryParams.academicYear || undefined,
       semester: queryParams.semester ?? undefined
     })
+    // 生成文件名后缀（如：_2024-2025_semester_1）
     const suffixParts = [
       queryParams.academicYear ? queryParams.academicYear : '',
       queryParams.semester ? `semester_${queryParams.semester}` : ''
@@ -467,6 +591,9 @@ async function handleExport(): Promise<void> {
   }
 }
 
+// ==================== 生命周期 ====================
+
+/** 组件挂载时：并发加载学年选项、评定结果列表 */
 onMounted(async () => {
   await Promise.all([loadAcademicYearOptions(), handleQuery()])
 })
@@ -477,6 +604,7 @@ onMounted(async () => {
   padding: 20px;
 }
 
+/* 页面头部：标题 + 操作按钮水平排列 */
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -493,6 +621,7 @@ onMounted(async () => {
   }
 }
 
+/* 搜索表单容器：浅灰背景 + 圆角 */
 .search-form {
   margin-bottom: 20px;
   padding: 16px;
@@ -500,16 +629,19 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
+/* 统计数据卡片行 */
 .stats-row {
   margin-bottom: 20px;
 }
 
+/* 分页组件：右对齐 */
 .pagination {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
 }
 
+/* 评定结果详情的描述列表样式 */
 .result-detail {
   margin-bottom: 20px;
 }

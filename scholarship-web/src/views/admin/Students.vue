@@ -1,21 +1,28 @@
+<!--
+  管理员 - 研究生信息管理页面
+  功能：查询、编辑、删除研究生信息（添加功能已禁用，学生应通过"用户管理"页面创建）
+-->
 <template>
   <div class="students-page">
-    <!-- 页面头部 -->
+    <!-- 页面头部：标题 -->
+    <!-- 注意：添加学生按钮已注释禁用，学生应通过"用户管理"页面创建，确保有登录账号 -->
     <div class="page-header">
       <h2 class="page-title">研究生信息管理</h2>
-      <!-- 添加学生按钮已隐藏：学生应通过"用户管理"页面创建，确保有登录账号 -->
     </div>
 
-    <!-- 搜索表单 -->
+    <!-- 搜索表单：关键字、院系、入学年份、学籍状态筛选 -->
     <el-form :inline="true" class="search-form">
+      <!-- 关键字搜索：学号或姓名 -->
       <el-form-item label="关键字">
         <el-input v-model="queryParams.keyword" placeholder="学号或姓名" clearable @clear="handleQuery" @keyup.enter="handleQuery" />
       </el-form-item>
+      <!-- 院系筛选（支持多选） -->
       <el-form-item label="院系">
         <el-select v-model="queryParams.department" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
           <el-option v-for="opt in departmentOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
+      <!-- 入学年份筛选 -->
       <el-form-item label="入学年份">
         <el-input-number
           v-model="queryParams.enrollmentYear"
@@ -27,18 +34,20 @@
           placeholder="请输入入学年份"
         />
       </el-form-item>
+      <!-- 学籍状态筛选（排除"辍学"状态，不显示在筛选列表中） -->
       <el-form-item label="学籍状态">
         <el-select v-model="queryParams.status" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip clearable>
           <el-option v-for="opt in STUDENT_STATUS_OPTIONS.filter(item => item.value !== STUDENT_STATUS.DROPPED)" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-form-item>
+      <!-- 查询、重置按钮 -->
       <el-form-item>
         <el-button type="primary" @click="handleQuery">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
 
-    <!-- 数据表格 -->
+    <!-- 研究生信息数据表格 -->
     <el-table
       v-loading="loading"
       :data="tableData"
@@ -47,23 +56,33 @@
       empty-text="暂无数据"
       style="width: 100%"
     >
+      <!-- 多选框列（当前未用于批量操作） -->
       <el-table-column type="selection" width="55" />
+      <!-- 序号列 -->
       <el-table-column type="index" label="序号" width="60" />
+      <!-- 学号列 -->
       <el-table-column prop="studentNo" label="学号" width="130" />
+      <!-- 姓名列 -->
       <el-table-column prop="name" label="姓名" width="100" />
+      <!-- 性别列（显示文本而非数值） -->
       <el-table-column prop="gender" label="性别" width="60">
         <template #default="{ row }">
           {{ GENDER_TEXT_MAP[row.gender] || '-' }}
         </template>
       </el-table-column>
+      <!-- 院系列 -->
       <el-table-column prop="department" label="院系" width="150" />
+      <!-- 专业列 -->
       <el-table-column prop="major" label="专业" width="150" />
+      <!-- 入学年份列 -->
       <el-table-column prop="enrollmentYear" label="入学年份" width="100" />
+      <!-- 学历列（显示标签文本） -->
       <el-table-column prop="educationLevel" label="学历" width="80">
         <template #default="{ row }">
           {{ EDUCATION_LEVEL_OPTIONS.find(item => item.value === row.educationLevel)?.label || '-' }}
         </template>
       </el-table-column>
+      <!-- 学籍状态列（以标签形式展示） -->
       <el-table-column prop="status" label="学籍状态" width="90">
         <template #default="{ row }">
           <el-tag :type="STUDENT_STATUS_TAG_TYPE_MAP[row.status]">
@@ -71,6 +90,7 @@
           </el-tag>
         </template>
       </el-table-column>
+      <!-- 操作列：编辑、删除 -->
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
@@ -79,7 +99,7 @@
       </el-table-column>
     </el-table>
 
-    <!-- 分页 -->
+    <!-- 分页组件 -->
     <el-pagination
       v-model:current-page="queryParams.current"
       v-model:page-size="queryParams.size"
@@ -90,7 +110,7 @@
       @size-change="handleQuery"
     />
 
-    <!-- 添加/编辑对话框 -->
+    <!-- 编辑学生信息对话框 -->
     <el-dialog
       v-model="dialogVisible"
       title="编辑学生信息"
@@ -99,11 +119,13 @@
     >
       <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
         <el-row :gutter="20">
+          <!-- 学号（编辑时禁用） -->
           <el-col :span="12">
             <el-form-item label="学号" prop="studentNo">
               <el-input v-model="formData.studentNo" :disabled="isEdit" />
             </el-form-item>
           </el-col>
+          <!-- 姓名 -->
           <el-col :span="12">
             <el-form-item label="姓名" prop="name">
               <el-input v-model="formData.name" />
@@ -111,6 +133,7 @@
           </el-col>
         </el-row>
         <el-row :gutter="20">
+          <!-- 性别 -->
           <el-col :span="12">
             <el-form-item label="性别" prop="gender">
               <el-select v-model="formData.gender" style="width: 100%">
@@ -118,6 +141,7 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <!-- 身份证号 -->
           <el-col :span="12">
             <el-form-item label="身份证号" prop="idCard">
               <el-input v-model="formData.idCard" />
@@ -125,11 +149,13 @@
           </el-col>
         </el-row>
         <el-row :gutter="20">
+          <!-- 入学年份 -->
           <el-col :span="12">
             <el-form-item label="入学年份" prop="enrollmentYear">
               <el-input-number v-model="formData.enrollmentYear" :min="2000" :max="CURRENT_YEAR + 1" style="width: 100%" />
             </el-form-item>
           </el-col>
+          <!-- 学历层次 -->
           <el-col :span="12">
             <el-form-item label="学历层次" prop="educationLevel">
               <el-select v-model="formData.educationLevel" style="width: 100%">
@@ -139,20 +165,24 @@
           </el-col>
         </el-row>
         <el-row :gutter="20">
+          <!-- 院系 -->
           <el-col :span="12">
             <el-form-item label="院系" prop="department">
               <el-input v-model="formData.department" />
             </el-form-item>
           </el-col>
+          <!-- 专业 -->
           <el-col :span="12">
             <el-form-item label="专业" prop="major">
               <el-input v-model="formData.major" />
             </el-form-item>
           </el-col>
         </el-row>
+        <!-- 研究方向 -->
         <el-form-item label="研究方向" prop="direction">
           <el-input v-model="formData.direction" />
         </el-form-item>
+        <!-- 学籍状态 -->
         <el-form-item label="学籍状态" prop="status">
           <el-radio-group v-model="formData.status">
             <el-radio v-for="opt in STUDENT_STATUS_OPTIONS" :key="opt.value" :label="opt.value">{{ opt.label }}</el-radio>
@@ -168,6 +198,15 @@
 </template>
 
 <script setup>
+/**
+ * 研究生信息管理页面
+ * 功能：
+ * - 分页查询研究生信息（支持关键字、院系、入学年份、学籍状态筛选）
+ * - 编辑研究生信息（添加功能已禁用）
+ * - 删除研究生信息（同时删除对应的登录账号）
+ *
+ * 注意：添加学生功能已禁用，学生应通过"用户管理"页面创建，确保有登录账号
+ */
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getStudentPage, updateStudent, deleteStudent } from '@/api/student'
@@ -187,32 +226,49 @@ import {
 
 defineOptions({ name: 'AdminStudents' })
 
+/** 当前年份（用于入学年份默认值和最大值限制） */
 const CURRENT_YEAR = new Date().getFullYear()
 
-// 院系选项
+// ==================== 状态 ====================
+
+/** 院系列表选项（从后端加载） */
 const departmentOptions = ref([])
 
-// 状态
+/** 表格加载状态 */
 const loading = ref(false)
+/** 当前正在删除的学生ID集合（用于显示删除按钮的加载状态） */
 const deletingIds = ref(new Set())
+/** 表格数据列表 */
 const tableData = ref([])
+/** 数据总数（用于分页） */
 const total = ref(0)
+/** 编辑对话框是否显示 */
 const dialogVisible = ref(false)
+/** 是否为编辑模式 */
 const isEdit = ref(false)
+/** 表单提交中状态（防止重复提交） */
 const submitting = ref(false)
+/** 表单引用（用于验证） */
 const formRef = ref(null)
 
-// 查询参数（使用 'all' 作为"全部"选项的值，避免 Element Plus 空字符串 bug）
+// ==================== 查询参数 ====================
+
+/**
+ * 查询参数（分页 + 筛选条件）
+ * 注意：使用 'all' 作为"全部"选项的值，避免 Element Plus 空字符串 bug
+ */
 const queryParams = reactive({
-  current: 1,
-  size: 10,
-  keyword: '',
-  department: [],
-  enrollmentYear: undefined,
-  status: []
+  current: 1,           // 当前页码
+  size: 10,             // 每页条数
+  keyword: '',          // 关键字（学号或姓名）
+  department: [],      // 院系列表
+  enrollmentYear: undefined,  // 入学年份
+  status: []            // 学籍状态列表
 })
 
-// 表单数据
+// ==================== 表单数据 ====================
+
+/** 表单数据（用于编辑学生信息） */
 const formData = reactive({
   id: null,
   studentNo: '',
@@ -227,7 +283,9 @@ const formData = reactive({
   status: STUDENT_STATUS.ACTIVE
 })
 
-// 验证规则
+// ==================== 表单验证规则 ====================
+
+/** 表单验证规则 */
 const formRules = {
   studentNo: [
     { required: true, message: '请输入学号', trigger: 'blur' },
@@ -249,10 +307,10 @@ const formRules = {
   status: [{ required: true, message: '请选择学籍状态', trigger: 'change' }]
 }
 
-// 方法
+// ==================== 方法 ====================
 
 /**
- * 重置表单数据
+ * 重置表单数据为默认值
  */
 function resetFormData() {
   return {
@@ -271,7 +329,7 @@ function resetFormData() {
 }
 
 /**
- * 查询数据
+ * 查询研究生信息列表
  */
 async function handleQuery() {
   loading.value = true
@@ -294,6 +352,9 @@ async function handleQuery() {
   }
 }
 
+/**
+ * 加载院系列表选项（用于筛选下拉框）
+ */
 async function loadDepartmentOptions() {
   try {
     const res = await getDepartments()
@@ -305,12 +366,15 @@ async function loadDepartmentOptions() {
   }
 }
 
-// 防抖查询
+/** 防抖查询（300ms），避免输入时频繁请求 */
 const debouncedQuery = debounce(() => {
   handleQuery()
 }, 300)
 
-// 监听关键字变化
+/**
+ * 监听关键字变化，自动触发查询（防抖）
+ * 注意：页码重置为1
+ */
 watch(
   () => queryParams.keyword,
   () => {
@@ -320,7 +384,7 @@ watch(
 )
 
 /**
- * 重置查询
+ * 点击重置按钮：清空所有筛选条件并重新查询
  */
 function handleReset() {
   queryParams.keyword = ''
@@ -332,17 +396,8 @@ function handleReset() {
 }
 
 /**
- * 添加学生功能已禁用
- * 学生应通过"用户管理"页面创建，确保有登录账号
- */
-// function handleAdd() {
-//   isEdit.value = false
-//   Object.assign(formData, resetFormData())
-//   dialogVisible.value = true
-// }
-
-/**
- * 编辑学生
+ * 点击编辑按钮：以当前行数据填充表单并打开对话框
+ * 使用 Object.keys 过滤，避免 undefined 覆盖表单数据
  */
 function handleEdit(row) {
   isEdit.value = true
@@ -356,7 +411,9 @@ function handleEdit(row) {
 }
 
 /**
- * 删除学生
+ * 点击删除按钮：删除学生信息
+ * 注意：此操作将同时删除该学生的登录账号，不可恢复
+ * 需要二次确认
  */
 async function handleDelete(row) {
   try {
@@ -384,7 +441,8 @@ async function handleDelete(row) {
 }
 
 /**
- * 提交表单
+ * 点击确定按钮：提交表单（仅支持编辑）
+ * 添加功能已禁用
  */
 async function handleSubmit() {
   const valid = await formRef.value.validate().catch(() => false)
@@ -407,17 +465,20 @@ async function handleSubmit() {
 }
 
 /**
- * 关闭对话框
+ * 对话框关闭时的处理：重置表单验证状态
  */
 function handleDialogClose() {
   formRef.value?.resetFields()
 }
 
-// 生命周期
+// ==================== 生命周期 ====================
+
+/** 组件挂载时：并发加载院系选项、研究生信息列表 */
 onMounted(() => {
   void Promise.allSettled([loadDepartmentOptions(), handleQuery()])
 })
 
+/** 组件卸载时：取消未完成的防抖查询 */
 onUnmounted(() => {
   debouncedQuery.cancel()
 })
@@ -428,6 +489,7 @@ onUnmounted(() => {
   padding: 20px;
 }
 
+/* 页面头部：标题 */
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -444,6 +506,7 @@ onUnmounted(() => {
   margin: 0;
 }
 
+/* 搜索表单容器：浅灰背景 + 圆角 */
 .search-form {
   margin-bottom: 20px;
   padding: 16px;
@@ -451,6 +514,7 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 
+/* 分页组件：右对齐 */
 .pagination {
   margin-top: 20px;
   display: flex;
