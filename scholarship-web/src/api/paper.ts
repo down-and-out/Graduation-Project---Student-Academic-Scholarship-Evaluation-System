@@ -9,7 +9,7 @@ import type { ReviewDisplayStatus } from '@/constants/review'
  */
 export interface Paper {
   id?: number
-  studentId: number
+  studentId?: number
   studentName?: string
   studentNo?: string
   title: string
