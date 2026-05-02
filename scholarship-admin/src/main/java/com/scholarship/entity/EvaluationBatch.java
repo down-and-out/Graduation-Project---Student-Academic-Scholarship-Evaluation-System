@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.scholarship.dto.BatchAwardConfig;
+import com.scholarship.enums.BatchStatusEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import lombok.Data;
@@ -118,6 +119,12 @@ public class EvaluationBatch implements Serializable {
     @TableField("batch_status")
     @JsonProperty("status")
     private Integer batchStatus;
+
+    @JsonProperty("statusText")
+    @Schema(description = "批次状态文本")
+    public String getStatusText() {
+        return BatchStatusEnum.getDescription(this.batchStatus);
+    }
 
     /**
      * 奖学金总额

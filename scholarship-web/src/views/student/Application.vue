@@ -17,7 +17,7 @@
         <el-descriptions-item label="申请时间">{{ batchInfo.applyPeriod }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getBatchStatusType(batchInfo.status)">
-            {{ getBatchStatusText(batchInfo.status) }}
+            {{ batchInfo.statusText }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="总名额">{{ batchInfo.quota }} 人</el-descriptions-item>
@@ -218,6 +218,7 @@ interface BatchCardInfo {
   name: string
   applyPeriod: string
   status: BatchDisplayStatus
+  statusText: string
   quota: number
   amount: number
   description: string
@@ -253,6 +254,7 @@ const batchInfo = ref<BatchCardInfo>({
   name: '',
   applyPeriod: '',
   status: APPLICATION_BATCH_DISPLAY_STATUS.COMPLETED,
+  statusText: '',
   quota: 0,
   amount: 0,
   description: ''
@@ -315,11 +317,13 @@ function normalizeBatchInfo(batch: EvaluationBatch): BatchCardInfo {
     ? `${batch.startDate} 至 ${batch.endDate}`
     : batch.startDate || batch.endDate || '-'
 
+  const normalizedStatus = normalizeBatchStatus(batch.status)
   return {
     id: batch.id ?? null,
     name: batch.name || '',
     applyPeriod: period,
-    status: normalizeBatchStatus(batch.status),
+    status: normalizedStatus,
+    statusText: batch.statusText || getBatchStatusText(normalizedStatus),
     quota: batch.winnerCount ?? 0,
     amount: batch.totalAmount ?? 0,
     description: batch.description || ''
@@ -336,6 +340,7 @@ async function loadBatchInfo(): Promise<number | null> {
         name: '',
         applyPeriod: '',
         status: APPLICATION_BATCH_DISPLAY_STATUS.COMPLETED,
+        statusText: '',
         quota: 0,
         amount: 0,
         description: ''

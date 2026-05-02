@@ -38,7 +38,7 @@ const APPLICATION_BATCH_STATUS_CONFIG: Record<
     canApply: false
   },
   [APPLICATION_BATCH_DISPLAY_STATUS.COMPLETED]: {
-    text: '已结束',
+    text: '已完成',
     type: 'info',
     canApply: false
   }
@@ -68,6 +68,9 @@ export function normalizeBatchStatus(status?: number | null): BatchDisplayStatus
   return APPLICATION_BATCH_DISPLAY_STATUS.COMPLETED
 }
 
+/**
+ * @deprecated 请使用后端返回的 statusText 字段，此函数仅作为后端未返回 statusText 时的回退
+ */
 export function getBatchStatusText(status: BatchDisplayStatus): string {
   return APPLICATION_BATCH_STATUS_CONFIG[status].text
 }

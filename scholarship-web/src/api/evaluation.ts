@@ -17,6 +17,7 @@ export interface EvaluationBatch {
   winnerCount?: number
   totalAmount?: number
   status?: number
+  statusText?: string
   description?: string
   remark?: string
   awardConfigs?: BatchAwardConfig[]
