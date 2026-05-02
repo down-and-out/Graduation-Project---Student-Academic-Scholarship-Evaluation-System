@@ -30,6 +30,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 科研专利控制器
+ * 功能：专利登记、查询、审核、删除
+ *
+ * 业务流程：
+ * 1. 学生/管理员新增专利 -> 状态变为待审核
+ * 2. 导师/管理员审核专利 -> 通过/驳回
+ * 3. 审核通过的专利可关联到奖学金申请
+ *
+ * 权限说明：
+ * - 新增/更新：学生和管理员均可
+ * - 审核：仅导师和管理员
+ * - 删除：仅管理员
+ */
 @Slf4j
 @RestController
 @RequestMapping("/research-patent")
@@ -40,6 +54,18 @@ public class ResearchPatentController {
     private final ResearchPatentService researchPatentService;
     private final StudentInfoService studentInfoService;
 
+    /**
+     * 分页查询专利
+     * 根据角色自动过滤数据范围，学生仅能查看自己的专利
+     *
+     * @param current      当前页码
+     * @param size         每页条数
+     * @param studentId    筛选指定学生的专利（管理员/导师用）
+     * @param auditStatus  审核状态：0-待审核，1-通过，2-驳回
+     * @param keyword      关键词筛选（匹配专利名称或专利号）
+     * @param loginUser    当前登录用户
+     * @return 分页后的专利列表
+     */
     @GetMapping("/page")
     @Operation(summary = "分页查询专利", description = "支持按学生、审核状态和关键词筛选，并按当前角色限制数据范围")
     public Result<IPage<ResearchPatent>> page(
@@ -58,6 +84,13 @@ public class ResearchPatentController {
                 new Page<>(current, size), studentId, auditStatus, keyword, loginUser));
     }
 
+    /**
+     * 获取专利详情
+     *
+     * @param id       专利ID
+     * @param loginUser 当前登录用户
+     * @return 专利详细信息
+     */
     @GetMapping("/{id}")
     @Operation(summary = "获取专利详情")
     public Result<ResearchPatent> getById(
@@ -67,6 +100,14 @@ public class ResearchPatentController {
         return patent == null ? Result.error("专利不存在") : Result.success(patent);
     }
 
+    /**
+     * 新增专利
+     * 学生新增时自动绑定自己的学生档案ID，管理员可指定studentId
+     *
+     * @param patent    专利信息
+     * @param loginUser 当前登录用户
+     * @return 操作结果
+     */
     @PostMapping
     @PreAuthorize("hasAnyRole('ROLE_STUDENT', 'ROLE_ADMIN')")
     @Operation(summary = "新增专利", description = "学生新增时自动绑定自己的学生档案 ID")
@@ -76,6 +117,14 @@ public class ResearchPatentController {
         return success ? Result.success("新增成功") : Result.error("新增失败");
     }
 
+    /**
+     * 更新专利
+     * 学生只能更新自己的专利成果
+     *
+     * @param patent    更新后的专利信息
+     * @param loginUser 当前登录用户
+     * @return 操作结果
+     */
     @PutMapping
     @PreAuthorize("hasAnyRole('ROLE_STUDENT', 'ROLE_ADMIN')")
     @Operation(summary = "更新专利", description = "学生只能更新自己的专利成果")
@@ -85,6 +134,12 @@ public class ResearchPatentController {
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 
+    /**
+     * 删除专利（仅管理员）
+     *
+     * @param id 专利ID
+     * @return 操作结果
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除专利", description = "仅管理员可操作")
@@ -93,6 +148,12 @@ public class ResearchPatentController {
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
+    /**
+     * 统计当前学生审核通过的专利数量
+     *
+     * @param loginUser 当前登录学生
+     * @return 通过审核的专利数量
+     */
     @GetMapping("/count")
     @Operation(summary = "统计当前学生审核通过的专利数量")
     public Result<Long> count(@AuthenticationPrincipal LoginUser loginUser) {
@@ -107,6 +168,15 @@ public class ResearchPatentController {
         return Result.success(count);
     }
 
+    /**
+     * 审核专利
+     * 导师或管理员对专利进行审核，通过后可用于奖学金申请关联
+     *
+     * @param id        专利ID
+     * @param request   审核参数（状态、审核意见）
+     * @param loginUser 当前登录用户
+     * @return 操作结果
+     */
     @PutMapping("/audit/{id}")
     @PreAuthorize("hasAnyRole('ROLE_TUTOR', 'ROLE_ADMIN')")
     @Operation(summary = "审核专利", description = "导师或管理员对专利进行审核")
@@ -128,6 +198,11 @@ public class ResearchPatentController {
         }
     }
 
+    /**
+     * 审核请求体
+     * @param auditStatus   审核状态（1=通过，2=驳回）
+     * @param auditComment  审核意见
+     */
     public record AuditRequest(Integer auditStatus, String auditComment) {
     }
 }

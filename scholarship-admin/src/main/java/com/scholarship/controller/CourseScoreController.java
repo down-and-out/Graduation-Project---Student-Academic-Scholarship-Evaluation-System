@@ -39,7 +39,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 课程成绩控制器。
+ * 课程成绩控制器
+ * 功能：成绩查询、录入、修改、删除、导入、导出
+ *
+ * 业务流程：
+ * 1. 管理员/导师录入或学生导入成绩
+ * 2. 成绩用于奖学金评定中的课程成绩评分项
+ *
+ * 权限说明：
+ * - 录入/修改/删除/导入/导出：管理员和导师均可
+ * - 学生查看自己的成绩：仅能查看自己导入的成绩
+ * - 统计类接口（加权平均/总学分/平均GPA）：管理员和导师可查询指定学生
  */
 @Slf4j
 @RestController
@@ -53,6 +63,18 @@ public class CourseScoreController {
     private final AsyncTaskService asyncTaskService;
     private final ScholarshipProperties scholarshipProperties;
 
+    /**
+     * 分页查询成绩（管理员/导师）
+     * 导师只能查询自己指导学生的成绩，管理员可查询所有
+     *
+     * @param current      当前页码
+     * @param size         每页条数
+     * @param studentId    筛选指定学生
+     * @param academicYear 学年筛选
+     * @param semester     学期筛选（1-第一学期，2-第二学期，3-夏季学期）
+     * @param loginUser    当前登录用户
+     * @return 分页后的成绩列表
+     */
     @GetMapping("/page")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "分页查询成绩", description = "支持按学生、学年、学期筛选，导师只能查询本人指导学生")
@@ -82,6 +104,18 @@ public class CourseScoreController {
         return Result.success(courseScoreService.queryPage(query));
     }
 
+    /**
+     * 分页查询我的成绩（学生）
+     * 当前登录学生查看自己已导入的课程成绩
+     *
+     * @param current      当前页码
+     * @param size         每页条数
+     * @param academicYear 学年筛选
+     * @param semester     学期筛选
+     * @param courseName   课程名称筛选
+     * @param loginUser    当前登录学生
+     * @return 分页后的成绩列表
+     */
     @GetMapping("/my/page")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     @Operation(summary = "分页查询我的成绩", description = "当前登录学生查看自己已导入的课程成绩")
@@ -107,6 +141,13 @@ public class CourseScoreController {
         return Result.success(courseScoreService.queryPage(query));
     }
 
+    /**
+     * 查询我的成绩学年列表
+     * 返回当前学生已有课程成绩对应的学年去重列表，用于下拉筛选
+     *
+     * @param loginUser 当前登录学生
+     * @return 学年列表（降序排列）
+     */
     @GetMapping("/my-years")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     @Operation(summary = "查询我的成绩学年列表", description = "返回当前学生已有课程成绩对应的学年去重列表")
@@ -118,6 +159,13 @@ public class CourseScoreController {
         return Result.success(courseScoreService.listAcademicYearsByStudentId(studentInfo.getId()));
     }
 
+    /**
+     * 获取成绩详情
+     *
+     * @param id        成绩ID
+     * @param loginUser 当前登录用户
+     * @return 成绩详细信息
+     */
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "获取成绩详情")
@@ -132,6 +180,14 @@ public class CourseScoreController {
         return Result.success(score);
     }
 
+    /**
+     * 录入成绩
+     * 自动补齐学生学号和姓名快照
+     *
+     * @param score     成绩信息
+     * @param loginUser 当前登录用户
+     * @return 操作结果
+     */
     @PostMapping
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "录入成绩", description = "录入学生课程成绩，并自动补齐学生学号和姓名快照")
@@ -143,6 +199,14 @@ public class CourseScoreController {
         return success ? Result.success("录入成功") : Result.error("录入失败");
     }
 
+    /**
+     * 更新成绩
+     * 修改课程成绩，并自动更新学生学号和姓名快照
+     *
+     * @param score     更新后的成绩信息
+     * @param loginUser 当前登录用户
+     * @return 操作结果
+     */
     @PutMapping
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "更新成绩", description = "修改课程成绩，并自动补齐学生学号和姓名快照")
@@ -162,6 +226,12 @@ public class CourseScoreController {
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 
+    /**
+     * 删除成绩（仅管理员）
+     *
+     * @param id 成绩ID
+     * @return 操作结果
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除成绩", description = "删除课程成绩记录")
@@ -170,6 +240,15 @@ public class CourseScoreController {
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
+    /**
+     * 计算加权平均分
+     * 根据已导入的成绩计算指定学生的加权平均分（用于奖学金评定）
+     *
+     * @param studentId 学生ID
+     * @param batchId  可选，批次ID（用于限定成绩时间范围）
+     * @param loginUser 当前登录用户
+     * @return 加权平均分
+     */
     @GetMapping("/weighted-average/{studentId}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "计算加权平均分", description = "计算指定学生的加权平均分")
@@ -183,6 +262,13 @@ public class CourseScoreController {
         return Result.success(courseScoreService.calculateWeightedAverage(studentId, batchId));
     }
 
+    /**
+     * 计算总学分
+     *
+     * @param studentId 学生ID
+     * @param loginUser 当前登录用户
+     * @return 总学分
+     */
     @GetMapping("/total-credits/{studentId}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "计算总学分", description = "计算指定学生的总学分")
@@ -195,6 +281,13 @@ public class CourseScoreController {
         return Result.success(courseScoreService.calculateTotalCredits(studentId));
     }
 
+    /**
+     * 计算平均绩点
+     *
+     * @param studentId 学生ID
+     * @param loginUser 当前登录用户
+     * @return 平均绩点
+     */
     @GetMapping("/average-gpa/{studentId}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "计算平均绩点", description = "计算指定学生的平均绩点")
@@ -207,6 +300,14 @@ public class CourseScoreController {
         return Result.success(courseScoreService.calculateAverageGPA(studentId));
     }
 
+    /**
+     * 导出成绩（同步，直接下载）
+     *
+     * @param studentId    可选，学生ID
+     * @param academicYear 可选，学年
+     * @param loginUser    当前登录用户
+     * @param response     HTTP响应
+     */
     @GetMapping("/export")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "导出成绩", description = "导出成绩列表为 Excel 文件")
@@ -238,6 +339,16 @@ public class CourseScoreController {
             .doWrite(list);
     }
 
+    /**
+     * 异步导出成绩
+     * 提交导出任务后立即返回taskId，页面可轮询任务状态
+     *
+     * @param studentId    可选，学生ID
+     * @param academicYear 可选，学年
+     * @param maxRows     最大导出行数（默认5000）
+     * @param loginUser    当前登录用户
+     * @return 任务ID
+     */
     @PostMapping("/export/submit")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "异步导出成绩", description = "提交异步导出任务，返回 taskId 用于轮询状态和下载")
@@ -278,6 +389,12 @@ public class CourseScoreController {
         return Result.success("导出任务已提交", Map.of("taskId", taskId));
     }
 
+    /**
+     * 查询导出任务状态
+     *
+     * @param taskId 任务ID
+     * @return 任务状态（pending/running/completed/failed）
+     */
     @GetMapping("/export/status/{taskId}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "查询导出任务状态")
@@ -289,6 +406,12 @@ public class CourseScoreController {
         return Result.success(status);
     }
 
+    /**
+     * 下载异步导出的文件
+     *
+     * @param taskId   任务ID
+     * @param response HTTP响应
+     */
     @GetMapping("/export/download/{taskId}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_TUTOR')")
     @Operation(summary = "下载异步导出文件")
@@ -313,6 +436,13 @@ public class CourseScoreController {
         response.getOutputStream().flush();
     }
 
+    /**
+     * 批量导入成绩（管理员）
+     *
+     * @param file      Excel文件
+     * @param studentId 学生ID
+     * @return 导入结果（成功条数、失败条数）
+     */
     @PostMapping("/import")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "批量导入成绩", description = "从 Excel 文件批量导入成绩")
@@ -326,6 +456,14 @@ public class CourseScoreController {
         return Result.success(result.getMessage(), result);
     }
 
+    /**
+     * 学生导入自己的成绩
+     * 当前登录学生上传主修成绩Excel，系统自动解析并导入
+     *
+     * @param file      Excel文件（.xlsx 或 .xls）
+     * @param loginUser 当前登录学生
+     * @return 导入结果
+     */
     @PostMapping("/my/import")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     @Operation(summary = "学生导入自己的成绩", description = "当前登录学生上传主修成绩 Excel，系统自动导入课程成绩")
@@ -348,6 +486,14 @@ public class CourseScoreController {
         return Result.success(result.getMessage(), result);
     }
 
+    /**
+     * 应用导师数据域过滤
+     * 管理员可访问全部数据，导师仅能访问自己指导的学生数据
+     *
+     * @param query     查询条件
+     * @param loginUser 当前登录用户
+     * @return 是否授权访问
+     */
     private boolean applyTutorScope(CourseScoreQuery query, LoginUser loginUser) {
         if (isAdmin(loginUser)) {
             return true;
@@ -366,6 +512,9 @@ public class CourseScoreController {
         return true;
     }
 
+    /**
+     * 获取导师指导的学生ID列表
+     */
     private List<Long> ownStudentIds(Long tutorUserId) {
         return studentInfoService.list(new LambdaQueryWrapper<StudentInfo>()
                 .eq(StudentInfo::getTutorId, tutorUserId))
@@ -374,6 +523,9 @@ public class CourseScoreController {
             .toList();
     }
 
+    /**
+     * 检查是否能访问指定学生的数据
+     */
     private boolean canAccessStudent(LoginUser loginUser, Long studentId) {
         if (studentId == null || loginUser == null) {
             return false;

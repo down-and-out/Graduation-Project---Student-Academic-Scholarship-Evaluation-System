@@ -21,7 +21,18 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 结果异议控制器。
+ * 结果异议控制器
+ * 功能：学生对评定结果提出异议，管理员处理异议
+ *
+ * 业务流程：
+ * 1. 学生对本人评定结果（公示期内）提交异议申请
+ * 2. 管理员审核异议并填写处理意见
+ * 3. 如需调整结果，可通过评定结果调整接口修改奖项等级
+ *
+ * 权限说明：
+ * - 提交异议：仅学生（只能对自己已评定结果提出）
+ * - 分页查询：管理员查看全部，学生只能查看自己的异议
+ * - 处理异议：仅管理员
  */
 @Slf4j
 @RestController
@@ -33,6 +44,17 @@ public class ResultAppealController {
     private final ResultAppealService resultAppealService;
     private final StudentInfoMapper studentInfoMapper;
 
+    /**
+     * 分页查询异议
+     * 根据角色过滤数据范围：管理员查看全部，学生只能查看自己的异议
+     *
+     * @param current      当前页码
+     * @param size         每页条数
+     * @param studentId    筛选指定学生（管理员用）
+     * @param appealStatus 异议状态筛选
+     * @param loginUser    当前登录用户
+     * @return 分页后的异议列表
+     */
     @GetMapping("/page")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_STUDENT')")
     @Operation(summary = "分页查询异议", description = "管理员可查看全部，学生只能查看自己的异议")
@@ -47,10 +69,12 @@ public class ResultAppealController {
         LambdaQueryWrapper<ResultAppeal> wrapper = new LambdaQueryWrapper<>();
 
         if (isAdmin(loginUser)) {
+            // 管理员可按学生ID筛选
             if (studentId != null) {
                 wrapper.eq(ResultAppeal::getStudentId, studentId);
             }
         } else {
+            // 学生只能查看自己的异议
             StudentInfo student = studentInfoMapper.selectOne(new LambdaQueryWrapper<StudentInfo>()
                     .eq(StudentInfo::getUserId, loginUser.getUserId())
                     .last("LIMIT 1"));
@@ -68,6 +92,14 @@ public class ResultAppealController {
         return Result.success(resultAppealService.page(page, wrapper));
     }
 
+    /**
+     * 提交异议
+     * 学生对本人评定结果提交异议，包含异议理由和详细说明
+     *
+     * @param appeal   异议信息（结果ID、理由、详细说明）
+     * @param loginUser 当前登录学生
+     * @return 操作结果
+     */
     @PostMapping
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     @Operation(summary = "提交异议", description = "学生对本人评定结果提交异议")
@@ -77,6 +109,15 @@ public class ResultAppealController {
         return success ? Result.success("提交成功") : Result.error("提交失败");
     }
 
+    /**
+     * 处理异议
+     * 管理员审核异议并填写处理意见
+     *
+     * @param id        异议ID
+     * @param request   处理意见
+     * @param loginUser 当前登录管理员
+     * @return 操作结果
+     */
     @PutMapping("/handle/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "处理异议", description = "管理员处理异议并填写处理意见")
@@ -92,6 +133,10 @@ public class ResultAppealController {
         return loginUser != null && UserTypeEnum.isAdmin(loginUser.getUserType());
     }
 
+    /**
+     * 处理异议请求体
+     * @param handleOpinion 处理意见（必填）
+     */
     public record HandleAppealRequest(String handleOpinion) {
     }
 }
