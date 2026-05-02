@@ -242,7 +242,7 @@ async function loadResult(): Promise<void> {
   try {
     const response = await getMyResult()
     const raw = extractApiData<EvaluationResult | null>(response)
-    result.value = raw ? normalizeResult(raw) : null
+    result.value = raw && raw.totalScore != null ? normalizeResult(raw) : null
   } catch (error) {
     console.error('加载评定结果失败:', error)
     if (isRequestCanceled(error)) return
