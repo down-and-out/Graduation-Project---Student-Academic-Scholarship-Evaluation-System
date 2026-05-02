@@ -37,7 +37,28 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Evaluation result service implementation.
+ * 评定结果服务实现类
+ *
+ * 功能说明：
+ * - 分页查询评定结果（支持多种筛选条件）
+ * - 分页查询评定结果（管理员视角，返回 VO）
+ * - 获取学生评定结果
+ * - 获取管理员视角结果详情
+ * - 确认评定结果
+ * - 标记异议
+ * - 获取批次排名列表
+ * - 导出评定结果
+ * - 调整评定结果
+ *
+ * 缓存说明：
+ * - 管理员视角结果分页：使用缓存（key 根据分页参数和筛选条件生成）
+ * - 学生结果：按 studentId 和 batchId 缓存
+ * - 管理员结果详情：按 resultId 缓存
+ * - 批次排名：按 batchId 和 type 缓存
+ * - 操作后发布缓存清除事件
+ *
+ * 事务说明：
+ * - 确认、标记异议、调整操作使用 @Transactional 保证一致性
  */
 @Slf4j
 @Service
@@ -50,13 +71,28 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     private final ApplicationEventPublisher eventPublisher;
     private final ScholarshipProperties scholarshipProperties;
 
+    /**
+     * 分页查询评定结果（基础查询）
+     *
+     * @param current     当前页码
+     * @param size        每页条数
+     * @param batchId     批次ID（精确筛选）
+     * @param academicYear 学年 + 学期（模糊筛选，通过批次匹配）
+     * @param semester    学期
+     * @param studentId   学生ID
+     * @param status      结果状态
+     * @param keyword     关键词（学号/姓名模糊搜索）
+     * @return 分页后的评定结果列表
+     */
     @Override
     public IPage<EvaluationResult> pageResults(Long current, Long size, Long batchId, String academicYear,
                                                Integer semester, Long studentId, Integer status, String keyword) {
+        // 限制最大偏移量，防止查询过于耗时
         CursorPageHelper.validateOffset(current, size, scholarshipProperties.getEvaluation().getMaxOffsetRows());
         Page<EvaluationResult> page = new Page<>(current, size);
         LambdaQueryWrapper<EvaluationResult> wrapper = new LambdaQueryWrapper<>();
 
+        // 批次ID精确筛选 或 学年+学期模糊筛选（通过批次匹配）
         if (batchId != null) {
             wrapper.eq(EvaluationResult::getBatchId, batchId);
         } else if (StringUtils.isNotBlank(academicYear) || semester != null) {
@@ -67,24 +103,33 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
             wrapper.in(EvaluationResult::getBatchId, matchedBatchIds);
         }
 
+        // 学生ID筛选
         if (studentId != null) {
             wrapper.eq(EvaluationResult::getStudentId, studentId);
         }
 
+        // 结果状态筛选
         if (status != null) {
             wrapper.eq(EvaluationResult::getResultStatus, status);
         }
 
+        // 关键词搜索（学号或姓名模糊匹配）
         if (StringUtils.isNotBlank(keyword)) {
             wrapper.and(w -> w.like(EvaluationResult::getStudentNo, keyword)
                     .or()
                     .like(EvaluationResult::getStudentName, keyword));
         }
 
+        // 按总分倒序排列
         wrapper.orderByDesc(EvaluationResult::getTotalScore);
         return evaluationResultMapper.selectPage(page, wrapper);
     }
 
+    /**
+     * 分页查询评定结果（管理员视角）
+     * 转换结果为 VO，包含批次名称等信息
+     * 使用缓存
+     */
     @Override
     @Cacheable(
             value = CacheConstants.EVAL_PAGE,
@@ -94,6 +139,7 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
     public IPage<AdminEvaluationResultVO> pageAdminResults(Long current, Long size, Long batchId, String academicYear,
                                                            Integer semester, Long studentId, Integer status,
                                                            String keyword) {
+        // 1. 执行基础分页查询
         IPage<EvaluationResult> pageResult = pageResults(
                 current,
                 size,
@@ -104,8 +150,10 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
                 status,
                 keyword
         );
+        // 2. 批量加载批次名称
         Map<Long, String> batchNameMap = loadBatchNameMap(pageResult.getRecords());
 
+        // 3. 转换为 VO 分页结果
         Page<AdminEvaluationResultVO> adminPage = new Page<>(
                 pageResult.getCurrent(),
                 pageResult.getSize(),
@@ -117,6 +165,14 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         return adminPage;
     }
 
+    /**
+     * 获取学生评定结果
+     * 按 studentId 和 batchId 查询，使用缓存
+     *
+     * @param studentId 学生ID
+     * @param batchId   批次ID（可选，为空时查询最新结果）
+     * @return 评定结果
+     */
     @Override
     @Cacheable(value = CacheConstants.EVAL_STUDENT, key = "'student:' + #studentId + ':batch:' + (#batchId != null ? #batchId.toString() : 'latest')")
     public EvaluationResult getStudentResult(Long studentId, Long batchId) {
@@ -127,12 +183,14 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
 
         Page<EvaluationResult> page = new Page<>(1, 1, false);
         if (batchId != null) {
+            // 指定批次查询
             wrapper.eq(EvaluationResult::getBatchId, batchId);
             return evaluationResultMapper.selectPage(page, wrapper).getRecords().stream()
                     .findFirst()
                     .orElse(null);
         }
 
+        // 不指定批次，查询最新结果（按批次ID和结果ID倒序）
         wrapper.orderByDesc(EvaluationResult::getBatchId)
                 .orderByDesc(EvaluationResult::getId);
         return evaluationResultMapper.selectPage(page, wrapper).getRecords().stream()
@@ -140,6 +198,10 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
                 .orElse(null);
     }
 
+    /**
+     * 获取管理员视角结果详情
+     * 使用缓存
+     */
     @Override
     @Cacheable(value = CacheConstants.EVAL_ADMIN, key = "#id")
     public AdminEvaluationResultVO getAdminResultById(Long id) {
@@ -150,6 +212,10 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         return toAdminVO(result, loadBatchNameMap(List.of(result)));
     }
 
+    /**
+     * 确认评定结果
+     * 将结果状态改为已确认
+     */
     @Override
     @Transactional
     public boolean confirmResult(Long id) {
@@ -166,6 +232,10 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         return success;
     }
 
+    /**
+     * 标记异议
+     * 将结果状态改为有异议
+     */
     @Override
     @Transactional
     public boolean objectResult(Long id) {
@@ -182,6 +252,13 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         return success;
     }
 
+    /**
+     * 获取批次排名列表
+     * 按总分倒序排列，使用缓存
+     *
+     * @param batchId 批次ID
+     * @param type    排名类型（department=院系排名，major=专业排名）
+     */
     @Override
     @Cacheable(value = CacheConstants.EVAL_RANK, key = "#batchId + ':' + #type", unless = "#result.isEmpty()")
     public List<EvaluationResult> getBatchRanks(Long batchId, String type) {
@@ -192,14 +269,26 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
                 .orderByDesc(EvaluationResult::getTotalScore);
 
         if ("department".equals(type)) {
+            // 院系排名：按院系排名字段正序
             wrapper.orderByAsc(EvaluationResult::getDepartmentRank);
         } else {
+            // 专业排名：按专业排名字段正序
             wrapper.orderByAsc(EvaluationResult::getMajorRank);
         }
 
         return list(wrapper);
     }
 
+    /**
+     * 导出评定结果
+     * 用于生成 Excel 导出数据
+     *
+     * @param batchId      批次ID
+     * @param academicYear 学年
+     * @param semester    学期
+     * @param maxRows     最大导出行数
+     * @return 导出数据列表
+     */
     @Override
     public List<EvaluationResultExportVO> exportBatchResults(Long batchId, String academicYear, Integer semester, int maxRows) {
         log.info("Export evaluation results, batchId={}, academicYear={}, semester={}, maxRows={}", batchId, academicYear, semester, maxRows);
@@ -245,6 +334,10 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         return exportData;
     }
 
+    /**
+     * 调整评定结果
+     * 用于异议处理
+     */
     @Override
     @Transactional
     public boolean adjustResult(Long id, EvaluationResultAdjustRequest request) {
@@ -260,6 +353,11 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         return success;
     }
 
+    // ========== 私有工具方法 ==========
+
+    /**
+     * 根据学年和学期解析匹配的批次ID列表
+     */
     private List<Long> resolveBatchIds(String academicYear, Integer semester) {
         LambdaQueryWrapper<EvaluationBatch> batchWrapper = new LambdaQueryWrapper<>();
         if (StringUtils.isNotBlank(academicYear)) {
@@ -275,6 +373,9 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
                 .toList();
     }
 
+    /**
+     * 批量加载批次名称（以结果中的批次ID为key）
+     */
     private Map<Long, String> loadBatchNameMap(List<EvaluationResult> results) {
         Set<Long> batchIds = results.stream()
                 .map(EvaluationResult::getBatchId)
@@ -294,6 +395,9 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
                 ));
     }
 
+    /**
+     * 清除结果相关缓存
+     */
     private void evictResultCaches(Long batchId, Long resultId) {
         eventPublisher.publishEvent(new CacheEvictionEvent(
                 this,
@@ -307,6 +411,9 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         ));
     }
 
+    /**
+     * 将结果实体转换为管理员 VO
+     */
     private AdminEvaluationResultVO toAdminVO(EvaluationResult result, Map<Long, String> batchNameMap) {
         AdminEvaluationResultVO vo = new AdminEvaluationResultVO();
         vo.setId(result.getId());
