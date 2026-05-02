@@ -306,12 +306,13 @@ public class CourseScoreServiceImpl extends ServiceImpl<CourseScoreMapper, Cours
                 .select(CourseScore::getAcademicYear)
                 .eq(CourseScore::getStudentId, studentId)
                 .isNotNull(CourseScore::getAcademicYear)
-                .orderByDesc(CourseScore::getAcademicYear);
+                .groupBy(CourseScore::getAcademicYear)
+                .orderByDesc(CourseScore::getAcademicYear)
+                .last("LIMIT 100");
 
         return list(wrapper).stream()
                 .map(CourseScore::getAcademicYear)
                 .filter(year -> year != null && !year.isBlank())
-                .distinct()
                 .toList();
     }
 
