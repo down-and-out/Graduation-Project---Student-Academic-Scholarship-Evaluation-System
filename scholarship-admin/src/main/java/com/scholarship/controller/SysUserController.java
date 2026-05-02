@@ -34,7 +34,18 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 系统用户控制器
+ * 系统用户管理控制器
+ *
+ * 功能说明：
+ * - 分页查询用户列表（支持关键词、角色、院系、状态筛选）
+ * - 根据 ID 查询用户详情（含学生信息）
+ * - 新增用户（同时自动创建学生档案）
+ * - 更新用户信息（同时同步到学生档案）
+ * - 删除用户（级联删除学生档案）
+ * - 批量删除用户
+ * - 重置用户密码
+ *
+ * 权限说明：所有接口仅管理员可访问（需要 ROLE_ADMIN 角色）
  */
 @Slf4j
 @RestController
@@ -46,6 +57,17 @@ public class SysUserController {
     private final SysUserService sysUserService;
     private final StudentInfoService studentInfoService;
 
+    /**
+     * 分页查询用户列表
+     *
+     * @param current    当前页码（从1开始）
+     * @param size       每页条数
+     * @param keyword    搜索关键字（匹配用户名或姓名）
+     * @param department  院系列表（支持单个或多个值筛选）
+     * @param userType   用户类型列表（1=研究生，2=导师，3=管理员）
+     * @param status     状态列表（0=禁用，1=正常）
+     * @return 分页后的用户列表（包含学生信息）
+     */
     @GetMapping("/page")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "分页查询用户", description = "支持按用户名、姓名、院系、单个或多个用户类型、单个或多个状态筛选")
@@ -73,6 +95,13 @@ public class SysUserController {
         ));
     }
 
+    /**
+     * 根据用户 ID 查询用户详情
+     * 如果用户类型为学生，同时返回关联的学生档案信息
+     *
+     * @param id 用户ID
+     * @return 用户详情（含学生信息）
+     */
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "根据 ID 查询用户")
@@ -87,12 +116,20 @@ public class SysUserController {
             return Result.error("用户不存在");
         }
         StudentInfo studentInfo = null;
+        // 如果是学生类型，同时查询学生档案
         if (UserTypeEnum.isStudent(user.getUserType())) {
             studentInfo = studentInfoService.getByUserId(user.getId());
         }
         return Result.success(SysUserVO.fromEntity(user, studentInfo));
     }
 
+    /**
+     * 新增用户
+     * 创建新用户，如果用户类型为学生，同时自动创建学生档案
+     *
+     * @param request 用户创建请求（包含用户基本信息 + 学生专属字段）
+     * @return 操作结果
+     */
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "新增用户", description = "创建新的系统用户")
@@ -112,6 +149,13 @@ public class SysUserController {
         return success ? Result.success("新增成功") : Result.error("新增失败");
     }
 
+    /**
+     * 更新用户信息
+     * 修改用户基本信息，同时同步到学生档案（姓名、院系、电话、邮箱）
+     *
+     * @param user 用户信息（含ID）
+     * @return 操作结果
+     */
     @PutMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "更新用户", description = "修改用户信息")
@@ -125,6 +169,13 @@ public class SysUserController {
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 
+    /**
+     * 删除用户
+     * 删除指定用户，同时级联删除关联的学生档案
+     *
+     * @param id 用户ID
+     * @return 操作结果
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除用户", description = "删除指定的系统用户")
@@ -137,6 +188,13 @@ public class SysUserController {
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
+    /**
+     * 批量删除用户
+     * 批量删除指定用户，同时级联删除关联的学生档案
+     *
+     * @param ids 用户ID列表
+     * @return 操作结果
+     */
     @DeleteMapping("/batch")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "批量删除用户", description = "批量删除系统用户")
@@ -149,6 +207,14 @@ public class SysUserController {
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
+    /**
+     * 重置用户密码
+     * 将用户密码恢复为系统默认密码（或指定新密码）
+     *
+     * @param id       用户ID
+     * @param request   重置密码请求（可选的新密码）
+     * @return 操作结果
+     */
     @PutMapping("/reset-password/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "重置密码", description = "重置用户密码")
@@ -164,11 +230,19 @@ public class SysUserController {
         return success ? Result.success("重置成功") : Result.error("重置失败");
     }
 
+    /**
+     * 将字符串类型的筛选参数解析为 Integer 列表
+     * 用于解析 userType、status 等枚举值参数
+     */
     private List<Integer> normalizeIntegerFilterValues(List<String> values) {
         List<Integer> parsed = ParamParserUtil.parseIntegerParams(values);
         return parsed.isEmpty() ? null : parsed;
     }
 
+    /**
+     * 将字符串类型的筛选参数解析为 String 列表
+     * 用于解析 department 等文本参数
+     */
     private List<String> normalizeStringFilterValues(List<String> values) {
         List<String> parsed = ParamParserUtil.parseStringParams(values);
         return parsed.isEmpty() ? null : parsed;

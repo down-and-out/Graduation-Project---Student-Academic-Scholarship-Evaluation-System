@@ -37,6 +37,29 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * 评定批次管理控制器
+ *
+ * 功能说明：
+ * - 分页查询评定批次（支持学年、学期、状态筛选）
+ * - 获取批次详情
+ * - 新增评定批次（配置奖项比例、选择参与规则集）
+ * - 更新评定批次
+ * - 删除评定批次
+ * - 开始申请（未开始 → 申请中）
+ * - 开始评审（申请中 → 评审中）
+ * - 开始公示（评审中 → 公示中）
+ * - 完成评定（公示中 → 已完成）
+ * - 获取可用批次列表（申请中的批次）
+ * - 获取评定批次学年选项
+ *
+ * 权限说明：
+ * - 查询类接口所有用户可访问
+ * - 新增、更新、删除、状态流转仅管理员可访问
+ *
+ * 批次状态流转：
+ * 1 未开始 → 2 申请中 → 3 评审中 → 4 公示中 → 5 已完成
+ */
 @Slf4j
 @RestController
 @RequestMapping("/evaluation-batch")
@@ -46,6 +69,20 @@ public class EvaluationBatchController {
 
     private final EvaluationBatchService evaluationBatchService;
 
+    /**
+     * 分页查询评定批次
+     * 支持按学年、学期、状态筛选，并兼容旧的学年-学期组合筛选入参
+     *
+     * @param current        当前页码
+     * @param size           每页条数
+     * @param academicYears  学年列表
+     * @param semesters      学期列表
+     * @param statuses       状态列表
+     * @param legacySemester 兼容旧参数：学年-学期组合值（如 2025-1）
+     * @param legacyStatus   兼容旧参数：状态
+     * @param batchStatus    兼容旧参数：批次状态
+     * @return 分页后的评定批次列表
+     */
     @GetMapping("/page")
     @Operation(summary = "分页查询评定批次", description = "支持按学年、学期、状态筛选，并兼容旧的学年-学期组合筛选入参")
     @ApiResponses(value = {
@@ -64,11 +101,13 @@ public class EvaluationBatchController {
         Page<EvaluationBatch> page = new Page<>(current, size);
         LambdaQueryWrapper<EvaluationBatch> wrapper = new LambdaQueryWrapper<>();
 
+        // 解析和合并参数
         List<String> normalizedAcademicYears = ParamParserUtil.parseStringParams(academicYears);
         List<Integer> normalizedSemesters = ParamParserUtil.parseIntegerParams(semesters);
         List<Integer> normalizedStatuses = ParamParserUtil.parseIntegerParams(mergeRawValues(statuses, legacyStatus, batchStatus));
         List<LegacySemesterPair> legacySemesterPairs = parseLegacySemesterPairs(ParamParserUtil.parseStringParams(legacySemester));
 
+        // 学年筛选
         if (!normalizedAcademicYears.isEmpty()) {
             if (normalizedAcademicYears.size() == 1) {
                 wrapper.eq(EvaluationBatch::getAcademicYear, normalizedAcademicYears.get(0));
@@ -77,6 +116,7 @@ public class EvaluationBatchController {
             }
         }
 
+        // 学期筛选
         if (!normalizedSemesters.isEmpty()) {
             if (normalizedSemesters.size() == 1) {
                 wrapper.eq(EvaluationBatch::getSemester, normalizedSemesters.get(0));
@@ -85,6 +125,7 @@ public class EvaluationBatchController {
             }
         }
 
+        // 状态筛选
         if (!normalizedStatuses.isEmpty()) {
             if (normalizedStatuses.size() == 1) {
                 wrapper.eq(EvaluationBatch::getBatchStatus, normalizedStatuses.get(0));
@@ -93,6 +134,7 @@ public class EvaluationBatchController {
             }
         }
 
+        // 兼容旧参数：学年-学期组合筛选
         if (!legacySemesterPairs.isEmpty()) {
             wrapper.and(group -> {
                 boolean first = true;
@@ -109,11 +151,18 @@ public class EvaluationBatchController {
             });
         }
 
+        // 按创建时间倒序
         wrapper.orderByDesc(EvaluationBatch::getCreateTime);
         IPage<EvaluationBatch> result = evaluationBatchService.page(page, wrapper);
         return Result.success(result);
     }
 
+    /**
+     * 获取批次详情
+     *
+     * @param id 批次ID
+     * @return 批次详情
+     */
     @GetMapping("/{id}")
     @Operation(summary = "获取批次详情")
     @ApiResponses(value = {
@@ -128,6 +177,13 @@ public class EvaluationBatchController {
         return Result.success(batch);
     }
 
+    /**
+     * 新增评定批次
+     * 配置奖项比例（四档：特等、一等、二等、三等）和参与规则集
+     *
+     * @param batch 批次信息
+     * @return 操作结果
+     */
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "新增评定批次", description = "创建新的奖学金评定批次")
@@ -142,6 +198,13 @@ public class EvaluationBatchController {
         return success ? Result.success("新增成功") : Result.error("新增失败");
     }
 
+    /**
+     * 更新评定批次
+     * 更新时如果未传入奖项配置或规则集，保留原有配置
+     *
+     * @param batch 批次信息（含ID）
+     * @return 操作结果
+     */
     @PutMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "更新评定批次", description = "修改评定批次信息")
@@ -155,12 +218,19 @@ public class EvaluationBatchController {
         if (existingBatch == null) {
             return Result.error("批次不存在");
         }
+        // 如果未传入奖项配置，保留原有配置
         mergeBatchConfigForUpdate(existingBatch, batch);
         validateBatchConfig(batch);
         boolean success = evaluationBatchService.updateById(batch);
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 
+    /**
+     * 删除评定批次
+     *
+     * @param id 批次ID
+     * @return 操作结果
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除评定批次", description = "仅管理员可操作")
@@ -174,6 +244,13 @@ public class EvaluationBatchController {
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
+    /**
+     * 开始申请
+     * 将批次从未开始流转为申请中，学生可以开始提交申请
+     *
+     * @param id 批次ID
+     * @return 操作结果
+     */
     @PutMapping("/start/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "开始申请", description = "将批次从未开始流转为申请中")
@@ -182,6 +259,12 @@ public class EvaluationBatchController {
         return success ? Result.success("已进入申请阶段") : Result.error("操作失败");
     }
 
+    /**
+     * 获取可用批次列表
+     * 返回当前申请中的批次列表，所有用户可访问（用于学生提交申请时选择批次）
+     *
+     * @return 申请中的批次列表
+     */
     @GetMapping("/available")
     @Operation(summary = "获取可用批次列表", description = "获取当前申请中的批次列表，所有用户可访问")
     @ApiResponses(value = {
@@ -192,6 +275,12 @@ public class EvaluationBatchController {
         return Result.success(batches);
     }
 
+    /**
+     * 获取评定批次学年选项
+     * 返回已存在批次的学年列表，用于筛选项加载
+     *
+     * @return 学年列表（去重、倒序）
+     */
     @GetMapping("/meta/years")
     @Operation(summary = "获取评定批次学年选项", description = "返回已存在批次的学年列表，用于筛选项加载")
     @ApiResponses(value = {
@@ -210,6 +299,13 @@ public class EvaluationBatchController {
         return Result.success(years);
     }
 
+    /**
+     * 发布批次（兼容旧入口）
+     * 校验批次处于未开始状态
+     *
+     * @param id 批次ID
+     * @return 操作结果
+     */
     @PutMapping("/publish/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "发布批次", description = "校验批次处于未开始状态，兼容旧入口")
@@ -218,6 +314,13 @@ public class EvaluationBatchController {
         return success ? Result.success("批次已发布") : Result.error("操作失败");
     }
 
+    /**
+     * 完成评定
+     * 将批次从公示中流转为已完成，评定结果最终确认
+     *
+     * @param id 批次ID
+     * @return 操作结果
+     */
     @PutMapping("/close/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "完成评定", description = "将批次从公示中流转为已完成")
@@ -226,6 +329,13 @@ public class EvaluationBatchController {
         return success ? Result.success("评定已完成") : Result.error("操作失败");
     }
 
+    /**
+     * 开始评审
+     * 将批次从申请中流转为评审中，导师可以开始审核学生成果
+     *
+     * @param id 批次ID
+     * @return 操作结果
+     */
     @PutMapping("/start-review/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "开始评审", description = "将批次从申请中流转为评审中")
@@ -234,6 +344,13 @@ public class EvaluationBatchController {
         return success ? Result.success("已进入评审阶段") : Result.error("操作失败");
     }
 
+    /**
+     * 开始公示
+     * 将批次从评审中流转为公示中，评定结果公示接受异议
+     *
+     * @param id 批次ID
+     * @return 操作结果
+     */
     @PutMapping("/start-publicity/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "开始公示", description = "将批次从评审中流转为公示中")
@@ -242,6 +359,11 @@ public class EvaluationBatchController {
         return success ? Result.success("已进入公示阶段") : Result.error("操作失败");
     }
 
+    // ========== 私有工具方法 ==========
+
+    /**
+     * 合并多个列表（用于兼容旧参数）
+     */
     @SafeVarargs
     private List<String> mergeRawValues(List<String>... groups) {
         List<String> merged = new ArrayList<>();
@@ -253,6 +375,10 @@ public class EvaluationBatchController {
         return merged;
     }
 
+    /**
+     * 解析旧版学年-学期组合参数
+     * 格式：如 "2025-1" 解析为 (2025, 1)
+     */
     private List<LegacySemesterPair> parseLegacySemesterPairs(List<String> legacyValues) {
         if (legacyValues == null || legacyValues.isEmpty()) {
             return List.of();
@@ -278,6 +404,13 @@ public class EvaluationBatchController {
         return result;
     }
 
+    /**
+     * 校验批次配置
+     * - 奖项配置必须为四档
+     * - 每档的比例必须大于0
+     * - 每档的金额不能为负数
+     * - 比例总和不能超过100%
+     */
     private void validateBatchConfig(EvaluationBatch batch) {
         List<BatchAwardConfig> awardConfigs = batch.getAwardConfigs();
         if (awardConfigs == null || awardConfigs.isEmpty()) {
@@ -310,6 +443,10 @@ public class EvaluationBatchController {
         }
     }
 
+    /**
+     * 更新时合并批次配置
+     * 如果传入的批次没有奖项配置或规则集，保留原有的
+     */
     private void mergeBatchConfigForUpdate(EvaluationBatch existingBatch, EvaluationBatch incomingBatch) {
         if (incomingBatch.getAwardConfigsJson() == null) {
             incomingBatch.setAwardConfigs(existingBatch.getAwardConfigs());
@@ -323,6 +460,9 @@ public class EvaluationBatchController {
         }
     }
 
+    /**
+     * 旧版学年-学期组合（用于解析 legacySemester 参数）
+     */
     private record LegacySemesterPair(String academicYear, Integer semester) {
     }
 }

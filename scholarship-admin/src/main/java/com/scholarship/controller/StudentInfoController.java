@@ -31,6 +31,24 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 研究生信息管理控制器
+ *
+ * 功能说明：
+ * - 分页查询研究生信息（支持关键字、院系、入学年份、学籍状态筛选）
+ * - 导师分页查询指导学生（含成果统计）
+ * - 获取当前学生信息
+ * - 根据 ID 获取学生信息
+ * - 新增学生信息（仅管理员）
+ * - 更新学生信息（仅管理员，同时同步到用户表）
+ * - 删除学生信息（仅管理员，级联删除用户账号）
+ * - 学生更新自己的信息（仅学生，只能修改部分字段）
+ *
+ * 权限说明：
+ * - 分页查询、新增、更新、删除仅管理员可访问
+ * - 导师查询指导学生仅导师可访问
+ * - 学生查询自己的信息和更新自己的信息仅学生可访问
+ */
 @Slf4j
 @RestController
 @RequestMapping("/student-info")
@@ -41,6 +59,18 @@ public class StudentInfoController {
     private final StudentInfoService studentInfoService;
     private final SysUserMapper sysUserMapper;
 
+    /**
+     * 分页查询研究生信息
+     * 支持按关键字（学号/姓名）、院系、入学年份、学籍状态筛选
+     *
+     * @param current        当前页码
+     * @param size           每页条数
+     * @param keyword        搜索关键字（匹配学号或姓名）
+     * @param department     院系列表（支持单个或多个值）
+     * @param enrollmentYear 入学年份（按学号前4位筛选）
+     * @param status         学籍状态列表
+     * @return 分页后的研究生信息列表
+     */
     @GetMapping("/page")
     @Operation(summary = "分页查询研究生信息", description = "支持按关键字、院系、入学年份、学籍状态筛选")
     @ApiResponses(value = {
@@ -59,6 +89,17 @@ public class StudentInfoController {
         return Result.success(page);
     }
 
+    /**
+     * 导师分页查询指导学生
+     * 仅返回当前导师名下学生，并附带论文/专利/项目成果统计
+     *
+     * @param current    当前页码
+     * @param size       每页条数
+     * @param keyword    搜索关键字（匹配学号或姓名）
+     * @param grade      年级（筛选同一年级学生）
+     * @param loginUser  当前登录导师
+     * @return 分页后的指导学生列表（含成果统计）
+     */
     @GetMapping("/tutor/page")
     @PreAuthorize("hasRole('ROLE_TUTOR')")
     @Operation(summary = "导师分页查询指导学生", description = "仅返回当前导师名下学生，并附带成果统计")
@@ -77,6 +118,13 @@ public class StudentInfoController {
         ));
     }
 
+    /**
+     * 获取当前登录学生的学籍信息
+     * 如果有导师，同时返回导师姓名
+     *
+     * @param loginUser 当前登录学生
+     * @return 学生学籍信息
+     */
     @GetMapping("/my")
     @Operation(summary = "获取当前学生信息", description = "获取当前登录研究生的学籍信息")
     @ApiResponses(value = {
@@ -89,6 +137,7 @@ public class StudentInfoController {
             return Result.error("未找到学生信息");
         }
 
+        // 如果有导师，查询导师姓名
         if (studentInfo.getTutorId() != null) {
             SysUser tutor = sysUserMapper.selectById(studentInfo.getTutorId());
             if (tutor != null) {
@@ -99,6 +148,12 @@ public class StudentInfoController {
         return Result.success(studentInfo);
     }
 
+    /**
+     * 根据 ID 获取学生信息
+     *
+     * @param id 学生ID
+     * @return 学生信息
+     */
     @GetMapping("/{id}")
     @Operation(summary = "根据 ID 获取学生信息")
     @ApiResponses(value = {
@@ -113,6 +168,12 @@ public class StudentInfoController {
         return Result.success(studentInfo);
     }
 
+    /**
+     * 新增学生信息（仅管理员）
+     *
+     * @param studentInfo 学生信息
+     * @return 操作结果
+     */
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "新增学生信息", description = "仅管理员可操作")
@@ -125,6 +186,13 @@ public class StudentInfoController {
         return success ? Result.success("新增成功") : Result.error("新增失败");
     }
 
+    /**
+     * 更新学生信息（仅管理员）
+     * 更新学生信息，同时同步到用户表（姓名、院系、电话、邮箱）
+     *
+     * @param studentInfo 学生信息（含ID）
+     * @return 操作结果
+     */
     @PutMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "更新学生信息", description = "仅管理员可操作，同时同步更新用户信息")
@@ -137,6 +205,13 @@ public class StudentInfoController {
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 
+    /**
+     * 删除学生信息（仅管理员）
+     * 删除学生信息，同时级联删除关联的用户账号
+     *
+     * @param id 学生ID
+     * @return 操作结果
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除学生信息", description = "仅管理员可操作，同时级联删除关联的用户账号")
@@ -157,6 +232,15 @@ public class StudentInfoController {
         }
     }
 
+    /**
+     * 学生更新自己的信息（仅学生）
+     * 学生只能修改电话、邮箱、研究方向、身份证、籍贯、家庭住址
+     * 同时同步到用户信息表
+     *
+     * @param studentInfo 只能包含可修改的字段
+     * @param loginUser   当前登录学生
+     * @return 操作结果
+     */
     @PutMapping("/my")
     @PreAuthorize("hasRole('ROLE_STUDENT')")
     @Operation(summary = "学生更新自己的信息", description = "学生只能修改自己的电话、邮箱、研究方向、身份证、籍贯、家庭住址，同时同步到用户信息")

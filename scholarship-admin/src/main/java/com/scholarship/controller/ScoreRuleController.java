@@ -27,6 +27,24 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 评分规则管理控制器
+ *
+ * 功能说明：
+ * - 分页查询评分规则（支持规则类型筛选）
+ * - 获取评分规则详情
+ * - 新增评分规则
+ * - 更新评分规则
+ * - 删除评分规则
+ * - 根据规则类型查询规则列表
+ * - 查询可用规则列表（仅启用状态）
+ * - 切换规则可用状态（启用/禁用）
+ * - 批量导入规则
+ *
+ * 权限说明：
+ * - 查询类接口所有用户可访问
+ * - 新增、更新、删除、切换状态、批量导入仅管理员可访问
+ */
 @Slf4j
 @RestController
 @RequestMapping("/score-rule")
@@ -36,6 +54,15 @@ public class ScoreRuleController {
 
     private final ScoreRuleService scoreRuleService;
 
+    /**
+     * 分页查询评分规则
+     * 支持按规则类型筛选，兼容单个或多个类型
+     *
+     * @param current   当前页码
+     * @param size      每页条数
+     * @param ruleType  规则类型列表（1=论文，2=专利，3=项目，4=竞赛等）
+     * @return 分页后的评分规则列表
+     */
     @GetMapping("/page")
     @Operation(summary = "分页查询评分规则", description = "支持按规则类型筛选，兼容单个或多个类型")
     @ApiResponses(value = {
@@ -51,9 +78,11 @@ public class ScoreRuleController {
         query.setCurrent(current);
         query.setSize(size);
 
+        // 解析规则类型参数
         List<Integer> ruleTypes = ParamParserUtil.parseIntegerParams(ruleType);
         if (!ruleTypes.isEmpty()) {
             query.setRuleTypes(ruleTypes);
+            // 如果只有一个类型，设置 ruleType（用于单类型精确查询）
             query.setRuleType(ruleTypes.size() == 1 ? ruleTypes.get(0) : null);
         }
 
@@ -61,6 +90,13 @@ public class ScoreRuleController {
         return Result.success(result);
     }
 
+    /**
+     * 获取评分规则详情
+     * 使用缓存查询
+     *
+     * @param id 规则ID
+     * @return 评分规则详情
+     */
     @GetMapping("/{id}")
     @Operation(summary = "获取评分规则详情")
     @ApiResponses(value = {
@@ -75,6 +111,12 @@ public class ScoreRuleController {
         return Result.success(rule);
     }
 
+    /**
+     * 新增评分规则
+     *
+     * @param rule 评分规则信息
+     * @return 操作结果
+     */
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "新增评分规则", description = "添加新的评分规则配置")
@@ -88,6 +130,12 @@ public class ScoreRuleController {
         return success ? Result.success("新增成功") : Result.error("新增失败");
     }
 
+    /**
+     * 更新评分规则
+     *
+     * @param rule 评分规则信息（含ID）
+     * @return 操作结果
+     */
     @PutMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "更新评分规则", description = "修改评分规则配置")
@@ -101,6 +149,12 @@ public class ScoreRuleController {
         return success ? Result.success("更新成功") : Result.error("更新失败");
     }
 
+    /**
+     * 删除评分规则
+     *
+     * @param id 规则ID
+     * @return 操作结果
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "删除评分规则", description = "仅管理员可操作")
@@ -114,6 +168,13 @@ public class ScoreRuleController {
         return success ? Result.success("删除成功") : Result.error("删除失败");
     }
 
+    /**
+     * 根据规则类型查询规则列表
+     * 返回该类型下所有规则（按排序号排序）
+     *
+     * @param ruleType 规则类型
+     * @return 规则列表
+     */
     @GetMapping("/list")
     @Operation(summary = "根据规则类型查询规则列表", description = "返回该类型下所有规则（按排序号排序）")
     @ApiResponses(value = {
@@ -126,6 +187,13 @@ public class ScoreRuleController {
         return Result.success(rules);
     }
 
+    /**
+     * 查询可用规则列表
+     * 仅返回已启用的规则（用于学生选择成果对应的评分规则）
+     *
+     * @param ruleType 规则类型
+     * @return 可用规则列表
+     */
     @GetMapping("/available")
     @Operation(summary = "查询可用规则列表", description = "仅返回已启用的规则")
     @ApiResponses(value = {
@@ -138,6 +206,13 @@ public class ScoreRuleController {
         return Result.success(rules);
     }
 
+    /**
+     * 切换规则可用状态
+     * 在启用和禁用之间切换
+     *
+     * @param id 规则ID
+     * @return 操作结果
+     */
     @PutMapping("/toggle/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "切换规则可用状态", description = "启用/禁用评分规则")
@@ -150,6 +225,13 @@ public class ScoreRuleController {
         return success ? Result.success("操作成功") : Result.error("操作失败");
     }
 
+    /**
+     * 批量导入规则
+     * 批量保存评分规则（用于 Excel 导入）
+     *
+     * @param rules 规则列表
+     * @return 操作结果
+     */
     @PostMapping("/batch")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "批量导入规则", description = "批量保存评分规则")
@@ -162,5 +244,4 @@ public class ScoreRuleController {
         boolean success = scoreRuleService.saveBatch(rules);
         return success ? Result.success("导入成功") : Result.error("导入失败");
     }
-
 }
