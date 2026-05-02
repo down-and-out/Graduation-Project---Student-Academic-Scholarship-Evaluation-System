@@ -5,7 +5,7 @@
         <h2 class="page-title">科研成果管理</h2>
         <p class="page-subtitle">按成果类型分别维护论文、专利、项目和竞赛记录。</p>
       </div>
-      <el-button type="primary" :disabled="!isTypeEditable" @click="handleAdd">
+      <el-button type="primary" @click="handleAdd">
         <el-icon><Plus /></el-icon>
         添加{{ activeTypeLabel }}
       </el-button>
@@ -39,89 +39,22 @@
     </el-form>
 
     <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
-      <template v-if="activeType === 'paper'">
-        <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="title" label="论文标题" min-width="220" />
-        <el-table-column prop="journalName" label="期刊名称" min-width="180" />
-        <el-table-column label="作者排名" width="120">
-          <template #default="{ row }">
-            {{ getAuthorRankLabel(row.authorRank) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="审核状态" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getRowStatusType(row)">
-              {{ getRowStatusLabel(row) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-      </template>
-
-      <template v-else-if="activeType === 'patent'">
-        <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="patentName" label="专利名称" min-width="220" />
-        <el-table-column prop="patentNo" label="专利号" min-width="180" />
-        <el-table-column label="专利类型" width="120">
-          <template #default="{ row }">
-            {{ getPatentTypeLabel(row.patentType) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="审核状态" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getRowStatusType(row)">
-              {{ getRowStatusLabel(row) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-      </template>
-
-      <template v-else-if="activeType === 'project'">
-        <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="projectName" label="项目名称" min-width="220" />
-        <el-table-column label="项目类型" width="120">
-          <template #default="{ row }">
-            {{ getProjectTypeLabel(row.projectType) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="项目角色" width="120">
-          <template #default="{ row }">
-            {{ getProjectRoleLabel(row.projectRole) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="审核状态" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getRowStatusType(row)">
-              {{ getRowStatusLabel(row) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-      </template>
-
-      <template v-else>
-        <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="competitionName" label="竞赛名称" min-width="220" />
-        <el-table-column label="竞赛级别" width="120">
-          <template #default="{ row }">
-            {{ getCompetitionLevelLabel(row.competitionLevel) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="获奖等级" width="120">
-          <template #default="{ row }">
-            {{ getCompetitionAwardLevelLabel(row.awardLevel) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="审核状态" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getRowStatusType(row)">
-              {{ getRowStatusLabel(row) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-      </template>
+      <el-table-column
+        v-for="col in currentTableColumns"
+        :key="col.label"
+        :type="col.type"
+        :prop="col.prop"
+        :label="col.label"
+        :width="col.width"
+        :min-width="col.minWidth"
+      >
+        <template v-if="col.formatter" #default="{ row }">
+          <el-tag v-if="col.tagType" :type="col.tagType(row)">
+            {{ col.formatter(row) }}
+          </el-tag>
+          <span v-else>{{ col.formatter(row) }}</span>
+        </template>
+      </el-table-column>
 
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
@@ -437,12 +370,16 @@ import {
   type ResearchPatent
 } from '@/api/patent'
 import {
+  addProject,
   getProjectPage,
+  updateProject,
   type ProjectPageParams,
   type ResearchProject
 } from '@/api/project'
 import {
+  addCompetition,
   getCompetitionPage,
+  updateCompetition,
   type CompetitionAward,
   type CompetitionPageParams
 } from '@/api/competition'
@@ -567,7 +504,7 @@ const queryParams = reactive({
   status: undefined as number | undefined | ''
 })
 
-const paperForm = reactive<PaperForm>({
+const PAPER_FORM_DEFAULTS: PaperForm = {
   id: null,
   paperTitle: '',
   authors: '',
@@ -576,9 +513,9 @@ const paperForm = reactive<PaperForm>({
   journalLevel: null,
   impactFactor: null,
   publicationDate: ''
-})
+}
 
-const patentForm = reactive<PatentForm>({
+const PATENT_FORM_DEFAULTS: PatentForm = {
   id: null,
   patentName: '',
   patentNo: '',
@@ -590,9 +527,9 @@ const patentForm = reactive<PatentForm>({
   applicationDate: '',
   patentStatus: 1,
   remark: ''
-})
+}
 
-const projectForm = reactive<ProjectForm>({
+const PROJECT_FORM_DEFAULTS: ProjectForm = {
   id: null,
   projectName: '',
   projectType: 1,
@@ -608,9 +545,9 @@ const projectForm = reactive<ProjectForm>({
   funding: null,
   projectStatus: 1,
   remark: ''
-})
+}
 
-const competitionForm = reactive<CompetitionForm>({
+const COMPETITION_FORM_DEFAULTS: CompetitionForm = {
   id: null,
   competitionName: '',
   competitionLevel: 1,
@@ -624,7 +561,15 @@ const competitionForm = reactive<CompetitionForm>({
   teamMembers: '',
   awardDate: '',
   remark: ''
-})
+}
+
+const paperForm = reactive<PaperForm>({ ...PAPER_FORM_DEFAULTS })
+
+const patentForm = reactive<PatentForm>({ ...PATENT_FORM_DEFAULTS })
+
+const projectForm = reactive<ProjectForm>({ ...PROJECT_FORM_DEFAULTS })
+
+const competitionForm = reactive<CompetitionForm>({ ...COMPETITION_FORM_DEFAULTS })
 
 const paperRules: FormRules<PaperForm> = {
   paperTitle: [{ required: true, message: '请输入论文标题', trigger: 'blur' }],
@@ -655,8 +600,6 @@ const competitionRules: FormRules<CompetitionForm> = {
 
 const activeTypeLabel = computed(() => achievementTypeOptions.find(item => item.value === activeType.value)?.label || '成果')
 
-const isTypeEditable = computed(() => activeType.value === 'paper' || activeType.value === 'patent')
-
 const currentStatusOptions = computed(() =>
   activeType.value === 'paper'
     ? [
@@ -669,11 +612,11 @@ const currentStatusOptions = computed(() =>
 )
 
 const currentFormModel = computed<Record<string, any>>(() =>
-  activeType.value === 'patent' ? patentForm : paperForm
+  TYPE_FIELD_CONFIG[activeType.value]?.formModel ?? paperForm
 )
 
 const currentFormRules = computed<FormRules>(() =>
-  activeType.value === 'patent' ? (patentRules as FormRules) : (paperRules as FormRules)
+  TYPE_FIELD_CONFIG[activeType.value]?.rules ?? (paperRules as FormRules)
 )
 
 const dialogTitle = computed(() => `${isEdit.value ? '编辑' : '添加'}${activeTypeLabel.value}`)
@@ -767,93 +710,17 @@ function getRowStatusType(row: AchievementRow): 'warning' | 'success' | 'danger'
 }
 
 function canEditRow(row: AchievementRow): boolean {
-  return isTypeEditable.value && getRowStatusValue(row) === APPLICATION_AUDIT_STATUS.PENDING
+  return getRowStatusValue(row) === APPLICATION_AUDIT_STATUS.PENDING
 }
 
 function canDeleteRow(row: AchievementRow): boolean {
   return isPaperRow(row) && row.status === APPLICATION_AUDIT_STATUS.PENDING
 }
 
-function resetPaperForm() {
-  Object.assign(paperForm, {
-    id: null,
-    paperTitle: '',
-    authors: '',
-    authorRank: AUTHOR_RANK.FIRST,
-    journalName: '',
-    journalLevel: null,
-    impactFactor: null,
-    publicationDate: ''
-  })
-}
-
-function resetPatentForm() {
-  Object.assign(patentForm, {
-    id: null,
-    patentName: '',
-    patentNo: '',
-    patentType: 1,
-    applicant: '',
-    inventors: '',
-    inventorRank: 1,
-    applicantRank: 1,
-    applicationDate: '',
-    patentStatus: 1,
-    remark: ''
-  })
-}
-
-function resetProjectForm() {
-  Object.assign(projectForm, {
-    id: null,
-    projectName: '',
-    projectType: 1,
-    projectLevel: 1,
-    projectNo: '',
-    projectSource: '',
-    leaderName: '',
-    memberRank: 1,
-    projectRole: 1,
-    participants: '',
-    startDate: '',
-    endDate: '',
-    funding: null,
-    projectStatus: 1,
-    remark: ''
-  })
-}
-
-function resetCompetitionForm() {
-  Object.assign(competitionForm, {
-    id: null,
-    competitionName: '',
-    competitionLevel: 1,
-    awardLevel: 2,
-    awardRank: 1,
-    awardType: 1,
-    memberRank: 1,
-    instructor: '',
-    issuingUnit: '',
-    organizer: '',
-    teamMembers: '',
-    awardDate: '',
-    remark: ''
-  })
-}
-
 function resetCurrentForm() {
-  switch (activeType.value) {
-    case 'patent':
-      resetPatentForm()
-      break
-    case 'project':
-      resetProjectForm()
-      break
-    case 'competition':
-      resetCompetitionForm()
-      break
-    default:
-      resetPaperForm()
+  const config = TYPE_FIELD_CONFIG[activeType.value]
+  if (config?.formModel && config?.defaultValues) {
+    Object.assign(config.formModel, config.defaultValues)
   }
 }
 
@@ -953,7 +820,6 @@ function handleSizeChange(): void {
 }
 
 function handleAdd(): void {
-  if (!isTypeEditable.value) return
   isEdit.value = false
   resetCurrentForm()
   formRef.value?.clearValidate()
@@ -972,18 +838,41 @@ interface DetailField {
   value: (row: any) => string
 }
 
+interface TableColumnConfig {
+  type?: 'index'
+  prop?: string
+  label: string
+  width?: string | number
+  minWidth?: string | number
+  formatter?: (row: any) => string
+  tagType?: (row: any) => 'warning' | 'success' | 'danger' | 'info' | 'primary'
+}
+
 interface TypeFieldMapping {
   formModel?: Record<string, any>
+  rules?: FormRules
+  defaultValues?: Record<string, any>
   extractEditFields?: (row: Record<string, any>) => Record<string, any>
   getFormPayload?: (form: Record<string, any>, isEdit: boolean) => Record<string, any>
   submitCreate?: (payload: any) => Promise<any>
   submitUpdate?: (id: number, payload: any) => Promise<any>
   detailFields: DetailField[]
+  tableColumns: TableColumnConfig[]
 }
 
 const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
   paper: {
     formModel: paperForm,
+    rules: paperRules,
+    defaultValues: PAPER_FORM_DEFAULTS,
+    tableColumns: [
+      { type: 'index', label: '序号', width: 60 },
+      { prop: 'title', label: '论文标题', minWidth: 220 },
+      { prop: 'journalName', label: '期刊名称', minWidth: 180 },
+      { label: '作者排名', width: 120, formatter: (row) => getAuthorRankLabel(row.authorRank) },
+      { label: '审核状态', width: 120, formatter: (row) => getRowStatusLabel(row), tagType: (row) => getRowStatusType(row) },
+      { prop: 'createTime', label: '创建时间', width: 180 }
+    ],
     extractEditFields: (row) => ({
       id: row.id ?? null,
       paperTitle: row.title || row.paperTitle || '',
@@ -1022,6 +911,16 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
   },
   patent: {
     formModel: patentForm,
+    rules: patentRules,
+    defaultValues: PATENT_FORM_DEFAULTS,
+    tableColumns: [
+      { type: 'index', label: '序号', width: 60 },
+      { prop: 'patentName', label: '专利名称', minWidth: 220 },
+      { prop: 'patentNo', label: '专利号', minWidth: 180 },
+      { label: '专利类型', width: 120, formatter: (row) => getPatentTypeLabel(row.patentType) },
+      { label: '审核状态', width: 120, formatter: (row) => getRowStatusLabel(row), tagType: (row) => getRowStatusType(row) },
+      { prop: 'createTime', label: '创建时间', width: 180 }
+    ],
     extractEditFields: (row) => ({
       id: row.id ?? null,
       patentName: row.patentName || '',
@@ -1065,6 +964,52 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
     ]
   },
   project: {
+    formModel: projectForm,
+    rules: projectRules,
+    defaultValues: PROJECT_FORM_DEFAULTS,
+    tableColumns: [
+      { type: 'index', label: '序号', width: 60 },
+      { prop: 'projectName', label: '项目名称', minWidth: 220 },
+      { label: '项目类型', width: 120, formatter: (row) => getProjectTypeLabel(row.projectType) },
+      { label: '项目角色', width: 120, formatter: (row) => getProjectRoleLabel(row.projectRole) },
+      { label: '审核状态', width: 120, formatter: (row) => getRowStatusLabel(row), tagType: (row) => getRowStatusType(row) },
+      { prop: 'createTime', label: '创建时间', width: 180 }
+    ],
+    extractEditFields: (row) => ({
+      id: row.id ?? null,
+      projectName: row.projectName || '',
+      projectType: row.projectType || 1,
+      projectLevel: row.projectLevel || 1,
+      projectNo: row.projectNo || '',
+      projectSource: row.projectSource || '',
+      leaderName: row.leaderName || '',
+      memberRank: row.memberRank ?? 1,
+      projectRole: row.projectRole || 1,
+      participants: row.participants || '',
+      startDate: row.startDate || '',
+      endDate: row.endDate || '',
+      funding: row.funding ?? null,
+      projectStatus: row.projectStatus || 1,
+      remark: row.remark || ''
+    }),
+    getFormPayload: (form, _isEdit) => ({
+      projectName: form.projectName,
+      projectType: form.projectType,
+      projectLevel: form.projectLevel,
+      projectNo: form.projectNo || undefined,
+      projectSource: form.projectSource || undefined,
+      leaderName: form.leaderName || undefined,
+      memberRank: form.memberRank ?? 1,
+      projectRole: form.projectRole,
+      participants: form.participants || undefined,
+      startDate: form.startDate || undefined,
+      endDate: form.endDate || undefined,
+      funding: form.funding ?? undefined,
+      projectStatus: form.projectStatus,
+      remark: form.remark || undefined
+    }),
+    submitCreate: (payload) => addProject(payload as Omit<ResearchProject, 'id'>),
+    submitUpdate: (id, payload) => updateProject({ id, ...payload }),
     detailFields: [
       { label: '项目名称', span: 2, value: (row) => row.projectName || '-' },
       { label: '项目类型', value: (row) => getProjectTypeLabel(row.projectType) },
@@ -1085,6 +1030,48 @@ const TYPE_FIELD_CONFIG: Record<string, TypeFieldMapping> = {
     ]
   },
   competition: {
+    formModel: competitionForm,
+    rules: competitionRules,
+    defaultValues: COMPETITION_FORM_DEFAULTS,
+    tableColumns: [
+      { type: 'index', label: '序号', width: 60 },
+      { prop: 'competitionName', label: '竞赛名称', minWidth: 220 },
+      { label: '竞赛级别', width: 120, formatter: (row) => getCompetitionLevelLabel(row.competitionLevel) },
+      { label: '获奖等级', width: 120, formatter: (row) => getCompetitionAwardLevelLabel(row.awardLevel) },
+      { label: '审核状态', width: 120, formatter: (row) => getRowStatusLabel(row), tagType: (row) => getRowStatusType(row) },
+      { prop: 'createTime', label: '创建时间', width: 180 }
+    ],
+    extractEditFields: (row) => ({
+      id: row.id ?? null,
+      competitionName: row.competitionName || '',
+      competitionLevel: row.competitionLevel || 1,
+      awardLevel: row.awardLevel || 2,
+      awardRank: row.awardRank ?? 1,
+      awardType: row.awardType || 1,
+      memberRank: row.memberRank ?? 1,
+      instructor: row.instructor || '',
+      issuingUnit: row.issuingUnit || '',
+      organizer: row.organizer || '',
+      teamMembers: row.teamMembers || '',
+      awardDate: row.awardDate || '',
+      remark: row.remark || ''
+    }),
+    getFormPayload: (form, _isEdit) => ({
+      competitionName: form.competitionName,
+      competitionLevel: form.competitionLevel,
+      awardLevel: form.awardLevel,
+      awardRank: form.awardRank ?? undefined,
+      awardType: form.awardType ?? undefined,
+      memberRank: form.memberRank ?? undefined,
+      instructor: form.instructor || undefined,
+      issuingUnit: form.issuingUnit || undefined,
+      organizer: form.organizer || undefined,
+      teamMembers: form.teamMembers || undefined,
+      awardDate: form.awardDate || undefined,
+      remark: form.remark || undefined
+    }),
+    submitCreate: (payload) => addCompetition(payload as Omit<CompetitionAward, 'id'>),
+    submitUpdate: (id, payload) => updateCompetition({ id, ...payload }),
     detailFields: [
       { label: '竞赛名称', span: 2, value: (row) => row.competitionName || '-' },
       { label: '竞赛级别', value: (row) => getCompetitionLevelLabel(row.competitionLevel) },
@@ -1108,9 +1095,12 @@ const detailFields = computed<DetailField[]>(() =>
   TYPE_FIELD_CONFIG[activeType.value]?.detailFields ?? []
 )
 
+const currentTableColumns = computed<TableColumnConfig[]>(() =>
+  TYPE_FIELD_CONFIG[activeType.value]?.tableColumns ?? []
+)
+
 function handleEdit(row: AchievementRow): void {
-  if (!isTypeEditable.value) return
-  const config = TYPE_FIELD_CONFIG[activeType.value as 'paper' | 'patent']
+  const config = TYPE_FIELD_CONFIG[activeType.value]
   if (!config || !config.formModel || !config.extractEditFields) return
   isEdit.value = true
   Object.assign(config.formModel, config.extractEditFields(row as Record<string, any>))
@@ -1140,12 +1130,11 @@ function handleDelete(row: AchievementRow): void {
 }
 
 async function handleSubmit(): Promise<void> {
-  if (!isTypeEditable.value) return
   if (!formRef.value) return
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
-  const config = TYPE_FIELD_CONFIG[activeType.value as 'paper' | 'patent']
+  const config = TYPE_FIELD_CONFIG[activeType.value]
   if (!config || !config.formModel || !config.getFormPayload || !config.submitCreate || !config.submitUpdate) return
 
   saving.value = true
